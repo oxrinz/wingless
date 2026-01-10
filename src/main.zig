@@ -4,6 +4,8 @@ const utils = @import("utils.zig");
 
 const c = @import("c.zig").c;
 
+var allocator = std.heap.page_allocator;
+
 const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
@@ -26,9 +28,6 @@ const WinglessServer = struct {
     allocator: std.mem.Allocator = undefined,
 
     pub fn init() !*WinglessServer {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        var allocator = gpa.allocator();
-
         var server = try allocator.create(WinglessServer);
         server.* = .{};
         server.display = c.wl_display_create() orelse return error.DispayCreationFailed;
@@ -89,16 +88,16 @@ const WinglessKeyboard = struct {
     destroy: *c.wl_listener,
 
     pub fn init(server: *WinglessServer, device: *c.wlr_input_device) !*WinglessKeyboard {
-        std.debug.print("check 1, alloc: {any}\n", .{server.allocator});
+        std.debug.print("check 1, alloc: {any}\n", .{allocator});
         const keyboard = try server.allocator.create(WinglessKeyboard);
 
-        const link: *c.wl_list = undefined;
-        c.wl_list_init(link);
+        var link: c.wl_list = undefined;
+        c.wl_list_init(@ptrCast(@constCast(&link)));
 
         std.debug.print("check 1", .{});
 
         keyboard.* = .{
-            .link = link,
+            .link = &link,
             .server = server,
             .wlr_keyboard = c.wlr_keyboard_from_input_device(device),
 
