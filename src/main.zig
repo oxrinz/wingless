@@ -47,6 +47,7 @@ const WinglessServer = struct {
         _ = c.wlr_renderer_init_wl_display(server.renderer, server.display);
 
         _ = c.wlr_compositor_create(server.display, 5, server.renderer);
+        _ = c.wlr_subcompositor_create(server.display);
         _ = c.wlr_data_device_manager_create(server.display);
 
         server.output_layout = c.wlr_output_layout_create(server.display);
@@ -59,7 +60,7 @@ const WinglessServer = struct {
         server.scene_layout = c.wlr_scene_attach_output_layout(server.scene, server.output_layout) orelse return error.SceneCreationFailed;
 
         c.wl_list_init(&server.toplevels);
-        server.xdg_shell = c.wlr_xdg_shell_create(server.display, 3);
+        server.xdg_shell = c.wlr_xdg_shell_create(server.display, 3) orelse @panic("Failed to create xdgshell");
 
         server.new_xdg_toplevel = .{ .link = undefined, .notify = server_new_xdg_toplevel };
         server.new_xdg_popup = .{ .link = undefined, .notify = server_new_xdg_popup };
@@ -67,6 +68,8 @@ const WinglessServer = struct {
         c.wl_signal_add(&server.xdg_shell.events.new_surface, &server.new_xdg_surface);
         c.wl_signal_add(&server.xdg_shell.events.new_toplevel, &server.new_xdg_toplevel);
         c.wl_signal_add(&server.xdg_shell.events.new_popup, &server.new_xdg_popup);
+
+        // std.debug.print("xdg_shell: {any}\n", .{server.xdg_shell});
 
         server.cursor = c.wlr_cursor_create();
         c.wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
@@ -160,6 +163,11 @@ const WinglessToplevel = struct {
     xdg_toplevel: *c.wlr_xdg_toplevel,
     scene_tree: *c.wlr_scene_tree,
 
+    map: c.wl_listener,
+    unmap: c.wl_listener,
+    commit: c.wl_listener,
+    destroy: c.wl_listener,
+
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
 
@@ -168,13 +176,28 @@ const WinglessToplevel = struct {
             .server = server,
             .xdg_toplevel = xdg_toplevel,
             .scene_tree = c.wlr_scene_xdg_surface_create(&server.scene.tree, xdg_toplevel.base),
+
+            .map = .{ .link = undefined, .notify = xdg_toplevel_map },
+            .unmap = undefined,
+            .commit = .{ .link = undefined, .notify = xdg_toplevel_commit },
+            .destroy = undefined,
         };
+
+        {
+            const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+            const surface: *c.wlr_surface = @ptrCast(xdg_surface.surface);
+
+            c.wl_signal_add(&surface.events.map, &toplevel.map);
+            c.wl_signal_add(&surface.events.commit, &toplevel.commit);
+        }
+        std.debug.print("xdg_surface in init: {any}\n", .{toplevel.xdg_toplevel.base});
 
         toplevel.scene_tree.node.data = toplevel;
         const surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         surface.data = toplevel.scene_tree;
         c.wl_list_init(@ptrCast(@constCast(&toplevel.link)));
 
+        std.debug.print("server in init: {any}\n", .{toplevel.server});
         return toplevel;
     }
 };
@@ -184,6 +207,36 @@ fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
     std.debug.print("new client connected\n", .{});
+}
+
+fn focus_toplevel(toplevel: *WinglessToplevel) void {
+    _ = toplevel;
+}
+
+fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+
+    c.wl_list_insert(&toplevel.server.toplevels, &toplevel.link);
+
+    focus_toplevel(toplevel);
+
+    std.debug.print("toplevel map!\n", .{});
+}
+
+fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+
+    std.debug.print("toplevel in commit: {any}\n", .{toplevel});
+
+    const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+    if (xdg_surface.initial_commit) {
+        _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+    }
+    std.debug.print("toplevel commit!\n", .{});
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -236,6 +289,11 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 &[_][]const u8{"kitty"},
                 std.heap.page_allocator,
             );
+
+            var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
+            env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
+            child.env_map = @constCast(&env);
+
             child.spawn() catch @panic("Kitty failed");
             std.debug.print("spawned kitty\n", .{});
         }
@@ -314,8 +372,8 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
     _ = c.wlr_output_init_render(wlr_output, server.wlr_allocator, server.renderer);
 
-    const state: c.wlr_output_state = undefined;
-    c.wlr_output_state_init(@ptrCast(@constCast(&state)));
+    var state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(@ptrCast(&state));
     c.wlr_output_state_set_enabled(@ptrCast(@constCast(&state)), true);
 
     const mode = c.wlr_output_preferred_mode(wlr_output);
@@ -342,7 +400,7 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 }
 
 pub fn main() !void {
-    c.wlr_log_init(c.WLR_DEBUG, null);
+    // c.wlr_log_init(c.WLR_DEBUG, null);
 
     var server = try WinglessServer.init();
 

@@ -15,6 +15,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_data_device.h");
     @cInclude("wlr/types/wlr_output_layout.h");
     @cInclude("wlr/types/wlr_scene.h");
+    @cInclude("wlr/types/wlr_subcompositor.h");
     @cInclude("wlr/types/wlr_xcursor_manager.h");
     @cInclude("wlr/types/wlr_xdg_shell.h");
     @cInclude("wlr/util/log.h");
