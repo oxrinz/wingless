@@ -1,12 +1,12 @@
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.048 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.047 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.062 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
-00:00:00.068 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
+00:00:00.061 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.067 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
 00:00:00.070 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "eglInitialize"
 00:00:00.070 [ERROR] [render/egl.c:269] Failed to initialize EGL
 00:00:00.070 [ERROR] [render/egl.c:611] Failed to initialize EGL context
@@ -15,269 +15,200 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.073 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
 00:00:00.073 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39d5aa40, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2f02b80, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39c1bc00, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2d6f3e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39c69fb0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2e3af70, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39c87140, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2de2580, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39c6c3e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2f2c380, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
+display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@39d7e430, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@2f07220, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39c3fc20, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2f06dd0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
+display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@39dd5500, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@2f3a610, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39cff730, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2ea7770, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
+display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@39dff010, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@2fa68c0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39d67c80, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2efa570, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39e09590, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2f9c340, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
+display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@39c9fdb0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@2fb10a0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@39d41400, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@2ee9540, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
-display in keyboard init server: cimport.struct_wl_display@39129720
-display in keyboard server: cimport.struct_wl_display@39129720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@3912ad60, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@22d1720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@22d2d60, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@39129720
+display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@39d450f0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@2eed230, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW OUTPUT
-new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@39129720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7f3ccc7f4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7f3ccc7f1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7f3ccc7f22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@3a141138, .next = cimport.struct_wl_list@3a141138 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@39bc2790, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@3a0ded18, .next = cimport.struct_wl_list@3a0ded18 }, .display = cimport.struct_wl_display@39129720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7f3cc8ca0000, .next = cimport.struct_wl_list@7f3cc8ca0000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@391298f0, .next = cimport.struct_wl_list@7ffcdbef8f70 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152390 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@391297a8, .next = cimport.struct_wl_list@391297a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@11534f0 }, .xdg_shell = .{ .global = cimport.struct_wl_global@39bc2800, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@39a79b20, .next = cimport.struct_wl_list@39a79b20 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@39a79b30, .next = cimport.struct_wl_list@39a79b30 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b48, .next = cimport.struct_wl_list@39a79b48 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153460 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b58, .next = cimport.struct_wl_list@39a79b58 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153260 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b68, .next = cimport.struct_wl_list@39a79b68 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153440 }, .toplevels = .{ .prev = cimport.struct_wl_list@7f3cccb590c8, .next = cimport.struct_wl_list@7f3cccb590c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@39bc2850, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@39bc2ae0, .next = cimport.struct_wl_list@39bc2ae0 } }, .keyboards = .{ .prev = cimport.struct_wl_list@7f3ccbbb8000, .next = cimport.struct_wl_list@7f3cc8ca1000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@391298e0, .next = cimport.struct_wl_list@391298e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153a70 }, .seat = .{ .global = cimport.struct_wl_global@39bc6530, .display = cimport.struct_wl_display@39129720, .clients = .{ .prev = cimport.struct_wl_list@39bc6110, .next = cimport.struct_wl_list@39bc6110 }, .name = u8@39abad20, .capabilities = 0, .accumulated_capabilities = 0, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@39bc6140, .next = cimport.struct_wl_list@39bc6140 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@39bc6178, .next = cimport.struct_wl_list@39bc6178 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@39a70390, .default_grab = cimport.struct_wlr_seat_pointer_grab@39a70390, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .keyboard = cimport.struct_wlr_keyboard@39ed83e8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@39a5e340, .default_grab = cimport.struct_wlr_seat_keyboard_grab@39a5e340, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@39a5e380, .default_grab = cimport.struct_wlr_seat_touch_grab@39a5e380 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } } }
+new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@22d1720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7fcc70158420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7fcc70155d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7fcc701562d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@32e98b8, .next = cimport.struct_wl_list@32e98b8 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@2d6a780, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@30b66d8, .next = cimport.struct_wl_list@30b66d8 }, .display = cimport.struct_wl_display@22d1720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7fcc6c499000, .next = cimport.struct_wl_list@7fcc6c499000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@22d18f0, .next = cimport.struct_wl_list@7fff2428fbb0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1151400 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@22d17a8, .next = cimport.struct_wl_list@22d17a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152500 }, .xdg_shell = .{ .global = cimport.struct_wl_global@2d6a7f0, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@2d713b0, .next = cimport.struct_wl_list@2d713b0 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@2d713c0, .next = cimport.struct_wl_list@2d713c0 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@2d713d8, .next = cimport.struct_wl_list@2d713d8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152470 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@2d713e8, .next = cimport.struct_wl_list@2d713e8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152270 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@2d713f8, .next = cimport.struct_wl_list@2d713f8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152450 }, .toplevels = .{ .prev = cimport.struct_wl_list@7fcc702860c8, .next = cimport.struct_wl_list@7fcc702860c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@2d6a840, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@2d6aad0, .next = cimport.struct_wl_list@2d6aad0 } }, .keyboards = .{ .prev = cimport.struct_wl_list@7fcc6f4a4000, .next = cimport.struct_wl_list@7fcc6c49a000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@22d18e0, .next = cimport.struct_wl_list@22d18e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152a30 }, .seat = .{ .global = cimport.struct_wl_global@2d6f120, .display = cimport.struct_wl_display@22d1720, .clients = .{ .prev = cimport.struct_wl_list@2d6e090, .next = cimport.struct_wl_list@2d6e090 }, .name = u8@2bf83c0, .capabilities = 0, .accumulated_capabilities = 0, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@2d6e0c0, .next = cimport.struct_wl_list@2d6e0c0 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@2d6e0f8, .next = cimport.struct_wl_list@2d6e0f8 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@2c0d350, .default_grab = cimport.struct_wlr_seat_pointer_grab@2c0d350, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .keyboard = cimport.struct_wlr_keyboard@3080ca8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@2c039e0, .default_grab = cimport.struct_wlr_seat_keyboard_grab@2c039e0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@2cf79e0, .default_grab = cimport.struct_wlr_seat_touch_grab@2cf79e0 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } } }
 Running wayland compositor on wayland-0
 handled 107
 spawned kitty
-[0.043] Ignoring unknown config key: enable_ligatures
-[0.043] Ignoring unknown config key: keyboard_layout
+[0.044] Ignoring unknown config key: enable_ligatures
+[0.044] Ignoring unknown config key: keyboard_layout
 new client connected
-[1311378.737] {Default Queue}  -> wl_display#1.get_registry(new id wl_registry#2)
-[1311378.747] {Default Queue}  -> wl_display#1.sync(new id wl_callback#3)
-[1311378.807] {Display Queue} wl_display#1.delete_id(3)
-[1311378.810] {Default Queue} wl_registry#2.global(1, "wl_shm", 2)
-[1311378.813] {Default Queue}  -> wl_registry#2.bind(1, "wl_shm", 1, new id [unknown]#4)
-[1311378.815] {Default Queue} wl_registry#2.global(2, "zwp_linux_dmabuf_v1", 4)
-[1311378.817] {Default Queue} wl_registry#2.global(3, "wl_compositor", 5)
-[1311378.819] {Default Queue}  -> wl_registry#2.bind(3, "wl_compositor", 5, new id [unknown]#5)
-[1311378.821] {Default Queue} wl_registry#2.global(4, "wl_subcompositor", 1)
-[1311378.823] {Default Queue}  -> wl_registry#2.bind(4, "wl_subcompositor", 1, new id [unknown]#6)
-[1311378.825] {Default Queue} wl_registry#2.global(5, "wl_data_device_manager", 3)
-[1311378.827] {Default Queue}  -> wl_registry#2.bind(5, "wl_data_device_manager", 1, new id [unknown]#7)
-[1311378.829] {Default Queue} wl_registry#2.global(6, "xdg_wm_base", 3)
-[1311378.832] {Default Queue}  -> wl_registry#2.bind(6, "xdg_wm_base", 3, new id [unknown]#8)
-[1311378.834] {Default Queue} wl_registry#2.global(7, "wl_seat", 9)
-[1311378.836] {Default Queue}  -> wl_registry#2.bind(7, "wl_seat", 9, new id [unknown]#9)
-[1311378.839] {Default Queue}  -> wl_data_device_manager#7.get_data_device(new id wl_data_device#10, wl_seat#9)
-[1311378.841] {Default Queue} wl_registry#2.global(8, "wl_output", 4)
-[1311378.843] {Default Queue}  -> wl_registry#2.bind(8, "wl_output", 4, new id [unknown]#11)
-[1311378.845] {Default Queue} wl_callback#3.done(0)
-[1311378.847] {Default Queue}  -> wl_display#1.sync(new id wl_callback#3)
-[1311378.922] {Display Queue} wl_display#1.delete_id(3)
-[1311378.924] {Default Queue} discarded wl_shm#4.format(0)
-[1311378.926] {Default Queue} discarded wl_shm#4.format(1)
-[1311378.927] {Default Queue} discarded wl_shm#4.format(875709016)
-[1311378.928] {Default Queue} discarded wl_shm#4.format(875708993)
-[1311378.929] {Default Queue} discarded wl_shm#4.format(875710274)
-[1311378.930] {Default Queue} discarded wl_shm#4.format(842094674)
-[1311378.931] {Default Queue} discarded wl_shm#4.format(842088786)
-[1311378.933] {Default Queue} discarded wl_shm#4.format(892426322)
-[1311378.934] {Default Queue} discarded wl_shm#4.format(892420434)
-[1311378.935] {Default Queue} discarded wl_shm#4.format(909199186)
-[1311378.936] {Default Queue} discarded wl_shm#4.format(808665688)
-[1311378.937] {Default Queue} discarded wl_shm#4.format(808665665)
-[1311378.938] {Default Queue} discarded wl_shm#4.format(1211384408)
-[1311378.939] {Default Queue} discarded wl_shm#4.format(1211384385)
-[1311378.941] {Default Queue} discarded wl_shm#4.format(942948952)
-[1311378.942] {Default Queue} discarded wl_shm#4.format(942948929)
-[1311378.944] {Default Queue} wl_seat#9.name("seat0")
-[1311378.946] {Default Queue} wl_seat#9.capabilities(0)
-[1311378.948] {Default Queue} wl_output#11.geometry(0, 0, 600, 340, 0, "Ancor Communications Inc", "ASUS MG278", 0)
-[1311378.952] {Default Queue} wl_output#11.mode(1, 2560, 1440, 143856)
-[1311378.960] {Default Queue} wl_output#11.scale(1)
-[1311378.961] {Default Queue} wl_output#11.name("DP-5")
-[1311378.963] {Default Queue} wl_output#11.description("Ancor Communications Inc ASUS MG278 0x0000E1B3 (DP-5)")
-[1311378.964] {Default Queue} wl_output#11.done()
-[1311378.965] {Default Queue} wl_callback#3.done(0)
-[1311378.967] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#3)
-[1311387.676] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#12)
-[1311387.682] {Default Queue}  -> wl_compositor#5.create_region(new id wl_region#13)
-[1311387.685] {Default Queue}  -> wl_region#13.add(0, 0, 2560, 1416)
-[1311387.687] {Default Queue}  -> wl_surface#12.set_opaque_region(wl_region#13)
-[1311387.689] {Default Queue}  -> wl_region#13.destroy()
-[1311387.692] {Default Queue}  -> wl_surface#12.set_buffer_scale(1)
-[1311387.694] {Default Queue}  -> xdg_wm_base#8.get_xdg_surface(new id xdg_surface#14, wl_surface#12)
-[1311387.697] {Default Queue}  -> xdg_surface#14.get_toplevel(new id xdg_toplevel#15)
-[1311387.699] {Default Queue}  -> xdg_toplevel#15.set_app_id("kitty")
-[1311387.701] {Default Queue}  -> xdg_toplevel#15.set_title("kitty")
-[1311388.260] {Default Queue}  -> wl_shm#4.create_pool(new id wl_shm_pool#16, fd 8, 1264128)
-[1311388.266] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#17, 0, 2560, 24, 10240, 0)
-[1311388.269] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#18, 245760, 2560, 24, 10240, 0)
-[1311388.272] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#19, 491520, 12, 1440, 48, 0)
-[1311388.275] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#20, 560640, 12, 1440, 48, 0)
-[1311388.277] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#21, 629760, 2560, 12, 10240, 0)
-[1311388.280] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#22, 752640, 2560, 12, 10240, 0)
-[1311388.283] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#23, 875520, 12, 1440, 48, 0)
-[1311388.286] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#24, 944640, 12, 1440, 48, 0)
-[1311388.289] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#25, 1013760, 2560, 12, 10240, 0)
-[1311388.291] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#26, 1136640, 2560, 12, 10240, 0)
-[1311388.294] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#27, 1259520, 12, 12, 48, 0)
-[1311388.297] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#28, 1260096, 12, 12, 48, 0)
-[1311388.300] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#29, 1260672, 12, 12, 48, 0)
-[1311388.302] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#30, 1261248, 12, 12, 48, 0)
-[1311388.305] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#31, 1261824, 12, 12, 48, 0)
-[1311388.308] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#32, 1262400, 12, 12, 48, 0)
-[1311388.311] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#33, 1262976, 12, 12, 48, 0)
-[1311388.313] {Default Queue}  -> wl_shm_pool#16.create_buffer(new id wl_buffer#34, 1263552, 12, 12, 48, 0)
-[1311388.316] {Default Queue}  -> wl_shm_pool#16.destroy()
-[1311389.200] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#35)
-[1311389.205] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#36, wl_surface#35, wl_surface#12)
-[1311389.208] {Default Queue}  -> wl_surface#35.set_buffer_scale(1)
-[1311389.210] {Default Queue}  -> wl_subsurface#36.set_position(0, -24)
-[1311389.212] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#37)
-[1311389.213] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#38, wl_surface#37, wl_surface#12)
-[1311389.215] {Default Queue}  -> wl_surface#37.set_buffer_scale(1)
-[1311389.217] {Default Queue}  -> wl_subsurface#38.set_position(0, -36)
-[1311389.218] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#39)
-[1311389.220] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#40, wl_surface#39, wl_surface#12)
-[1311389.221] {Default Queue}  -> wl_surface#39.set_buffer_scale(1)
-[1311389.223] {Default Queue}  -> wl_subsurface#40.set_position(0, 1416)
-[1311389.224] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#41)
-[1311389.226] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#42, wl_surface#41, wl_surface#12)
-[1311389.228] {Default Queue}  -> wl_surface#41.set_buffer_scale(1)
-[1311389.229] {Default Queue}  -> wl_subsurface#42.set_position(-12, -24)
-[1311389.230] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#43)
-[1311389.232] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#44, wl_surface#43, wl_surface#12)
-[1311389.235] {Default Queue}  -> wl_surface#43.set_buffer_scale(1)
-[1311389.236] {Default Queue}  -> wl_subsurface#44.set_position(2560, -24)
-[1311389.239] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#45)
-[1311389.240] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#46, wl_surface#45, wl_surface#12)
-[1311389.243] {Default Queue}  -> wl_surface#45.set_buffer_scale(1)
-[1311389.244] {Default Queue}  -> wl_subsurface#46.set_position(-12, -36)
-[1311389.246] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#47)
-[1311389.247] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#48, wl_surface#47, wl_surface#12)
-[1311389.249] {Default Queue}  -> wl_surface#47.set_buffer_scale(1)
-[1311389.250] {Default Queue}  -> wl_subsurface#48.set_position(2560, -36)
-[1311389.252] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#49)
-[1311389.253] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#50, wl_surface#49, wl_surface#12)
-[1311389.255] {Default Queue}  -> wl_surface#49.set_buffer_scale(1)
-[1311389.256] {Default Queue}  -> wl_subsurface#50.set_position(-12, 1416)
-[1311389.257] {Default Queue}  -> wl_compositor#5.create_surface(new id wl_surface#51)
-[1311389.259] {Default Queue}  -> wl_subcompositor#6.get_subsurface(new id wl_subsurface#52, wl_surface#51, wl_surface#12)
-[1311389.261] {Default Queue}  -> wl_surface#51.set_buffer_scale(1)
-[1311389.262] {Default Queue}  -> wl_subsurface#52.set_position(2560, 1416)
-[1311389.264] {Default Queue}  -> wl_surface#35.attach(wl_buffer#17, 0, 0)
-[1311389.265] {Default Queue}  -> wl_surface#35.damage(0, 0, 2560, 24)
-[1311389.268] {Default Queue}  -> wl_surface#35.commit()
-[1311389.269] {Default Queue}  -> wl_surface#41.attach(wl_buffer#20, 0, 0)
-[1311389.272] {Default Queue}  -> wl_surface#41.damage(0, 0, 12, 1440)
-[1311389.273] {Default Queue}  -> wl_surface#41.commit()
-[1311389.275] {Default Queue}  -> wl_surface#43.attach(wl_buffer#24, 0, 0)
-[1311389.277] {Default Queue}  -> wl_surface#43.damage(0, 0, 12, 1440)
-[1311389.279] {Default Queue}  -> wl_surface#43.commit()
-[1311389.281] {Default Queue}  -> wl_surface#37.attach(wl_buffer#22, 0, 0)
-[1311389.283] {Default Queue}  -> wl_surface#37.damage(0, 0, 2560, 12)
-[1311389.285] {Default Queue}  -> wl_surface#37.commit()
-[1311389.287] {Default Queue}  -> wl_surface#39.attach(wl_buffer#26, 0, 0)
-[1311389.289] {Default Queue}  -> wl_surface#39.damage(0, 0, 2560, 12)
-[1311389.291] {Default Queue}  -> wl_surface#39.commit()
-[1311389.292] {Default Queue}  -> wl_surface#45.attach(wl_buffer#28, 0, 0)
-[1311389.294] {Default Queue}  -> wl_surface#45.damage(0, 0, 12, 12)
-[1311389.296] {Default Queue}  -> wl_surface#45.commit()
-[1311389.297] {Default Queue}  -> wl_surface#47.attach(wl_buffer#30, 0, 0)
-[1311389.299] {Default Queue}  -> wl_surface#47.damage(0, 0, 12, 12)
-[1311389.301] {Default Queue}  -> wl_surface#47.commit()
-[1311389.302] {Default Queue}  -> wl_surface#49.attach(wl_buffer#32, 0, 0)
-[1311389.304] {Default Queue}  -> wl_surface#49.damage(0, 0, 12, 12)
-[1311389.307] {Default Queue}  -> wl_surface#49.commit()
-[1311389.309] {Default Queue}  -> wl_surface#51.attach(wl_buffer#34, 0, 0)
-[1311389.310] {Default Queue}  -> wl_surface#51.damage(0, 0, 12, 12)
-[1311389.312] {Default Queue}  -> wl_surface#51.commit()
-[1311389.313] {Default Queue}  -> wl_surface#12.commit()
-[1311389.315] {Default Queue}  -> wl_display#1.sync(new id wl_callback#53)
 new surface!
-xdg_surface in init: cimport.struct_wlr_xdg_surface@3a136fa0
-server in init: .{ .display = cimport.struct_wl_display@39129720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7f3ccc7f4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7f3ccc7f1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7f3ccc7f22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@3a141138, .next = cimport.struct_wl_list@3a141138 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@39bc2790, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@3a0ded18, .next = cimport.struct_wl_list@3a0ded18 }, .display = cimport.struct_wl_display@39129720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7f3cc8ca0000, .next = cimport.struct_wl_list@7f3cc8ca0000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@391298f0, .next = cimport.struct_wl_list@391298f0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152390 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@391297a8, .next = cimport.struct_wl_list@391297a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@11534f0 }, .xdg_shell = .{ .global = cimport.struct_wl_global@39bc2800, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@39d45598, .next = cimport.struct_wl_list@39d45598 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@39a79b30, .next = cimport.struct_wl_list@39a79b30 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b48, .next = cimport.struct_wl_list@39a79b48 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153460 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b58, .next = cimport.struct_wl_list@7ffcdbef89b0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153260 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@39a79b68, .next = cimport.struct_wl_list@39a79b68 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153440 }, .toplevels = .{ .prev = cimport.struct_wl_list@7f3cccb590c8, .next = cimport.struct_wl_list@7f3cccb590c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@39bc2850, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@39bc2ae0, .next = cimport.struct_wl_list@39bc2ae0 } }, .keyboards = .{ .prev = cimport.struct_wl_list@7f3ccbbb8000, .next = cimport.struct_wl_list@7f3cc8ca1000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@391298e0, .next = cimport.struct_wl_list@391298e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1153a70 }, .seat = .{ .global = cimport.struct_wl_global@39bc6530, .display = cimport.struct_wl_display@39129720, .clients = .{ .prev = cimport.struct_wl_list@39d0c780, .next = cimport.struct_wl_list@39d0c780 }, .name = u8@39abad20, .capabilities = 0, .accumulated_capabilities = 0, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@39bc6140, .next = cimport.struct_wl_list@39bc6140 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@39bc6178, .next = cimport.struct_wl_list@39bc6178 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@39a70390, .default_grab = cimport.struct_wlr_seat_pointer_grab@39a70390, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .keyboard = cimport.struct_wlr_keyboard@39ed83e8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@39a5e340, .default_grab = cimport.struct_wlr_seat_keyboard_grab@39a5e340, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@39bc6100, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@39a5e380, .default_grab = cimport.struct_wlr_seat_touch_grab@39a5e380 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11d6f40, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11d6fc0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11d7050, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11d70d0 } } }
 new toplevel!
-toplevel in commit: .{ .link = .{ .prev = cimport.struct_wl_list@39c67b58, .next = cimport.struct_wl_list@11550a0 }, .server = General protection exception (no address available)
-/usr/lib/zig/std/Io/Writer.zig:1340:71: 0x1186d1c in printValue__anon_30143 (std.zig)
-                .@"enum", .@"union", .@"struct" => return w.printValue(fmt, options, value.*, max_depth),
-                                                                      ^
-/usr/lib/zig/std/Io/Writer.zig:1333:33: 0x1172c73 in printValue__anon_29456 (std.zig)
-                try w.printValue(ANY, options, @field(value, f.name), max_depth - 1);
-                                ^
-/usr/lib/zig/std/Io/Writer.zig:1340:71: 0x1166c85 in printValue__anon_28590 (std.zig)
-                .@"enum", .@"union", .@"struct" => return w.printValue(fmt, options, value.*, max_depth),
-                                                                      ^
-/usr/lib/zig/std/Io/Writer.zig:700:25: 0x115b48b in print__anon_27835 (std.zig)
-        try w.printValue(
-                        ^
-/usr/lib/zig/std/debug.zig:231:23: 0x1157faf in print__anon_27469 (std.zig)
-    nosuspend bw.print(fmt, args) catch return;
-                      ^
-/home/oxrinz/wingless/src/main.zig:233:20: 0x115526f in xdg_toplevel_commit (main.zig)
-    std.debug.print("toplevel in commit: {any}\n", .{toplevel});
-                   ^
-???:?:?: 0x7f3ccca2a4cf in ??? (libwayland-server.so.0)
-Unwind information for `libwayland-server.so.0:0x7f3ccca2a4cf` was not available, trace may be incomplete
-
-???:?:?: 0x7f3ccc74de58 in ??? (libwlroots-0.19.so)
-???:?:?: 0x7f3ccc2c8ac5 in ??? (libffi.so.8)
-???:?:?: 0x0 in ??? (???)
-[0.738] [glfw error 65542]: EGL: Failed to initialize EGL: EGL is not or could not be initialized display_present: 1 egl_platform_present: 1
+toplevel commit!
+toplevel map!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+[0.174] [glfw error 65544]: process_desktop_settings: failed with error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+[0.174] [glfw error 65544]: Notify: Failed to get server capabilities error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+handled 103
+sent input
+handled 114
+sent input
+handled 117
+sent input
+handled 105
+sent input
+handled 101
+sent input
+handled 104
+sent input
+handled 103
+sent input
+handled 117
+sent input
+handled 114
+sent input
+handled 101
+sent input
+handled 104
+sent input
+toplevel commit!
+toplevel commit!
+handled 113
+sent input
+handled 111
+sent input
+handled 117
+sent input
+handled 105
+sent input
+handled 116
+sent input
+handled 104
+sent input
+handled 114
+sent input
+handled 101
+sent input
+handled 103
+sent input
+handled 117
+sent input
+handled 111
+sent input
+handled 105
+sent input
+handled 104
+sent input
+handled 102
+sent input
+handled 97
+sent input
+toplevel commit!
+toplevel commit!
+handled 117
+sent input
+handled 111
+sent input
+handled 104
+sent input
+handled 103
+sent input
+handled 111
+sent input
+handled 117
+sent input
+handled 105
+sent input
+handled 102
+sent input
+toplevel commit!
+toplevel commit!
+handled 65307
+sent input
+DEINIT
+wingless: backend/backend.c:51: wlr_backend_finish: Assertion `wl_list_empty(&backend->events.new_input.listener_list)' failed.
+[2.658] [glfw error 65544]: Wayland: fatal display error: Connection reset by peer

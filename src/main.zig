@@ -125,8 +125,6 @@ const WinglessKeyboard = struct {
 
         c.wl_list_init(@ptrCast(@constCast(&keyboard.link)));
 
-        std.debug.print("display in keyboard init server: {any}\n", .{server.display});
-        std.debug.print("display in keyboard server: {any}\n", .{keyboard.server.display});
         return keyboard;
     }
 };
@@ -190,14 +188,12 @@ const WinglessToplevel = struct {
             c.wl_signal_add(&surface.events.map, &toplevel.map);
             c.wl_signal_add(&surface.events.commit, &toplevel.commit);
         }
-        std.debug.print("xdg_surface in init: {any}\n", .{toplevel.xdg_toplevel.base});
 
         toplevel.scene_tree.node.data = toplevel;
         const surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         surface.data = toplevel.scene_tree;
         c.wl_list_init(@ptrCast(@constCast(&toplevel.link)));
 
-        std.debug.print("server in init: {any}\n", .{toplevel.server});
         return toplevel;
     }
 };
@@ -210,7 +206,31 @@ fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 }
 
 fn focus_toplevel(toplevel: *WinglessToplevel) void {
-    _ = toplevel;
+    const server = toplevel.server;
+    const seat = server.seat;
+    const prev_surface = seat.keyboard_state.focused_surface;
+    const base: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+    const surface = base.surface;
+    if (prev_surface == surface) return;
+
+    // Deactivate old focus
+    if (prev_surface != null) {
+        const prev_toplevel = c.wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
+        _ = if (prev_toplevel != null)
+            c.wlr_xdg_toplevel_set_activated(prev_toplevel, false);
+    }
+
+    const keyboard: [*c]c.wlr_keyboard = c.wlr_seat_get_keyboard(seat);
+    c.wlr_scene_node_raise_to_top(&toplevel.scene_tree.node);
+    c.wl_list_remove(&toplevel.link);
+    c.wl_list_insert(&server.toplevels, &toplevel.link);
+
+    _ = c.wlr_xdg_toplevel_set_activated(toplevel.xdg_toplevel, true);
+
+    if (keyboard != null) {
+        const wlr_keyboard: *c.wlr_keyboard = keyboard;
+        c.wlr_seat_keyboard_notify_enter(seat, surface, @ptrCast(&wlr_keyboard.keycodes), wlr_keyboard.num_keycodes, &wlr_keyboard.modifiers);
+    }
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -228,9 +248,7 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
-
-    std.debug.print("toplevel in commit: {any}\n", .{toplevel});
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("commit", listener)));
 
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
@@ -271,13 +289,14 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     const server = keyboard.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
     const seat = server.seat;
-    _ = seat;
 
     const keycode = event.keycode + 8;
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
 
     if (event.state != c.WL_KEYBOARD_KEY_STATE_PRESSED) return;
+
+    var handled = false;
 
     for (0..@intCast(nsyms)) |i| {
         const sym = syms[i];
@@ -291,12 +310,20 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             );
 
             var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
-            env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
+            // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
             child.env_map = @constCast(&env);
 
             child.spawn() catch @panic("Kitty failed");
             std.debug.print("spawned kitty\n", .{});
+
+            handled = true;
         }
+    }
+
+    if (handled == false) {
+        std.debug.print("sent input\n", .{});
+        c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
+        c.wlr_seat_keyboard_notify_key(seat, event.time_msec, event.keycode, event.state);
     }
 }
 
