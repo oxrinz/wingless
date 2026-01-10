@@ -18,6 +18,9 @@ const WinglessServer = struct {
     new_output: c.wl_listener = undefined,
 
     xdg_shell: *c.wlr_xdg_shell = undefined,
+    new_xdg_toplevel: c.wl_listener = undefined,
+    new_xdg_popup: c.wl_listener = undefined,
+    toplevels: c.wl_list = undefined,
 
     keyboards: c.wl_list = undefined,
     new_input: c.wl_listener = undefined,
@@ -42,18 +45,18 @@ const WinglessServer = struct {
 
         c.wl_list_init(&server.outputs);
         server.new_output = .{ .link = undefined, .notify = server_new_output };
-        // c.wl_signal_add(&server.backend.*.events.new_output, &server.new_output);
+        c.wl_signal_add(&server.backend.*.events.new_output, &server.new_output);
 
         server.scene = c.wlr_scene_create();
         server.scene_layout = c.wlr_scene_attach_output_layout(server.scene, server.output_layout) orelse return error.SceneCreationFailed;
 
-        // var toplevels: c.wl_list = undefined;
-        // c.wl_list_init(&toplevels);
-        // const xdg_shell = c.wlr_xdg_shell_create(display, 3);
-        // TODO: add xdg toplevel / popup listeners
-        // const new_xdg_toplevel: c.wl_listener = .{ .link = undefined, .notify = server_new_xdg_toplevel };
+        c.wl_list_init(&server.toplevels);
+        server.xdg_shell = c.wlr_xdg_shell_create(server.display, 3);
 
-        // TODO: add cursor here
+        server.new_xdg_toplevel = .{ .link = undefined, .notify = server_new_xdg_toplevel };
+        server.new_xdg_popup = .{ .link = undefined, .notify = server_new_xdg_popup };
+        c.wl_signal_add(&server.xdg_shell.events.new_toplevel, &server.new_xdg_toplevel);
+        c.wl_signal_add(&server.xdg_shell.events.new_popup, &server.new_xdg_popup);
 
         c.wl_list_init(&server.keyboards);
         server.new_input = .{ .link = undefined, .notify = server_new_input };
@@ -108,6 +111,72 @@ const WinglessKeyboard = struct {
     }
 };
 
+const WinglessOutput = struct {
+    link: c.wl_list,
+    server: *WinglessServer,
+    output: *c.wlr_output,
+    frame: c.wl_listener,
+    request_state: c.wl_listener,
+    destroy: c.wl_listener,
+
+    pub fn init(server: *WinglessServer, wlr_output: *c.wlr_output) !*WinglessOutput {
+        const output = try server.allocator.create(WinglessOutput);
+
+        output.* = .{
+            .link = undefined,
+            .server = server,
+            .output = wlr_output,
+            .frame = .{ .link = undefined, .notify = output_frame },
+            .request_state = .{ .link = undefined, .notify = output_request_state },
+            .destroy = .{ .link = undefined, .notify = output_destroy },
+        };
+
+        c.wl_list_init(@ptrCast(@constCast(&output.link)));
+
+        return output;
+    }
+};
+
+const WinglessToplevel = struct {
+    link: c.wl_list,
+    server: *WinglessServer,
+    xdg_toplevel: *c.wlr_xdg_toplevel,
+    scene_tree: *c.wlr_scene_tree,
+
+    pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
+        const toplevel = try server.allocator.create(WinglessToplevel);
+
+        toplevel.* = .{
+            .link = undefined,
+            .server = server,
+            .xdg_toplevel = xdg_toplevel,
+            .scene_tree = c.wlr_scene_xdg_surface_create(&server.scene.tree, xdg_toplevel.base),
+        };
+
+        toplevel.scene_tree.node.data = toplevel;
+        const surface: *c.wlr_xdg_surface = xdg_toplevel.base;
+        surface.data = toplevel.scene_tree;
+        c.wl_list_init(@ptrCast(@constCast(&toplevel.link)));
+
+        return toplevel;
+    }
+};
+
+fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_toplevel", listener)));
+    const xdg_toplevel: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(data.?));
+
+    const toplevel = WinglessToplevel.init(server, xdg_toplevel) catch @panic("Failed to create toplevel");
+    _ = toplevel;
+
+    std.debug.print("new toplevel!\n", .{});
+}
+
+fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    _ = data;
+}
+
 fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
@@ -131,6 +200,14 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
         std.debug.print("handled {any}\n", .{syms[i]});
         if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
+        if (sym == c.XKB_KEY_K) {
+            var child = std.process.Child.init(
+                &[_][]const u8{"kitty"},
+                std.heap.page_allocator,
+            );
+            child.spawn() catch @panic("Kitty failed");
+            std.debug.print("spawned kitty\n", .{});
+        }
     }
 }
 
@@ -174,10 +251,61 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     std.debug.print("new INPUT FOUND!!: {any}\n", .{device});
 }
 
-fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("frame", listener)));
+    const scene = output.server.scene;
+
+    const scene_output = c.wlr_scene_get_scene_output(scene, output.output);
+
+    _ = c.wlr_scene_output_commit(scene_output, null);
+
+    var now: c.timespec = undefined;
+    _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));
+    c.wlr_scene_output_send_frame_done(scene_output, &now);
+}
+
+fn output_request_state(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    _ = data;
+}
+
+fn output_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    _ = data;
+}
+
+fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     std.debug.print("FOUND NEW OUTPUT\n", .{});
+
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_output", listener)));
+    const wlr_output: *c.wlr_output = @ptrCast(@alignCast(data.?));
+
+    _ = c.wlr_output_init_render(wlr_output, server.wlr_allocator, server.renderer);
+
+    const state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(@ptrCast(@constCast(&state)));
+    c.wlr_output_state_set_enabled(@ptrCast(@constCast(&state)), true);
+
+    const mode = c.wlr_output_preferred_mode(wlr_output);
+    if (mode != null) {
+        c.wlr_output_state_set_mode(@ptrCast(@constCast(&state)), mode);
+    }
+
+    _ = c.wlr_output_commit_state(wlr_output, &state);
+    c.wlr_output_state_finish(@ptrCast(@constCast(&state)));
+
+    const output = WinglessOutput.init(server, wlr_output) catch @panic("Failed to create output");
+
+    c.wl_signal_add(&wlr_output.events.frame, &output.frame);
+    c.wl_signal_add(&wlr_output.events.request_state, &output.request_state);
+    c.wl_signal_add(&wlr_output.events.destroy, &output.destroy);
+
+    c.wl_list_insert(&server.outputs, &output.link);
+
+    const l_output = c.wlr_output_layout_add_auto(server.output_layout, wlr_output);
+    const scene_output = c.wlr_scene_output_create(server.scene, wlr_output);
+    c.wlr_scene_output_layout_add_output(server.scene_layout, l_output, scene_output);
 
     std.debug.print("new OUTPUT FOUND!!: {any}\n", .{server});
 }
@@ -192,7 +320,6 @@ pub fn main() !void {
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
     std.debug.print("Running wayland compositor on {s}\n", .{socket});
 
-    std.debug.print("display before run: {any}\n", .{server.display});
     c.wl_display_run(server.display);
 
     try server.deinit();

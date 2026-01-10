@@ -1,73 +1,73 @@
 00:00:00.000 [INFO] [libseat] [libseat/backend/seatd.c:64] Could not connect to socket /run/seatd.sock: No such file or directory
 00:00:00.000 [INFO] [libseat] [libseat/libseat.c:76] Backend 'seatd' failed to open seat, skipping
-00:00:00.000 [INFO] [libseat] [libseat/libseat.c:73] Seat opened with backend 'logind'
-00:00:00.000 [INFO] [backend/session/session.c:108] Successfully loaded libseat session
-00:00:00.016 [INFO] [backend/backend.c:248] Found 2 GPUs
-00:00:00.016 [INFO] [backend/drm/backend.c:225] Initializing DRM backend for /dev/dri/card2 (amdgpu)
-00:00:00.016 [DEBUG] [backend/drm/drm.c:110] Using atomic DRM interface
-00:00:00.016 [DEBUG] [backend/drm/drm.c:131] ADDFB2 modifiers supported
-00:00:00.016 [INFO] [backend/drm/drm.c:310] Found 4 DRM CRTCs
-00:00:00.016 [INFO] [backend/drm/drm.c:268] Found 11 DRM planes
-00:00:00.016 [INFO] [backend/drm/backend.c:225] Initializing DRM backend for /dev/dri/card1 (nouveau)
-00:00:00.016 [DEBUG] [backend/drm/drm.c:106] Atomic modesetting unsupported, using legacy DRM interface
-00:00:00.016 [DEBUG] [backend/drm/drm.c:131] ADDFB2 modifiers supported
-00:00:00.016 [INFO] [backend/drm/drm.c:310] Found 4 DRM CRTCs
-00:00:00.017 [INFO] [backend/drm/drm.c:268] Found 12 DRM planes
-00:00:00.017 [DEBUG] [backend/drm/renderer.c:17] Creating multi-GPU renderer
+00:00:00.001 [INFO] [libseat] [libseat/libseat.c:73] Seat opened with backend 'logind'
+00:00:00.001 [INFO] [backend/session/session.c:108] Successfully loaded libseat session
+00:00:00.015 [INFO] [backend/backend.c:248] Found 2 GPUs
+00:00:00.015 [INFO] [backend/drm/backend.c:225] Initializing DRM backend for /dev/dri/card2 (amdgpu)
+00:00:00.015 [DEBUG] [backend/drm/drm.c:110] Using atomic DRM interface
+00:00:00.015 [DEBUG] [backend/drm/drm.c:131] ADDFB2 modifiers supported
+00:00:00.015 [INFO] [backend/drm/drm.c:310] Found 4 DRM CRTCs
+00:00:00.015 [INFO] [backend/drm/drm.c:268] Found 11 DRM planes
+00:00:00.015 [INFO] [backend/drm/backend.c:225] Initializing DRM backend for /dev/dri/card1 (nouveau)
+00:00:00.015 [DEBUG] [backend/drm/drm.c:106] Atomic modesetting unsupported, using legacy DRM interface
+00:00:00.015 [DEBUG] [backend/drm/drm.c:131] ADDFB2 modifiers supported
+00:00:00.015 [INFO] [backend/drm/drm.c:310] Found 4 DRM CRTCs
+00:00:00.015 [INFO] [backend/drm/drm.c:268] Found 12 DRM planes
+00:00:00.016 [DEBUG] [backend/drm/renderer.c:17] Creating multi-GPU renderer
 00:00:00.033 [INFO] [render/egl.c:205] Supported EGL client extensions: EGL_EXT_device_base EGL_EXT_device_enumeration EGL_EXT_device_query EGL_EXT_platform_base EGL_KHR_client_get_all_proc_addresses EGL_EXT_client_extensions EGL_KHR_debug EGL_EXT_platform_device EGL_EXT_explicit_device EGL_EXT_platform_wayland EGL_KHR_platform_wayland EGL_EXT_platform_x11 EGL_KHR_platform_x11 EGL_EXT_platform_xcb EGL_MESA_platform_gbm EGL_KHR_platform_gbm EGL_MESA_platform_surfaceless
 00:00:00.035 [DEBUG] [render/egl.c:523] Using EGL device /dev/dri/card1
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.050 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.049 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
 00:00:00.063 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
-00:00:00.070 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
-00:00:00.072 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "eglInitialize"
-00:00:00.072 [ERROR] [render/egl.c:269] Failed to initialize EGL
-00:00:00.072 [ERROR] [render/egl.c:611] Failed to initialize EGL context
+00:00:00.069 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
+00:00:00.071 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "eglInitialize"
+00:00:00.071 [ERROR] [render/egl.c:269] Failed to initialize EGL
+00:00:00.071 [ERROR] [render/egl.c:611] Failed to initialize EGL context
 00:00:00.072 [ERROR] [render/gles2/renderer.c:499] Could not initialize EGL
 00:00:00.072 [DEBUG] [render/wlr_renderer.c:199] Failed to create a GLES2 renderer. Skipping!
 00:00:00.072 [INFO] [render/vulkan/renderer.c:2502] The vulkan renderer is only experimental and not expected to be ready for daily use
 00:00:00.072 [INFO] [render/vulkan/renderer.c:2504] Run with VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation to enable the validation layer
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_device_group_creation v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_display v23
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_fence_capabilities v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_memory_capabilities v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_semaphore_capabilities v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_display_properties2 v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_physical_device_properties2 v2
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_surface_capabilities2 v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_surface v25
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_surface_protected_capabilities v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_wayland_surface v6
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_xcb_surface v6
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_xlib_surface v6
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_acquire_drm_display v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_acquire_xlib_display v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_debug_report v10
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_debug_utils v2
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_direct_mode_display v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_display_surface_counter v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_headless_surface v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_surface_maintenance1 v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_swapchain_colorspace v5
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_portability_enumeration v1
-00:00:00.073 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_LUNARG_direct_driver_loading v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_device_group_creation v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_display v23
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_fence_capabilities v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_memory_capabilities v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_external_semaphore_capabilities v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_display_properties2 v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_physical_device_properties2 v2
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_get_surface_capabilities2 v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_surface v25
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_surface_protected_capabilities v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_wayland_surface v6
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_xcb_surface v6
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_xlib_surface v6
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_acquire_drm_display v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_acquire_xlib_display v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_debug_report v10
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_debug_utils v2
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_direct_mode_display v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_display_surface_counter v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_headless_surface v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_surface_maintenance1 v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_EXT_swapchain_colorspace v5
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_KHR_portability_enumeration v1
+00:00:00.072 [DEBUG] [render/vulkan/vulkan.c:117] Vulkan instance extension VK_LUNARG_direct_driver_loading v1
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
-00:00:00.075 [INFO] [render/vulkan/vulkan.c:253] Vulkan device: 'AMD Radeon RX 9060 XT (RADV GFX1200)'
-00:00:00.075 [INFO] [render/vulkan/vulkan.c:254]   Device type: 'discrete'
-00:00:00.075 [INFO] [render/vulkan/vulkan.c:255]   Supported API version: 1.4.328
-00:00:00.075 [INFO] [render/vulkan/vulkan.c:256]   Driver version: 25.3.3
-00:00:00.075 [INFO] [render/vulkan/vulkan.c:344]   Driver name: radv (Mesa 25.3.3-arch1.1)
-00:00:00.075 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
-00:00:00.075 [DEBUG] [render/wlr_renderer.c:199] Failed to create a Vulkan renderer. Skipping!
-00:00:00.075 [INFO] [render/pixman/renderer.c:328] Creating pixman renderer
-00:00:00.075 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
-00:00:00.075 [INFO] [backend/drm/backend.c:181] Failed to initialize mgpu blit renderer, falling back to scanning out from primary GPU
-00:00:00.075 [INFO] [render/egl.c:205] Supported EGL client extensions: EGL_EXT_device_base EGL_EXT_device_enumeration EGL_EXT_device_query EGL_EXT_platform_base EGL_KHR_client_get_all_proc_addresses EGL_EXT_client_extensions EGL_KHR_debug EGL_EXT_platform_device EGL_EXT_explicit_device EGL_EXT_platform_wayland EGL_KHR_platform_wayland EGL_EXT_platform_x11 EGL_KHR_platform_x11 EGL_EXT_platform_xcb EGL_MESA_platform_gbm EGL_KHR_platform_gbm EGL_MESA_platform_surfaceless
+00:00:00.074 [INFO] [render/vulkan/vulkan.c:253] Vulkan device: 'AMD Radeon RX 9060 XT (RADV GFX1200)'
+00:00:00.074 [INFO] [render/vulkan/vulkan.c:254]   Device type: 'discrete'
+00:00:00.074 [INFO] [render/vulkan/vulkan.c:255]   Supported API version: 1.4.328
+00:00:00.074 [INFO] [render/vulkan/vulkan.c:256]   Driver version: 25.3.3
+00:00:00.074 [INFO] [render/vulkan/vulkan.c:344]   Driver name: radv (Mesa 25.3.3-arch1.1)
+00:00:00.074 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
+00:00:00.074 [DEBUG] [render/wlr_renderer.c:199] Failed to create a Vulkan renderer. Skipping!
+00:00:00.074 [INFO] [render/pixman/renderer.c:328] Creating pixman renderer
+00:00:00.074 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
+00:00:00.074 [INFO] [backend/drm/backend.c:181] Failed to initialize mgpu blit renderer, falling back to scanning out from primary GPU
+00:00:00.074 [INFO] [render/egl.c:205] Supported EGL client extensions: EGL_EXT_device_base EGL_EXT_device_enumeration EGL_EXT_device_query EGL_EXT_platform_base EGL_KHR_client_get_all_proc_addresses EGL_EXT_client_extensions EGL_KHR_debug EGL_EXT_platform_device EGL_EXT_explicit_device EGL_EXT_platform_wayland EGL_KHR_platform_wayland EGL_EXT_platform_x11 EGL_KHR_platform_x11 EGL_EXT_platform_xcb EGL_MESA_platform_gbm EGL_KHR_platform_gbm EGL_MESA_platform_surfaceless
 00:00:00.077 [DEBUG] [render/egl.c:523] Using EGL device /dev/dri/card2
 00:00:00.092 [INFO] [render/egl.c:369] Using EGL 1.5
 00:00:00.092 [INFO] [render/egl.c:370] Supported EGL display extensions: EGL_ANDROID_blob_cache EGL_ANDROID_native_fence_sync EGL_EXT_config_select_group EGL_EXT_create_context_robustness EGL_EXT_image_dma_buf_import EGL_EXT_image_dma_buf_import_modifiers EGL_EXT_query_reset_notification_strategy EGL_EXT_surface_compression EGL_IMG_context_priority EGL_KHR_cl_event2 EGL_KHR_config_attribs EGL_KHR_context_flush_control EGL_KHR_create_context EGL_KHR_create_context_no_error EGL_KHR_fence_sync EGL_KHR_get_all_proc_addresses EGL_KHR_gl_colorspace EGL_KHR_gl_renderbuffer_image EGL_KHR_gl_texture_2D_image EGL_KHR_gl_texture_3D_image EGL_KHR_gl_texture_cubemap_image EGL_KHR_image_base EGL_KHR_no_config_context EGL_KHR_reusable_sync EGL_KHR_surfaceless_context EGL_EXT_pixel_format_float EGL_KHR_wait_sync EGL_MESA_configless_context EGL_MESA_gl_interop EGL_MESA_image_dma_buf_export EGL_MESA_query_driver EGL_MESA_x11_native_visual_id 
@@ -185,82 +185,82 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
 00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
 00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   XR24 (0x34325258)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   XB24 (0x34324258)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   AR15 (0x35315241)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   AB15 (0x35314241)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   AR12 (0x32315241)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   AB12 (0x32314241)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:169]   RG16 (0x36314752)
-00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
-00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   XR24 (0x34325258)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   XB24 (0x34324258)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   AR15 (0x35315241)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   AB15 (0x35314241)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   AR12 (0x32315241)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   AB12 (0x32314241)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:169]   RG16 (0x36314752)
+00:00:00.092 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✓ render
+00:00:00.092 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✓ render
 00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✓ render
 00:00:00.093 [DEBUG] [render/egl.c:169]   R8 (0x20203852)
 00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
@@ -487,90 +487,90 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
 00:00:00.093 [DEBUG] [render/egl.c:169]   S410 (0x30313453)
 00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S012 (0x32313053)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S212 (0x32313253)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S412 (0x32313453)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S016 (0x36313053)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S216 (0x36313253)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   S416 (0x36313453)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:169]   NV12 (0x3231564E)
-00:00:00.094 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
-00:00:00.094 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S012 (0x32313053)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S212 (0x32313253)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S412 (0x32313453)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S016 (0x36313053)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S216 (0x36313253)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   S416 (0x36313453)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:169]   NV12 (0x3231564E)
+00:00:00.093 [DEBUG] [render/egl.c:103]     INVALID (0x00FFFFFFFFFFFFFF): ✓ texture  ✓ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=128B (0x0200000000042305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082405): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,4KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082205): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,256B_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082105): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX12,64KB_2D (0x0200000000000305): ✓ texture  ✗ render
+00:00:00.093 [DEBUG] [render/egl.c:103]     GFX11,64KB_D (0x0200000000000A04): ✓ texture  ✗ render
 00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
 00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
 00:00:00.094 [DEBUG] [render/egl.c:169]   NV21 (0x3132564E)
@@ -773,8 +773,8 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.094 [DEBUG] [render/egl.c:103]     GFX12,256B_2D (0x0200000000000105): ✓ texture  ✗ render
 00:00:00.094 [DEBUG] [render/egl.c:103]     LINEAR (0x0000000000000000): ✓ texture  ✗ render
 00:00:00.094 [DEBUG] [render/egl.c:189] EGL DMA-BUF format modifiers supported
-00:00:00.096 [DEBUG] [render/egl.c:449] Obtained high priority context
-00:00:00.096 [DEBUG] [render/egl.c:575] Using EGL_PLATFORM_DEVICE_EXT
+00:00:00.095 [DEBUG] [render/egl.c:449] Obtained high priority context
+00:00:00.095 [DEBUG] [render/egl.c:575] Using EGL_PLATFORM_DEVICE_EXT
 00:00:00.096 [INFO] [render/gles2/renderer.c:538] Creating GLES2 renderer
 00:00:00.096 [INFO] [render/gles2/renderer.c:539] Using OpenGL ES 3.2 Mesa 25.3.3-arch1.1
 00:00:00.096 [INFO] [render/gles2/renderer.c:540] GL vendor: AMD
@@ -785,169 +785,179 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.107 [DEBUG] [render/allocator/gbm.c:216] Created GBM allocator with backend drm
 00:00:00.107 [DEBUG] [render/allocator/gbm.c:219] Using DRM node /dev/dri/card2
 00:00:00.107 [DEBUG] [backend/libinput/backend.c:88] Starting libinput backend
-00:00:00.184 [DEBUG] [backend/libinput/events.c:69] Adding Power Button [0:1]
+00:00:00.185 [DEBUG] [backend/libinput/events.c:69] Adding Power Button [0:1]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33d4c690, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.186 [DEBUG] [backend/libinput/events.c:69] Adding Power Button [0:1]
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3df75380, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.187 [DEBUG] [backend/libinput/events.c:69] Adding Power Button [0:1]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33c0d180, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3dde8000, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 00:00:00.189 [DEBUG] [backend/libinput/events.c:69] Adding Blue Microphones Blue Snowball [1133:2745]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33c61c40, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3debe910, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 00:00:00.191 [DEBUG] [backend/libinput/events.c:69] Adding Kingston HyperX Virtual Surround Sound Consumer Control [2385:5796]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33c47500, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.193 [DEBUG] [backend/libinput/events.c:69] Adding Kingston HyperX Virtual Surround Sound [2385:5796]
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3de835d0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.194 [DEBUG] [backend/libinput/events.c:69] Adding Kingston HyperX Virtual Surround Sound [2385:5796]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33c60ec0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3de6ad70, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 00:00:00.196 [DEBUG] [backend/libinput/events.c:69] Adding Kingston HyperX Pulsefire Raid [2385:5860]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
+display in new input: cimport.struct_wl_display@3d347720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@33c2d9b0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@3dfbbc20, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 00:00:00.196 [DEBUG] [backend/libinput/events.c:69] Adding Kingston HyperX Pulsefire Raid Keyboard [2385:5860]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33c8d110, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3dfec4e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
+display in new input: cimport.struct_wl_display@3d347720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@33e0e040, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.199 [DEBUG] [backend/libinput/events.c:69] Adding Logitech PRO 2 MOUSE [1133:16552]
+new INPUT FOUND!!: .{ .type = 1, .name = u8@3dfa6120, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.198 [DEBUG] [backend/libinput/events.c:69] Adding Logitech PRO 2 MOUSE [1133:16552]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33cf10e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3df19f70, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
+display in new input: cimport.struct_wl_display@3d347720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@33ded260, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.201 [DEBUG] [backend/libinput/events.c:69] Adding Logitech G915 TKL LIGHTSPEED Wireless RGB Mechanical Gaming Keyboard [1133:49987]
+new INPUT FOUND!!: .{ .type = 1, .name = u8@3e01ab00, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.200 [DEBUG] [backend/libinput/events.c:69] Adding Logitech G915 TKL LIGHTSPEED Wireless RGB Mechanical Gaming Keyboard [1133:49987]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33d452c0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.203 [DEBUG] [backend/libinput/events.c:69] Adding Logitech G915 TKL LIGHTSPEED Wireless RGB Mechanical Gaming Keyboard [1133:49987]
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3df6cd70, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.202 [DEBUG] [backend/libinput/events.c:69] Adding Logitech G915 TKL LIGHTSPEED Wireless RGB Mechanical Gaming Keyboard [1133:49987]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33dab580, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3e00f6e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
+display in new input: cimport.struct_wl_display@3d347720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@33d87270, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+new INPUT FOUND!!: .{ .type = 1, .name = u8@3e042960, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 00:00:00.205 [DEBUG] [backend/libinput/events.c:69] Adding Eee PC WMI hotkeys [0:0]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33d33080, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.208 [DEBUG] [backend/libinput/events.c:69] Adding keyd virtual keyboard [4012:2782]
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3df5bd40, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.207 [DEBUG] [backend/libinput/events.c:69] Adding keyd virtual keyboard [4012:2782]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
-display in keyboard init server: cimport.struct_wl_display@3311f720
-display in keyboard server: cimport.struct_wl_display@3311f720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11839f0, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@1183a70, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@1183b00, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@1183b80 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@33d403f0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.211 [DEBUG] [backend/libinput/events.c:69] Adding keyd virtual pointer [4012:6878]
+display in new input: cimport.struct_wl_display@3d347720
+display in keyboard init server: cimport.struct_wl_display@3d347720
+display in keyboard server: cimport.struct_wl_display@3d347720
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } }
+new INPUT FOUND!!: .{ .type = 0, .name = u8@3d348d60, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.209 [DEBUG] [backend/libinput/events.c:69] Adding keyd virtual pointer [4012:6878]
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@3311f720
+display in new input: cimport.struct_wl_display@3d347720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@33d45e00, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
-00:00:00.211 [DEBUG] [backend/libinput/backend.c:125] libinput successfully initialized
-00:00:00.211 [INFO] [backend/drm/drm.c:1741] Scanning DRM connectors on /dev/dri/card2
-00:00:00.211 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-4'
-00:00:00.229 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-5'
-00:00:00.229 [INFO] [backend/drm/drm.c:1821] 'DP-5' connected
-00:00:00.229 [DEBUG] [backend/drm/drm.c:1596] Current CRTC: 86
-00:00:00.229 [INFO] [backend/drm/drm.c:1610] Detected modes:
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 143.856 Hz (preferred)
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 119.878 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 99.900 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 59.951 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 59.940 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 50.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1280x1024 @ 75.025 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1280x1024 @ 60.020 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x900 @ 59.887 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1366x768 @ 59.790 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1152x864 @ 75.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 59.940 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 50.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x576 @ 50.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x576 @ 50.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 75.029 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 70.069 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 60.004 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 59.940 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 59.940 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   832x624 @ 74.551 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   800x600 @ 75.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   800x600 @ 72.188 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   800x600 @ 60.317 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   800x600 @ 56.250 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   720x576 @ 50.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   640x480 @ 75.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   640x480 @ 72.809 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   640x480 @ 66.667 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   640x480 @ 60.000 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   640x480 @ 59.940 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1634]   720x400 @ 70.082 Hz 
-00:00:00.229 [INFO] [backend/drm/drm.c:1671] Physical size: 600x340
-00:00:00.230 [INFO] [backend/drm/drm.c:1796] Found connector 'HDMI-A-2'
-00:00:00.230 [INFO] [backend/drm/drm.c:1855] connector DP-5: Requesting modeset
-00:00:00.230 [INFO] [backend/drm/drm.c:1741] Scanning DRM connectors on /dev/dri/card1
-00:00:00.231 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-1'
-00:00:00.232 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-2'
-00:00:00.233 [INFO] [backend/drm/drm.c:1796] Found connector 'HDMI-A-1'
-00:00:00.234 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-3'
+new INPUT FOUND!!: .{ .type = 1, .name = u8@3df5fa30, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+00:00:00.209 [DEBUG] [backend/libinput/backend.c:125] libinput successfully initialized
+00:00:00.209 [INFO] [backend/drm/drm.c:1741] Scanning DRM connectors on /dev/dri/card2
+00:00:00.209 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-4'
+00:00:00.228 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-5'
+00:00:00.228 [INFO] [backend/drm/drm.c:1821] 'DP-5' connected
+00:00:00.228 [DEBUG] [backend/drm/drm.c:1596] Current CRTC: 86
+00:00:00.228 [INFO] [backend/drm/drm.c:1610] Detected modes:
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 143.856 Hz (preferred)
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 119.878 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 99.900 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   2560x1440 @ 59.951 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 59.940 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1920x1080 @ 50.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1280x1024 @ 75.025 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1280x1024 @ 60.020 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x900 @ 59.887 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1366x768 @ 59.790 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1152x864 @ 75.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 59.940 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1280x720 @ 50.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x576 @ 50.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x576 @ 50.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 75.029 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 70.069 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1024x768 @ 60.004 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 59.940 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   1440x480 @ 59.940 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   832x624 @ 74.551 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   800x600 @ 75.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   800x600 @ 72.188 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   800x600 @ 60.317 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   800x600 @ 56.250 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   720x576 @ 50.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   640x480 @ 75.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   640x480 @ 72.809 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   640x480 @ 66.667 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   640x480 @ 60.000 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   640x480 @ 59.940 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1634]   720x400 @ 70.082 Hz 
+00:00:00.228 [INFO] [backend/drm/drm.c:1671] Physical size: 600x340
+00:00:00.228 [INFO] [backend/drm/drm.c:1796] Found connector 'HDMI-A-2'
+00:00:00.228 [INFO] [backend/drm/drm.c:1855] connector DP-5: Requesting modeset
+FOUND NEW OUTPUT
+00:00:00.228 [DEBUG] [types/output/render.c:123] Attaching empty buffer to output for modeset
+00:00:00.228 [DEBUG] [types/output/swapchain.c:27] Choosing primary buffer format XR24 (0x34325258) for output 'DP-5'
+00:00:00.228 [DEBUG] [types/output/swapchain.c:96] Testing swapchain for output 'DP-5'
+00:00:00.228 [DEBUG] [render/swapchain.c:101] Allocating new swapchain buffer
+00:00:00.237 [DEBUG] [render/allocator/gbm.c:146] Allocated 2560x1440 GBM buffer with format XR24 (0x34325258), modifier GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305)
+00:00:00.238 [DEBUG] [render/gles2/renderer.c:157] Created GL FBO for buffer 2560x1440
+00:00:00.244 [INFO] [backend/drm/drm.c:944] connector DP-5: Modesetting with 2560x1440 @ 143.856 Hz
+new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@3d347720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7fe38a7f4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7fe38a7f1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7fe38a7f22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@3e35c578, .next = cimport.struct_wl_list@3e35c578 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@3dde0690, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@3e2fcb08, .next = cimport.struct_wl_list@3e2fcb08 }, .display = cimport.struct_wl_display@3d347720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7fe386cc0000, .next = cimport.struct_wl_list@7fe386cc0000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@3d3478f0, .next = cimport.struct_wl_list@7fff682bf9f0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114cff0 }, .xdg_shell = .{ .global = cimport.struct_wl_global@3dde07a0, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@3dde0710, .next = cimport.struct_wl_list@3dde0710 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@3dde0720, .next = cimport.struct_wl_list@3dde0720 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@3dde0748, .next = cimport.struct_wl_list@3dde0748 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114db50 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@3dde0758, .next = cimport.struct_wl_list@3dde0758 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114dd20 }, .toplevels = .{ .prev = cimport.struct_wl_list@7fe38abcc098, .next = cimport.struct_wl_list@7fe38abcc098 }, .keyboards = .{ .prev = cimport.struct_wl_list@7fe389dea000, .next = cimport.struct_wl_list@7fe386cc1000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@3d3478e0, .next = cimport.struct_wl_list@3d3478e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114e230 }, .seat = .{ .global = cimport.struct_wl_global@3dde0c20, .display = cimport.struct_wl_display@3d347720, .clients = .{ .prev = cimport.struct_wl_list@3dde0800, .next = cimport.struct_wl_list@3dde0800 }, .name = u8@3dca0ba0, .capabilities = 0, .accumulated_capabilities = 0, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@3dde0830, .next = cimport.struct_wl_list@3dde0830 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@3dde0868, .next = cimport.struct_wl_list@3dde0868 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@3dde07f0, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@3dc840a0, .default_grab = cimport.struct_wlr_seat_pointer_grab@3dc840a0, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@3dde07f0, .keyboard = cimport.struct_wlr_keyboard@3e0f39d8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@3dc840c0, .default_grab = cimport.struct_wlr_seat_keyboard_grab@3dc840c0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@3dde07f0, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@3dc84080, .default_grab = cimport.struct_wlr_seat_touch_grab@3dc84080 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11ae060, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11ae0e0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11ae170, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11ae1f0 } } }
+00:00:00.251 [INFO] [backend/drm/drm.c:1741] Scanning DRM connectors on /dev/dri/card1
+00:00:00.253 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-1'
+00:00:00.254 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-2'
+00:00:00.254 [INFO] [backend/drm/drm.c:1796] Found connector 'HDMI-A-1'
+00:00:00.255 [INFO] [backend/drm/drm.c:1796] Found connector 'DP-3'
 Running wayland compositor on wayland-0
-display before run: cimport.struct_wl_display@3311f720
+00:00:00.255 [DEBUG] [render/swapchain.c:101] Allocating new swapchain buffer
+00:00:00.256 [DEBUG] [render/allocator/gbm.c:146] Allocated 2560x1440 GBM buffer with format XR24 (0x34325258), modifier GFX12,64KB_2D,DCC,DCC_MAX_COMPRESSED_BLOCK=256B (0x0200000000082305)
+00:00:00.256 [DEBUG] [render/gles2/renderer.c:157] Created GL FBO for buffer 2560x1440
 handled 107
-handled 103
-handled 97
-handled 102
+handled 65505
+handled 75
+spawned kitty
+[0.066] Ignoring unknown config key: enable_ligatures
+[0.066] Ignoring unknown config key: keyboard_layout
+[0.069] [glfw error 65544]: Wayland: Failed to find Wayland SHM
+GLFW initialization failed
 handled 107
-handled 106
-handled 103
-handled 104
-handled 102
-handled 100
 handled 65307
 DEINIT
 wingless: backend/backend.c:51: wlr_backend_finish: Assertion `wl_list_empty(&backend->events.new_input.listener_list)' failed.
