@@ -71,15 +71,15 @@ const WinglessServer = struct {
         // c.wl_list_remove(&self.new_input.link);
         // c.wl_list_remove(&self.new_output.link);
 
-        c.wl_display_destroy(self.display);
         c.wlr_allocator_destroy(self.wlr_allocator);
         c.wlr_renderer_destroy(self.renderer);
         c.wlr_backend_destroy(self.backend);
+        c.wl_display_destroy(self.display);
     }
 };
 
 const WinglessKeyboard = struct {
-    link: [*c]c.wl_list,
+    link: c.wl_list,
     server: *WinglessServer,
     wlr_keyboard: *c.wlr_keyboard,
 
@@ -90,11 +90,8 @@ const WinglessKeyboard = struct {
     pub fn init(server: *WinglessServer, device: *c.wlr_input_device) !*WinglessKeyboard {
         const keyboard = try server.allocator.create(WinglessKeyboard);
 
-        var link: c.wl_list = undefined;
-        c.wl_list_init(@ptrCast(@constCast(&link)));
-
         keyboard.* = .{
-            .link = &link,
+            .link = undefined,
             .server = server,
             .wlr_keyboard = c.wlr_keyboard_from_input_device(device),
 
@@ -103,6 +100,10 @@ const WinglessKeyboard = struct {
             .destroy = .{ .link = undefined, .notify = keyboard_handle_destroy },
         };
 
+        c.wl_list_init(@ptrCast(@constCast(&keyboard.link)));
+
+        std.debug.print("display in keyboard init server: {any}\n", .{server.display});
+        std.debug.print("display in keyboard server: {any}\n", .{keyboard.server.display});
         return keyboard;
     }
 };
@@ -123,15 +124,14 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
 
+    if (event.state != c.WL_KEYBOARD_KEY_STATE_PRESSED) return;
+
     for (0..@intCast(nsyms)) |i| {
         const sym = syms[i];
 
         std.debug.print("handled {any}\n", .{syms[i]});
         if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
     }
-
-    std.debug.print("terminated also escape key: {any}\n", .{c.XKB_KEY_Escape});
-    c.wl_display_terminate(server.display);
 }
 
 fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -144,6 +144,8 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_input", listener)));
     const device: *c.wlr_input_device = @ptrCast(@alignCast(data.?));
+
+    std.debug.print("display in new input: {any}\n", .{server.display});
 
     switch (device.type) {
         c.WLR_INPUT_DEVICE_KEYBOARD => {
@@ -188,7 +190,9 @@ pub fn main() !void {
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
-    c._wlr_log(c.WLR_INFO, "Running wayland compositor on");
+    std.debug.print("Running wayland compositor on {s}\n", .{socket});
+
+    std.debug.print("display before run: {any}\n", .{server.display});
     c.wl_display_run(server.display);
 
     try server.deinit();
