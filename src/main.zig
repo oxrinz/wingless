@@ -17,10 +17,16 @@ const WinglessServer = struct {
     outputs: c.wl_list = undefined,
     new_output: c.wl_listener = undefined,
 
+    on_client: c.wl_listener = undefined,
+
     xdg_shell: *c.wlr_xdg_shell = undefined,
+    new_xdg_surface: c.wl_listener = undefined,
     new_xdg_toplevel: c.wl_listener = undefined,
     new_xdg_popup: c.wl_listener = undefined,
     toplevels: c.wl_list = undefined,
+
+    cursor: *c.wlr_cursor = undefined,
+    cursor_mgr: *c.wlr_xcursor_manager = undefined,
 
     keyboards: c.wl_list = undefined,
     new_input: c.wl_listener = undefined,
@@ -37,6 +43,8 @@ const WinglessServer = struct {
         server.backend = c.wlr_backend_autocreate(c.wl_display_get_event_loop(server.display), null);
         server.renderer = c.wlr_renderer_autocreate(server.backend);
         server.wlr_allocator = c.wlr_allocator_autocreate(server.backend, server.renderer);
+
+        _ = c.wlr_renderer_init_wl_display(server.renderer, server.display);
 
         _ = c.wlr_compositor_create(server.display, 5, server.renderer);
         _ = c.wlr_data_device_manager_create(server.display);
@@ -55,8 +63,17 @@ const WinglessServer = struct {
 
         server.new_xdg_toplevel = .{ .link = undefined, .notify = server_new_xdg_toplevel };
         server.new_xdg_popup = .{ .link = undefined, .notify = server_new_xdg_popup };
+        server.new_xdg_surface = .{ .link = undefined, .notify = server_new_xdg_surface };
+        c.wl_signal_add(&server.xdg_shell.events.new_surface, &server.new_xdg_surface);
         c.wl_signal_add(&server.xdg_shell.events.new_toplevel, &server.new_xdg_toplevel);
         c.wl_signal_add(&server.xdg_shell.events.new_popup, &server.new_xdg_popup);
+
+        server.cursor = c.wlr_cursor_create();
+        c.wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
+        server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
+
+        server.on_client = .{ .link = undefined, .notify = on_client };
+        c.wl_display_add_client_created_listener(server.display, &server.on_client);
 
         c.wl_list_init(&server.keyboards);
         server.new_input = .{ .link = undefined, .notify = server_new_input };
@@ -162,6 +179,20 @@ const WinglessToplevel = struct {
     }
 };
 
+fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    _ = data;
+
+    std.debug.print("new client connected\n", .{});
+}
+
+fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    _ = data;
+
+    std.debug.print("new surface!\n", .{});
+}
+
 fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_toplevel", listener)));
     const xdg_toplevel: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(data.?));
@@ -200,7 +231,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
         std.debug.print("handled {any}\n", .{syms[i]});
         if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
-        if (sym == c.XKB_KEY_K) {
+        if (sym == c.XKB_KEY_k) {
             var child = std.process.Child.init(
                 &[_][]const u8{"kitty"},
                 std.heap.page_allocator,
