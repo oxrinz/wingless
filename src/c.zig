@@ -1,0 +1,20 @@
+pub const c = @cImport({
+    @cInclude("stdlib.h");
+    @cDefine("WLR_USE_UNSTABLE", "1");
+    @cInclude("wlr/util/log.h");
+    @cInclude("wlr/backend.h");
+    @cInclude("wlr/backend/wayland.h");
+    @cInclude("wlr/backend/x11.h");
+    @cInclude("wlr/render/wlr_renderer.h");
+    @cInclude("wlr/render/swapchain.h");
+    @cInclude("wlr/render/allocator.h");
+    @cInclude("wlr/types/wlr_compositor.h");
+    @cInclude("wlr/types/wlr_input_device.h");
+    @cInclude("wlr/types/wlr_keyboard.h");
+    @cInclude("wlr/types/wlr_data_device.h");
+    @cInclude("wlr/types/wlr_output_layout.h");
+    @cInclude("wlr/types/wlr_scene.h");
+    @cInclude("wlr/types/wlr_xdg_shell.h");
+    @cInclude("wlr/util/log.h");
+    @cInclude("wayland-server-core.h");
+});
