@@ -1,7 +1,7 @@
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.047 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.048 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
@@ -15,76 +15,47 @@ WARNING: radv is not a conformant Vulkan implementation, testing use only.
 00:00:00.073 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
 00:00:00.073 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2f02b80, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2d6f3e0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2e3af70, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2de2580, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2f2c380, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@2f07220, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2f06dd0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@2f3a610, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2ea7770, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@2fa68c0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2efa570, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2f9c340, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@2fb10a0, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@2ee9540, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } }
-new INPUT FOUND!!: .{ .type = 0, .name = u8@22d2d60, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } }
 FOUND NEW INPUT
-display in new input: cimport.struct_wl_display@22d1720
 unrecognized new input
-new INPUT FOUND!!: .{ .type = 1, .name = u8@2eed230, .events = .{ .destroy = .{ .listener_list = .{ ... } } }, .data = null }
 FOUND NEW OUTPUT
-new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@22d1720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7fcc70158420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7fcc70155d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7fcc701562d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@32e98b8, .next = cimport.struct_wl_list@32e98b8 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@2d6a780, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@30b66d8, .next = cimport.struct_wl_list@30b66d8 }, .display = cimport.struct_wl_display@22d1720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7fcc6c499000, .next = cimport.struct_wl_list@7fcc6c499000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@22d18f0, .next = cimport.struct_wl_list@7fff2428fbb0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1151400 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@22d17a8, .next = cimport.struct_wl_list@22d17a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152500 }, .xdg_shell = .{ .global = cimport.struct_wl_global@2d6a7f0, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@2d713b0, .next = cimport.struct_wl_list@2d713b0 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@2d713c0, .next = cimport.struct_wl_list@2d713c0 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@2d713d8, .next = cimport.struct_wl_list@2d713d8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152470 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@2d713e8, .next = cimport.struct_wl_list@2d713e8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152270 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@2d713f8, .next = cimport.struct_wl_list@2d713f8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152450 }, .toplevels = .{ .prev = cimport.struct_wl_list@7fcc702860c8, .next = cimport.struct_wl_list@7fcc702860c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@2d6a840, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@2d6aad0, .next = cimport.struct_wl_list@2d6aad0 } }, .keyboards = .{ .prev = cimport.struct_wl_list@7fcc6f4a4000, .next = cimport.struct_wl_list@7fcc6c49a000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@22d18e0, .next = cimport.struct_wl_list@22d18e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1152a30 }, .seat = .{ .global = cimport.struct_wl_global@2d6f120, .display = cimport.struct_wl_display@22d1720, .clients = .{ .prev = cimport.struct_wl_list@2d6e090, .next = cimport.struct_wl_list@2d6e090 }, .name = u8@2bf83c0, .capabilities = 0, .accumulated_capabilities = 0, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@2d6e0c0, .next = cimport.struct_wl_list@2d6e0c0 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@2d6e0f8, .next = cimport.struct_wl_list@2d6e0f8 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@2c0d350, .default_grab = cimport.struct_wlr_seat_pointer_grab@2c0d350, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .keyboard = cimport.struct_wlr_keyboard@3080ca8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@2c039e0, .default_grab = cimport.struct_wlr_seat_keyboard_grab@2c039e0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@2d6e080, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@2cf79e0, .default_grab = cimport.struct_wlr_seat_touch_grab@2cf79e0 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11c0f10, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11c0f90, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11c1020, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11c10a0 } } }
+new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@5633720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7f952b7f4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7f952b7f1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7f952b7f22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@664abc8, .next = cimport.struct_wl_list@664abc8 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@60cc6c0, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@65e87a8, .next = cimport.struct_wl_list@65e87a8 }, .display = cimport.struct_wl_display@5633720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7f9527c9e000, .next = cimport.struct_wl_list@7f9527c9e000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@56338f0, .next = cimport.struct_wl_list@7ffebb6f11f0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114e440 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@56337a8, .next = cimport.struct_wl_list@56337a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f540 }, .xdg_shell = .{ .global = cimport.struct_wl_global@60cc730, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@60d32c0, .next = cimport.struct_wl_list@60d32c0 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@60d32d0, .next = cimport.struct_wl_list@60d32d0 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@60d32e8, .next = cimport.struct_wl_list@60d32e8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f4b0 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@60d32f8, .next = cimport.struct_wl_list@60d32f8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f2b0 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@60d3308, .next = cimport.struct_wl_list@60d3308 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f490 }, .toplevels = .{ .prev = cimport.struct_wl_list@7f952bbaa0c8, .next = cimport.struct_wl_list@7f952bbaa0c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@60cc780, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@60cca10, .next = cimport.struct_wl_list@60cca10 } }, .keyboards = .{ .prev = cimport.struct_wl_list@7f952abbb000, .next = cimport.struct_wl_list@7f9527c9f000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@56338e0, .next = cimport.struct_wl_list@56338e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fa70 }, .seat = .{ .global = cimport.struct_wl_global@60d1060, .display = cimport.struct_wl_display@5633720, .clients = .{ .prev = cimport.struct_wl_list@60cffd0, .next = cimport.struct_wl_list@60cffd0 }, .name = u8@609ed20, .capabilities = 2, .accumulated_capabilities = 2, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@60d0000, .next = cimport.struct_wl_list@60d0000 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@60d0038, .next = cimport.struct_wl_list@60d0038 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@60cffc0, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@5fab4e0, .default_grab = cimport.struct_wlr_seat_pointer_grab@5fab4e0, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@60cffc0, .keyboard = cimport.struct_wlr_keyboard@63e22e8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@5fb4180, .default_grab = cimport.struct_wlr_seat_keyboard_grab@5fb4180, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@60cffc0, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@5f94240, .default_grab = cimport.struct_wlr_seat_touch_grab@5f94240 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bbf50, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bbfd0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11bc060, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11bc0e0 } } }
 Running wayland compositor on wayland-0
+sent input
 handled 107
 spawned kitty
-[0.044] Ignoring unknown config key: enable_ligatures
-[0.044] Ignoring unknown config key: keyboard_layout
+sent input
+sent input
+[0.043] Ignoring unknown config key: enable_ligatures
+[0.043] Ignoring unknown config key: keyboard_layout
 new client connected
 new surface!
 new toplevel!
@@ -92,11 +63,8 @@ toplevel commit!
 toplevel map!
 toplevel commit!
 toplevel commit!
-toplevel commit!
-toplevel commit!
-toplevel commit!
-[0.174] [glfw error 65544]: process_desktop_settings: failed with error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
-[0.174] [glfw error 65544]: Notify: Failed to get server capabilities error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+[0.175] [glfw error 65544]: process_desktop_settings: failed with error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+[0.175] [glfw error 65544]: Notify: Failed to get server capabilities error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
 toplevel commit!
 toplevel commit!
 toplevel commit!
@@ -133,82 +101,299 @@ toplevel commit!
 toplevel commit!
 toplevel commit!
 toplevel commit!
-handled 103
 sent input
-handled 114
 sent input
-handled 117
-sent input
-handled 105
-sent input
-handled 101
-sent input
-handled 104
-sent input
-handled 103
-sent input
-handled 117
-sent input
-handled 114
-sent input
-handled 101
-sent input
-handled 104
 sent input
 toplevel commit!
 toplevel commit!
-handled 113
 sent input
-handled 111
-sent input
-handled 117
-sent input
-handled 105
-sent input
-handled 116
-sent input
-handled 104
-sent input
-handled 114
-sent input
-handled 101
-sent input
-handled 103
-sent input
-handled 117
-sent input
-handled 111
-sent input
-handled 105
-sent input
-handled 104
-sent input
-handled 102
-sent input
-handled 97
 sent input
 toplevel commit!
 toplevel commit!
-handled 117
-sent input
-handled 111
-sent input
-handled 104
-sent input
-handled 103
-sent input
-handled 111
-sent input
-handled 117
-sent input
-handled 105
-sent input
-handled 102
 sent input
 toplevel commit!
 toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+[2.191] [PARSE ERROR] Escape codes to resize text area are not supported
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+sent input
 handled 65307
 sent input
 DEINIT
 wingless: backend/backend.c:51: wlr_backend_finish: Assertion `wl_list_empty(&backend->events.new_input.listener_list)' failed.
-[2.658] [glfw error 65544]: Wayland: fatal display error: Connection reset by peer
+[1644.968] [glfw error 65544]: Wayland: fatal display error: Broken pipe

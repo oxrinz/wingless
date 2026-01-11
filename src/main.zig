@@ -253,13 +253,14 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
         _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+        _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
     }
     std.debug.print("toplevel commit!\n", .{});
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
     _ = data;
+    _ = listener;
 
     std.debug.print("new surface!\n", .{});
 }
@@ -270,7 +271,6 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 
     const toplevel = WinglessToplevel.init(server, xdg_toplevel) catch @panic("Failed to create toplevel");
     _ = toplevel;
-
     std.debug.print("new toplevel!\n", .{});
 }
 
@@ -280,8 +280,11 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 }
 
 fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
     _ = data;
+    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("modifiers", listener)));
+
+    c.wlr_seat_set_keyboard(keyboard.server.seat, keyboard.wlr_keyboard);
+    c.wlr_seat_keyboard_notify_modifiers(keyboard.server.seat, &keyboard.wlr_keyboard.modifiers);
 }
 
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -294,29 +297,32 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
 
-    if (event.state != c.WL_KEYBOARD_KEY_STATE_PRESSED) return;
-
     var handled = false;
 
-    for (0..@intCast(nsyms)) |i| {
-        const sym = syms[i];
+    if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
+        const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
+        if (0 < (modifiers & c.WLR_MODIFIER_ALT)) {
+            for (0..@intCast(nsyms)) |i| {
+                const sym = syms[i];
 
-        std.debug.print("handled {any}\n", .{syms[i]});
-        if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
-        if (sym == c.XKB_KEY_k) {
-            var child = std.process.Child.init(
-                &[_][]const u8{"kitty"},
-                std.heap.page_allocator,
-            );
+                std.debug.print("handled {any}\n", .{syms[i]});
+                if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
+                if (sym == c.XKB_KEY_k) {
+                    var child = std.process.Child.init(
+                        &[_][]const u8{"kitty"},
+                        std.heap.page_allocator,
+                    );
 
-            var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
-            // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
-            child.env_map = @constCast(&env);
+                    var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
+                    // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
+                    child.env_map = @constCast(&env);
 
-            child.spawn() catch @panic("Kitty failed");
-            std.debug.print("spawned kitty\n", .{});
+                    child.spawn() catch @panic("Kitty failed");
+                    std.debug.print("spawned kitty\n", .{});
 
-            handled = true;
+                    handled = true;
+                }
+            }
         }
     }
 
@@ -337,8 +343,6 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_input", listener)));
     const device: *c.wlr_input_device = @ptrCast(@alignCast(data.?));
-
-    std.debug.print("display in new input: {any}\n", .{server.display});
 
     switch (device.type) {
         c.WLR_INPUT_DEVICE_KEYBOARD => {
@@ -364,7 +368,7 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
         else => std.debug.print("unrecognized new input\n", .{}),
     }
 
-    std.debug.print("new INPUT FOUND!!: {any}\n", .{device});
+    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
 }
 
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
