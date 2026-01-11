@@ -1,53 +1,52 @@
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.047 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.045 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
 MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
-00:00:00.060 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
-00:00:00.067 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
-00:00:00.069 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "eglInitialize"
-00:00:00.069 [ERROR] [render/egl.c:269] Failed to initialize EGL
-00:00:00.069 [ERROR] [render/egl.c:611] Failed to initialize EGL context
-00:00:00.069 [ERROR] [render/gles2/renderer.c:499] Could not initialize EGL
+00:00:00.059 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to create screen"
+00:00:00.065 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "DRI2: failed to load driver"
+00:00:00.067 [ERROR] [EGL] command: eglInitialize, error: EGL_NOT_INITIALIZED (0x3001), message: "eglInitialize"
+00:00:00.067 [ERROR] [render/egl.c:269] Failed to initialize EGL
+00:00:00.067 [ERROR] [render/egl.c:611] Failed to initialize EGL context
+00:00:00.067 [ERROR] [render/gles2/renderer.c:499] Could not initialize EGL
 WARNING: radv is not a conformant Vulkan implementation, testing use only.
-00:00:00.072 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
-00:00:00.072 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
+00:00:00.070 [ERROR] [render/vulkan/renderer.c:2516] Could not match drm and vulkan device
+00:00:00.070 [ERROR] [backend/drm/renderer.c:23] Renderer did not support importing DMA-BUFs
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
-FOUND NEW INPUT
-FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
-FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
-alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } }
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
+FOUND NEW INPUT
+FOUND NEW INPUT
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
+FOUND NEW INPUT
+alloc: .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } }
 FOUND NEW INPUT
 FOUND NEW OUTPUT
-new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@40c6b720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7f52a6df4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7f52a6df1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7f52a6df22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@41c83758, .next = cimport.struct_wl_list@41c83758 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@417043c0, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@41c23ed8, .next = cimport.struct_wl_list@41c23ed8 }, .display = cimport.struct_wl_display@40c6b720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7f52998ab000, .next = cimport.struct_wl_list@7f52998ab000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@40c6b8f0, .next = cimport.struct_wl_list@7ffc40fb3cb0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114e910 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@40c6b7a8, .next = cimport.struct_wl_list@40c6b7a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1150270 }, .xdg_shell = .{ .global = cimport.struct_wl_global@41704430, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@4170aff0, .next = cimport.struct_wl_list@4170aff0 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@4170b000, .next = cimport.struct_wl_list@4170b000 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@4170b018, .next = cimport.struct_wl_list@4170b018 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f980 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@4170b028, .next = cimport.struct_wl_list@4170b028 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f780 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@4170b038, .next = cimport.struct_wl_list@4170b038 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f960 }, .toplevels = .{ .prev = cimport.struct_wl_list@7f52a719f0c8, .next = cimport.struct_wl_list@7f52a719f0c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@41704480, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@41d91820, .next = cimport.struct_wl_list@41d91820 } }, .cursor_motion = .{ .link = .{ .prev = cimport.struct_wl_list@41704498, .next = cimport.struct_wl_list@41704498 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fa10 }, .cursor_motion_absolute = .{ .link = .{ .prev = cimport.struct_wl_list@417044a8, .next = cimport.struct_wl_list@417044a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fc00 }, .cursor_button = .{ .link = .{ .prev = cimport.struct_wl_list@417044b8, .next = cimport.struct_wl_list@417044b8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fdf0 }, .cursor_axis = .{ .link = .{ .prev = cimport.struct_wl_list@417044c8, .next = cimport.struct_wl_list@417044c8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114ff90 }, .cursor_frame = .{ .link = .{ .prev = cimport.struct_wl_list@417044d8, .next = cimport.struct_wl_list@417044d8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1150190 }, .keyboards = .{ .prev = cimport.struct_wl_list@7f52a63bd000, .next = cimport.struct_wl_list@7f52998ac000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@40c6b8e0, .next = cimport.struct_wl_list@40c6b8e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@11507a0 }, .seat = .{ .global = cimport.struct_wl_global@41708d60, .display = cimport.struct_wl_display@40c6b720, .clients = .{ .prev = cimport.struct_wl_list@41707cd0, .next = cimport.struct_wl_list@41707cd0 }, .name = u8@41691620, .capabilities = 3, .accumulated_capabilities = 3, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@41707d00, .next = cimport.struct_wl_list@41707d00 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@41707d38, .next = cimport.struct_wl_list@41707d38 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@41707cc0, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@416d6a20, .default_grab = cimport.struct_wlr_seat_pointer_grab@416d6a20, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@41707cc0, .keyboard = cimport.struct_wlr_keyboard@41a16c08, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@41592400, .default_grab = cimport.struct_wlr_seat_keyboard_grab@41592400, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@41707cc0, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@4159c4b0, .default_grab = cimport.struct_wlr_seat_touch_grab@4159c4b0 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11bdf30, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11bdfb0, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be040, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be0c0 } } }
+new OUTPUT FOUND!!: .{ .display = cimport.struct_wl_display@3c226720, .backend = .{ .impl = cimport.struct_wlr_backend_impl@7fc363df4420, .buffer_caps = 2, .features = .{ .timeline = false }, .events = .{ .destroy = .{ ... }, .new_input = .{ ... }, .new_output = .{ ... } } }, .renderer = .{ .render_buffer_caps = 2, .events = .{ .destroy = .{ ... }, .lost = .{ ... } }, .features = .{ .output_color_transform = false, .timeline = true }, .WLR_PRIVATE = .{ .impl = cimport.struct_wlr_renderer_impl@7fc363df1d60 } }, .wlr_allocator = .{ .impl = cimport.struct_wlr_allocator_interface@7fc363df22d0, .buffer_caps = 2, .events = .{ .destroy = .{ ... } } }, .scene = .{ .tree = .{ .node = .{ ... }, .children = .{ ... } }, .outputs = .{ .prev = cimport.struct_wl_list@3d23ed58, .next = cimport.struct_wl_list@3d23ed58 }, .linux_dmabuf_v1 = cimport.struct_wlr_linux_dmabuf_v1@0, .gamma_control_manager_v1 = null, .WLR_PRIVATE = .{ .linux_dmabuf_v1_destroy = .{ ... }, .gamma_control_manager_v1_destroy = .{ ... }, .gamma_control_manager_v1_set_gamma = .{ ... }, .debug_damage_option = 0, .direct_scanout = true, .calculate_visibility = true, .highlight_transparent_region = false } }, .scene_layout = cimport.struct_wlr_scene_output_layout@3ccbf900, .output_layout = .{ .outputs = .{ .prev = cimport.struct_wl_list@3d1df258, .next = cimport.struct_wl_list@3d1df258 }, .display = cimport.struct_wl_display@3c226720, .events = .{ .add = .{ ... }, .change = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .outputs = .{ .prev = cimport.struct_wl_list@7fc3566ca000, .next = cimport.struct_wl_list@7fc3566ca000 }, .new_output = .{ .link = .{ .prev = cimport.struct_wl_list@3c2268f0, .next = cimport.struct_wl_list@7ffffd451d10 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114e970 }, .on_client = .{ .link = .{ .prev = cimport.struct_wl_list@3c2267a8, .next = cimport.struct_wl_list@3c2267a8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1150370 }, .xdg_shell = .{ .global = cimport.struct_wl_global@3ccbf970, .version = 3, .clients = .{ .prev = cimport.struct_wl_list@3ccc6500, .next = cimport.struct_wl_list@3ccc6500 }, .popup_grabs = .{ .prev = cimport.struct_wl_list@3ccc6510, .next = cimport.struct_wl_list@3ccc6510 }, .ping_timeout = 10000, .events = .{ .new_surface = .{ ... }, .new_toplevel = .{ ... }, .new_popup = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... } } }, .new_xdg_surface = .{ .link = .{ .prev = cimport.struct_wl_list@3ccc6528, .next = cimport.struct_wl_list@3ccc6528 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f9e0 }, .new_xdg_toplevel = .{ .link = .{ .prev = cimport.struct_wl_list@3ccc6538, .next = cimport.struct_wl_list@3ccc6538 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f7e0 }, .new_xdg_popup = .{ .link = .{ .prev = cimport.struct_wl_list@3ccc6548, .next = cimport.struct_wl_list@3ccc6548 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114f9c0 }, .toplevels = .{ .prev = cimport.struct_wl_list@7fc3642520c8, .next = cimport.struct_wl_list@7fc3642520c8 }, .cursor = .{ .state = cimport.struct_wlr_cursor_state@3ccbf9c0, .x = 100, .y = 100, .events = .{ .motion = .{ ... }, .motion_absolute = .{ ... }, .button = .{ ... }, .axis = .{ ... }, .frame = .{ ... }, .swipe_begin = .{ ... }, .swipe_update = .{ ... }, .swipe_end = .{ ... }, .pinch_begin = .{ ... }, .pinch_update = .{ ... }, .pinch_end = .{ ... }, .hold_begin = .{ ... }, .hold_end = .{ ... }, .touch_up = .{ ... }, .touch_down = .{ ... }, .touch_motion = .{ ... }, .touch_cancel = .{ ... }, .touch_frame = .{ ... }, .tablet_tool_axis = .{ ... }, .tablet_tool_proximity = .{ ... }, .tablet_tool_tip = .{ ... }, .tablet_tool_button = .{ ... } }, .data = null }, .cursor_mgr = .{ .name = u8@0, .size = 24, .scaled_themes = .{ .prev = cimport.struct_wl_list@3d34ce10, .next = cimport.struct_wl_list@3d34ce10 } }, .cursor_motion = .{ .link = .{ .prev = cimport.struct_wl_list@3ccbf9d8, .next = cimport.struct_wl_list@3ccbf9d8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fa70 }, .cursor_motion_absolute = .{ .link = .{ .prev = cimport.struct_wl_list@3ccbf9e8, .next = cimport.struct_wl_list@3ccbf9e8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fcb0 }, .cursor_button = .{ .link = .{ .prev = cimport.struct_wl_list@3ccbf9f8, .next = cimport.struct_wl_list@3ccbf9f8 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@114fef0 }, .cursor_axis = .{ .link = .{ .prev = cimport.struct_wl_list@3ccbfa08, .next = cimport.struct_wl_list@3ccbfa08 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1150090 }, .cursor_frame = .{ .link = .{ .prev = cimport.struct_wl_list@3ccbfa18, .next = cimport.struct_wl_list@3ccbfa18 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@1150290 }, .keyboards = .{ .prev = cimport.struct_wl_list@7fc363470000, .next = cimport.struct_wl_list@7fc356a94000 }, .new_input = .{ .link = .{ .prev = cimport.struct_wl_list@3c2268e0, .next = cimport.struct_wl_list@3c2268e0 }, .notify = fn ([*c]cimport.struct_wl_listener, ?*anyopaque) callconv(.c) void@11508a0 }, .seat = .{ .global = cimport.struct_wl_global@3ccc42a0, .display = cimport.struct_wl_display@3c226720, .clients = .{ .prev = cimport.struct_wl_list@3ccc3210, .next = cimport.struct_wl_list@3ccc3210 }, .name = u8@3ccb2cb0, .capabilities = 3, .accumulated_capabilities = 3, .selection_source = cimport.struct_wlr_data_source@0, .selection_serial = 0, .selection_offers = .{ .prev = cimport.struct_wl_list@3ccc3240, .next = cimport.struct_wl_list@3ccc3240 }, .primary_selection_source = null, .primary_selection_serial = 0, .drag = cimport.struct_wlr_drag@0, .drag_source = cimport.struct_wlr_data_source@0, .drag_serial = 0, .drag_offers = .{ .prev = cimport.struct_wl_list@3ccc3278, .next = cimport.struct_wl_list@3ccc3278 }, .pointer_state = .{ .seat = cimport.struct_wlr_seat@3ccc3200, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .sx = 0, .sy = 0, .grab = cimport.struct_wlr_seat_pointer_grab@3cb49ef0, .default_grab = cimport.struct_wlr_seat_pointer_grab@3cb49ef0, .sent_axis_source = false, .cached_axis_source = 0, .buttons = { ... }, .button_count = 0, .grab_button = 0, .grab_serial = 0, .grab_time = 0, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .keyboard_state = .{ .seat = cimport.struct_wlr_seat@3ccc3200, .keyboard = cimport.struct_wlr_keyboard@3cfd5cf8, .focused_client = cimport.struct_wlr_seat_client@0, .focused_surface = cimport.struct_wlr_surface@0, .grab = cimport.struct_wlr_seat_keyboard_grab@3cb56f10, .default_grab = cimport.struct_wlr_seat_keyboard_grab@3cb56f10, .events = .{ ... }, .WLR_PRIVATE = .{ ... } }, .touch_state = .{ .seat = cimport.struct_wlr_seat@3ccc3200, .touch_points = .{ ... }, .grab_serial = 0, .grab_id = 0, .grab = cimport.struct_wlr_seat_touch_grab@3cb6ea50, .default_grab = cimport.struct_wlr_seat_touch_grab@3cb6ea50 }, .events = .{ .pointer_grab_begin = .{ ... }, .pointer_grab_end = .{ ... }, .keyboard_grab_begin = .{ ... }, .keyboard_grab_end = .{ ... }, .touch_grab_begin = .{ ... }, .touch_grab_end = .{ ... }, .request_set_cursor = .{ ... }, .request_set_selection = .{ ... }, .set_selection = .{ ... }, .request_set_primary_selection = .{ ... }, .set_primary_selection = .{ ... }, .request_start_drag = .{ ... }, .start_drag = .{ ... }, .destroy = .{ ... } }, .data = null, .WLR_PRIVATE = .{ .display_destroy = .{ ... }, .selection_source_destroy = .{ ... }, .primary_selection_source_destroy = .{ ... }, .drag_source_destroy = .{ ... } } }, .allocator = .{ .ptr = anyopaque@aaaaaaaaaaaaaaaa, .vtable = .{ .alloc = fn (*anyopaque, usize, mem.Alignment, usize) ?[*]u8@11be800, .resize = fn (*anyopaque, []u8, mem.Alignment, usize, usize) bool@11be880, .remap = fn (*anyopaque, []u8, mem.Alignment, usize, usize) ?[*]u8@11be910, .free = fn (*anyopaque, []u8, mem.Alignment, usize) void@11be990 } } }
 Running wayland compositor on wayland-0
 sent input
 handled 107
 spawned kitty
-sent input
 sent input
 [0.043] Ignoring unknown config key: enable_ligatures
 [0.043] Ignoring unknown config key: keyboard_layout
@@ -55,15 +54,12 @@ new client connected
 new surface!
 new toplevel!
 toplevel commit!
+sent input
 toplevel map!
 toplevel commit!
 toplevel commit!
-[0.175] [glfw error 65544]: process_desktop_settings: failed with error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
-[0.175] [glfw error 65544]: Notify: Failed to get server capabilities error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
-toplevel commit!
-toplevel commit!
-toplevel commit!
-toplevel commit!
+[0.179] [glfw error 65544]: process_desktop_settings: failed with error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+[0.179] [glfw error 65544]: Notify: Failed to get server capabilities error: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
 toplevel commit!
 toplevel commit!
 toplevel commit!
@@ -103,28 +99,6 @@ toplevel commit!
 sent input
 toplevel commit!
 toplevel commit!
-toplevel commit!
-toplevel commit!
-sent input
-sent input
-toplevel commit!
-toplevel commit!
-sent input
-toplevel commit!
-toplevel commit!
-sent input
-sent input
-sent input
-toplevel commit!
-toplevel commit!
-sent input
-toplevel commit!
-toplevel commit!
-sent input
-sent input
-sent input
-toplevel commit!
-toplevel commit!
 sent input
 sent input
 toplevel commit!
@@ -141,6 +115,18 @@ sent input
 toplevel commit!
 toplevel commit!
 sent input
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
+sent input
+sent input
+toplevel commit!
+toplevel commit!
 sent input
 sent input
 toplevel commit!
@@ -162,6 +148,13 @@ new client connected
 new client connected
 new client connected
 sent input
+toplevel commit!
+toplevel commit!
+toplevel commit!
+toplevel commit!
+new client connected
+new client connected
+new client connected
 toplevel commit!
 toplevel commit!
 new surface!
@@ -175,17 +168,5 @@ toplevel commit!
 toplevel commit!
 sent input
 sent input
-sent input
-sent input
-sent input
-sent input
-sent input
-sent input
-sent input
-sent input
-sent input
-handled 65307
-sent input
-DEINIT
-wingless: backend/backend.c:51: wlr_backend_finish: Assertion `wl_list_empty(&backend->events.new_input.listener_list)' failed.
-[10.596] [glfw error 65544]: Wayland: fatal display error: Broken pipe
+wingless: types/wlr_compositor.c:734: surface_handle_resource_destroy: Assertion `wl_list_empty(&surface->events.commit.listener_list)' failed.
+[4.750] [glfw error 65544]: Wayland: fatal display error: Broken pipe

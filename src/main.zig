@@ -302,12 +302,13 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     _ = data;
 }
 
-fn desktop_active_toplevel(server: *WinglessServer, lx: c_long, ly: c_long, surface: c.wlr_surface, sx: *c_long, sy: *c_long) ?*WinglessToplevel {
+fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *[*c]c.wlr_surface, sx: *f64, sy: *f64) ?*WinglessToplevel {
     const wlr_node = c.wlr_scene_node_at(&server.scene.tree.node, lx, ly, sx, sy);
-    const node: *c.wlr_scene_node = wlr_node;
     if (wlr_node != null) {
+        const node: *c.wlr_scene_node = wlr_node;
         if (node.type != c.WLR_SCENE_NODE_BUFFER) return null;
-    }
+    } else return null;
+    const node: *c.wlr_scene_node = wlr_node;
 
     const scene_buffer = c.wlr_scene_buffer_from_node(wlr_node);
     const wlr_scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buffer);
@@ -319,22 +320,22 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: c_long, ly: c_long, surf
 
     const wlr_tree = node.parent;
     var tree: *c.wlr_scene_tree = wlr_tree;
-    while (tree != null and tree.node.data != null) {
+    while (wlr_tree != null and tree.node.data != null) {
         tree = tree.node.parent;
     }
-    return @ptrCast(tree.node.data);
+    return @ptrCast(@alignCast(tree.node.data));
 }
 
 fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
-    var sx: c_long = undefined;
-    var sy: c_long = undefined;
+    var sx: f64 = undefined;
+    var sy: f64 = undefined;
     const seat = server.seat;
-    var surface: *c.wlr_surface = undefined;
+    var surface: [*c]c.wlr_surface = null;
     const toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
     if (toplevel == null) c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
 
-    if (surface != undefined) {
+    if (surface != null) {
         c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
         c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
     } else c.wlr_seat_pointer_clear_focus(seat);
@@ -346,6 +347,8 @@ fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const pointer: *c.wlr_pointer = event.pointer;
 
     c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
+
+    process_cursor_motion(server, event.time_msec);
 }
 
 fn server_cursor_motion_absolute(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -354,6 +357,7 @@ fn server_cursor_motion_absolute(listener: [*c]c.wl_listener, data: ?*anyopaque)
     const pointer: *c.wlr_pointer = event.pointer;
 
     c.wlr_cursor_warp_absolute(server.cursor, &pointer.base, event.x, event.y);
+    process_cursor_motion(server, event.time_msec);
 }
 
 fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
