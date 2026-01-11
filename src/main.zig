@@ -27,6 +27,11 @@ const WinglessServer = struct {
 
     cursor: *c.wlr_cursor = undefined,
     cursor_mgr: *c.wlr_xcursor_manager = undefined,
+    cursor_motion: c.wl_listener = undefined,
+    cursor_motion_absolute: c.wl_listener = undefined,
+    cursor_button: c.wl_listener = undefined,
+    cursor_axis: c.wl_listener = undefined,
+    cursor_frame: c.wl_listener = undefined,
 
     keyboards: c.wl_list = undefined,
     new_input: c.wl_listener = undefined,
@@ -69,11 +74,24 @@ const WinglessServer = struct {
         c.wl_signal_add(&server.xdg_shell.events.new_toplevel, &server.new_xdg_toplevel);
         c.wl_signal_add(&server.xdg_shell.events.new_popup, &server.new_xdg_popup);
 
-        // std.debug.print("xdg_shell: {any}\n", .{server.xdg_shell});
-
         server.cursor = c.wlr_cursor_create();
         c.wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
         server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
+
+        c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+
+        server.cursor_motion = .{ .link = undefined, .notify = server_cursor_motion };
+
+        server.cursor_motion_absolute = .{ .link = undefined, .notify = server_cursor_motion_absolute };
+        server.cursor_button = .{ .link = undefined, .notify = server_cursor_button };
+        server.cursor_axis = .{ .link = undefined, .notify = server_cursor_axis };
+        server.cursor_frame = .{ .link = undefined, .notify = server_cursor_frame };
+
+        c.wl_signal_add(&server.cursor.events.motion, &server.cursor_motion);
+        c.wl_signal_add(&server.cursor.events.motion_absolute, &server.cursor_motion_absolute);
+        c.wl_signal_add(&server.cursor.events.button, &server.cursor_button);
+        c.wl_signal_add(&server.cursor.events.axis, &server.cursor_axis);
+        c.wl_signal_add(&server.cursor.events.frame, &server.cursor_frame);
 
         server.on_client = .{ .link = undefined, .notify = on_client };
         c.wl_display_add_client_created_listener(server.display, &server.on_client);
@@ -252,7 +270,12 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
-        _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+        var w: c_int = 0;
+        var h: c_int = 0;
+        const o: *WinglessOutput = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("link", toplevel.server.outputs.next)));
+        c.wlr_output_effective_resolution(o.output, &w, &h);
+        _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
+
         _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
     }
     std.debug.print("toplevel commit!\n", .{});
@@ -277,6 +300,80 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
+}
+
+fn desktop_active_toplevel(server: *WinglessServer, lx: c_long, ly: c_long, surface: c.wlr_surface, sx: *c_long, sy: *c_long) ?*WinglessToplevel {
+    const wlr_node = c.wlr_scene_node_at(&server.scene.tree.node, lx, ly, sx, sy);
+    const node: *c.wlr_scene_node = wlr_node;
+    if (wlr_node != null) {
+        if (node.type != c.WLR_SCENE_NODE_BUFFER) return null;
+    }
+
+    const scene_buffer = c.wlr_scene_buffer_from_node(wlr_node);
+    const wlr_scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buffer);
+
+    if (wlr_scene_surface == null) return null;
+
+    const scene_surface: *c.wlr_scene_surface = wlr_scene_surface;
+    surface.* = scene_surface.surface;
+
+    const wlr_tree = node.parent;
+    var tree: *c.wlr_scene_tree = wlr_tree;
+    while (tree != null and tree.node.data != null) {
+        tree = tree.node.parent;
+    }
+    return @ptrCast(tree.node.data);
+}
+
+fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
+    var sx: c_long = undefined;
+    var sy: c_long = undefined;
+    const seat = server.seat;
+    var surface: *c.wlr_surface = undefined;
+    const toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+
+    if (toplevel == null) c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+
+    if (surface != undefined) {
+        c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+        c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+    } else c.wlr_seat_pointer_clear_focus(seat);
+}
+
+fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_motion", listener)));
+    const event: *c.wlr_pointer_motion_event = @ptrCast(@alignCast(data.?));
+    const pointer: *c.wlr_pointer = event.pointer;
+
+    c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
+}
+
+fn server_cursor_motion_absolute(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_motion_absolute", listener)));
+    const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data.?));
+    const pointer: *c.wlr_pointer = event.pointer;
+
+    c.wlr_cursor_warp_absolute(server.cursor, &pointer.base, event.x, event.y);
+}
+
+fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_button", listener)));
+    const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data.?));
+
+    _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+}
+
+fn server_cursor_axis(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_axis", listener)));
+    const event: *c.wlr_pointer_axis_event = @ptrCast(@alignCast(data.?));
+
+    c.wlr_seat_pointer_notify_axis(server.seat, event.time_msec, event.orientation, event.delta, event.delta_discrete, event.source, event.relative_direction);
+}
+
+fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_frame", listener)));
+    c.wlr_seat_pointer_notify_frame(server.seat);
 }
 
 fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -365,10 +462,15 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
             c.wl_list_insert(&server.keyboards, @ptrCast(&keyboard.link));
         },
+        c.WLR_INPUT_DEVICE_POINTER => {
+            c.wlr_cursor_attach_input_device(server.cursor, device);
+        },
         else => std.debug.print("unrecognized new input\n", .{}),
     }
 
-    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
+    var caps = c.WL_SEAT_CAPABILITY_POINTER;
+    if (c.wl_list_empty(&server.keyboards) == 0) caps |= c.WL_SEAT_CAPABILITY_KEYBOARD;
+    c.wlr_seat_set_capabilities(server.seat, @intCast(caps));
 }
 
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
