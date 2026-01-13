@@ -2,6 +2,7 @@ const std = @import("std");
 
 const config = @import("config.zig");
 const utils = @import("utils.zig");
+const tests = @import("tests.zig");
 
 const c = @import("c.zig").c;
 
@@ -632,6 +633,13 @@ fn testSetup() !*WinglessServer {
     return server;
 }
 
+fn testPump(server: *WinglessServer, client: *c.wl_display) void {
+    _ = c.wl_display_flush(client);
+    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
+    _ = c.wl_display_flush_clients(server.display);
+    _ = c.wl_display_dispatch_pending(client);
+}
+
 test "init/deinit leak" {
     const server = try testSetup();
 
@@ -651,6 +659,64 @@ test "client open and close" {
     _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
 
     c.wl_display_disconnect(client_display);
+
+    try server.deinit();
+}
+
+fn cb(
+    data: ?*anyopaque,
+    registry: ?*c.wl_registry,
+    name: u32,
+    iface: [*c]const u8,
+    version: u32,
+) callconv(.c) void {
+    _ = version;
+    const seat_ptr: **c.wl_seat = @ptrCast(@alignCast(data.?));
+
+    std.debug.print("outside addr: {any}\n", .{@intFromPtr(seat_ptr.*)});
+
+    if (std.mem.eql(u8, std.mem.span(iface), "seat0")) {
+        seat_ptr.* = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_seat_interface, 1).?);
+    }
+}
+
+test "keyboard input propagation" {
+    const server = try testSetup();
+
+    std.debug.print("doing test\n", .{});
+    const client = c.wl_display_connect(null).?;
+    defer c.wl_display_disconnect(client);
+
+    const registry = c.wl_display_get_registry(client);
+
+    var seat: *c.wl_seat = undefined;
+    var keyboard: ?*c.wl_keyboard = null;
+    var tk = tests.TestKeyboard{};
+
+    std.debug.print("inside addr: {any}\n", .{@intFromPtr(seat)});
+
+    const registry_listener = c.wl_registry_listener{
+        .global = cb,
+        .global_remove = null,
+    };
+
+    _ = c.wl_registry_add_listener(registry, &registry_listener, @ptrCast(&seat));
+    testPump(server, client);
+
+    testPump(server, client);
+
+    keyboard = c.wl_seat_get_keyboard(seat);
+
+    const wl_keyboard_listener = c.wl_keyboard_listener{
+        .keymap = null,
+        .enter = null,
+        .leave = null,
+        .key = tests.TestKeyboard.key,
+        .modifiers = null,
+        .repeat_info = null,
+    };
+
+    _ = c.wl_keyboard_add_listener(keyboard.?, &wl_keyboard_listener, &tk);
 
     try server.deinit();
 }
