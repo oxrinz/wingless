@@ -1,6 +1,8 @@
 pub const c = @cImport({
     @cInclude("stdlib.h");
     @cDefine("WLR_USE_UNSTABLE", "1");
+    @cInclude("xdg-shell-protocol.h");
+    @cInclude("xdg-shell-client-protocol.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/backend.h");
     @cInclude("wlr/backend/wayland.h");
@@ -8,6 +10,7 @@ pub const c = @cImport({
     @cInclude("wlr/render/wlr_renderer.h");
     @cInclude("wlr/render/swapchain.h");
     @cInclude("wlr/render/allocator.h");
+    @cInclude("wlr/types/wlr_virtual_keyboard_v1.h");
     @cInclude("wlr/types/wlr_cursor.h");
     @cInclude("wlr/types/wlr_compositor.h");
     @cInclude("wlr/types/wlr_input_device.h");

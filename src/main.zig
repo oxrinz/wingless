@@ -6,7 +6,7 @@ const tests = @import("tests.zig");
 
 const c = @import("c.zig").c;
 
-const WinglessServer = struct {
+pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
     renderer: *c.wlr_renderer = undefined,
@@ -438,6 +438,7 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 }
 
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("FUCKING KEY!\n", .{});
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
@@ -623,6 +624,8 @@ comptime {
 
 fn testSetup() !*WinglessServer {
     _ = c.setenv("WLR_BACKENDS", "headless", 1);
+    _ = c.setenv("WLR_LIBINPUT_NO_DEVICES", "1", 1);
+
     const allocator = std.heap.page_allocator;
     const conf = try config.getConfig(allocator);
 
@@ -633,13 +636,6 @@ fn testSetup() !*WinglessServer {
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
 
     return server;
-}
-
-fn testPump(server: *WinglessServer, client: *c.wl_display) void {
-    _ = c.wl_display_flush(client);
-    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
-    _ = c.wl_display_flush_clients(server.display);
-    _ = c.wl_display_dispatch_pending(client);
 }
 
 test "init/deinit leak" {
@@ -689,28 +685,23 @@ test "keyboard input propagation" {
     const client = c.wl_display_connect(null).?;
     defer c.wl_display_disconnect(client);
 
-    testPump(server, client);
-    const registry = c.wl_display_get_registry(client);
+    tests.testPump(server, client);
 
-    var seat: *c.wl_seat = undefined;
+    const context = try tests.getTestContext(std.testing.allocator, client, server);
+
+    const surface = c.wl_compositor_create_surface(context.compositor);
+    const xdg_surface = c.xdg_wm_base_get_xdg_surface(context.wm_base, surface);
+    const toplevel = c.xdg_surface_get_toplevel(xdg_surface);
+    _ = toplevel;
+
+    c.wl_surface_commit(surface);
+
+    tests.testPump(server, client);
+
     var keyboard: ?*c.wl_keyboard = null;
-    var tk = tests.TestKeyboard{};
 
-    std.debug.print("inside addr: {any}\n", .{@intFromPtr(seat)});
-
-    const registry_listener = c.wl_registry_listener{
-        .global = cb,
-        .global_remove = null,
-    };
-
-    _ = c.wl_registry_add_listener(registry, &registry_listener, @ptrCast(&seat));
-    testPump(server, client);
-
-    testPump(server, client);
-    testPump(server, client);
-    testPump(server, client);
-
-    keyboard = c.wl_seat_get_keyboard(seat);
+    keyboard = c.wl_seat_get_keyboard(context.seat);
+    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
 
     const wl_keyboard_listener = c.wl_keyboard_listener{
         .keymap = null,
@@ -720,8 +711,23 @@ test "keyboard input propagation" {
         .modifiers = null,
         .repeat_info = null,
     };
+    _ = wl_keyboard_listener;
 
-    _ = c.wl_keyboard_add_listener(keyboard.?, &wl_keyboard_listener, &tk);
+    const ev: c.wlr_keyboard_key_event = .{
+        .time_msec = 0,
+        .keycode = 30,
+        .state = c.WL_KEYBOARD_KEY_STATE_PRESSED,
+        .update_state = true,
+    };
+
+    c.wlr_seat_keyboard_notify_key(
+        server.seat,
+        ev.time_msec,
+        ev.keycode,
+        ev.state,
+    );
+
+    tests.testPump(server, client);
 
     try server.deinit();
 }
