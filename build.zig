@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkSystemLibrary("wlroots-0.19");
+    exe.linkSystemLibrary("wayland-client");
     exe.linkSystemLibrary("wayland-server");
     exe.linkSystemLibrary("xkbcommon");
     exe.linkLibC();
