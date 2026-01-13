@@ -189,6 +189,13 @@ const WinglessOutput = struct {
 
         return output;
     }
+
+    pub fn deinit(self: *WinglessOutput) void {
+        c.wl_list_remove(&self.frame.link);
+        c.wl_list_remove(&self.request_state.link);
+        c.wl_list_remove(&self.destroy.link);
+        c.wl_list_remove(&self.link);
+    }
 };
 
 const WinglessToplevel = struct {
@@ -236,7 +243,7 @@ const WinglessToplevel = struct {
 
     pub fn deinit(self: *WinglessToplevel) void {
         c.wl_list_remove(&self.map.link);
-        c.wl_list_remove(&self.unmap.link);
+        // c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
         c.wl_list_remove(&self.destroy.link);
     }
@@ -471,7 +478,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                     );
 
                     var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
-                    env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
+                    // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
                     child.env_map = @constCast(&env);
 
                     child.spawn() catch @panic("Kitty failed");
@@ -508,7 +515,7 @@ fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) cal
 
 fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("modifiers", listener)));
+    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("destroy", listener)));
 
     c.wl_list_remove(&keyboard.modifiers.link);
     c.wl_list_remove(&keyboard.key.link);
@@ -517,8 +524,6 @@ fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 }
 
 fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("FOUND NEW INPUT\n", .{});
-
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_input", listener)));
     const device: *c.wlr_input_device = @ptrCast(@alignCast(data.?));
 
@@ -528,7 +533,6 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
             const context = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS);
             const keymap = c.xkb_keymap_new_from_names(context, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
-            std.debug.print("alloc: {any}\n", .{server.allocator});
 
             _ = c.wlr_keyboard_set_keymap(keyboard.wlr_keyboard, keymap);
             c.xkb_keymap_unref(keymap);
@@ -574,13 +578,13 @@ fn output_request_state(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 }
 
 fn output_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
     _ = data;
+    const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("destroy", listener)));
+
+    output.deinit();
 }
 
 fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("FOUND NEW OUTPUT\n", .{});
-
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_output", listener)));
     const wlr_output: *c.wlr_output = @ptrCast(@alignCast(data.?));
 
@@ -609,8 +613,6 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
     const l_output = c.wlr_output_layout_add_auto(server.output_layout, wlr_output);
     const scene_output = c.wlr_scene_output_create(server.scene, wlr_output);
     c.wlr_scene_output_layout_add_output(server.scene_layout, l_output, scene_output);
-
-    std.debug.print("new OUTPUT FOUND!!: {any}\n", .{server});
 }
 
 pub fn main() !void {
@@ -634,14 +636,30 @@ comptime {
     _ = @import("config.zig");
 }
 
-test "init/deinit leak" {
+fn testSetup() !*WinglessServer {
     const allocator = std.heap.page_allocator;
     const conf = try config.getConfig(allocator);
 
-    var server = try WinglessServer.init(conf);
+    const server = try WinglessServer.init(conf);
 
-    _ = c.wl_display_add_socket_auto(server.display);
+    const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
+    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+
+    return server;
+}
+
+test "init/deinit leak" {
+    const server = try testSetup();
+
+    c.wl_display_flush_clients(server.display);
+    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
+
+    try server.deinit();
+}
+
+test "client open and close" {
+    const server = try testSetup();
 
     c.wl_display_flush_clients(server.display);
     _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
