@@ -252,6 +252,8 @@ const WinglessToplevel = struct {
 fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
+
+    std.debug.print("client connected\n", .{});
 }
 
 fn tab_next(server: *WinglessServer) void {
@@ -675,7 +677,7 @@ fn cb(
 
     std.debug.print("outside addr: {any}\n", .{@intFromPtr(seat_ptr.*)});
 
-    if (std.mem.eql(u8, std.mem.span(iface), "seat0")) {
+    if (std.mem.eql(u8, std.mem.span(iface), "wl_seat")) {
         seat_ptr.* = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_seat_interface, 1).?);
     }
 }
@@ -687,6 +689,7 @@ test "keyboard input propagation" {
     const client = c.wl_display_connect(null).?;
     defer c.wl_display_disconnect(client);
 
+    testPump(server, client);
     const registry = c.wl_display_get_registry(client);
 
     var seat: *c.wl_seat = undefined;
@@ -703,6 +706,8 @@ test "keyboard input propagation" {
     _ = c.wl_registry_add_listener(registry, &registry_listener, @ptrCast(&seat));
     testPump(server, client);
 
+    testPump(server, client);
+    testPump(server, client);
     testPump(server, client);
 
     keyboard = c.wl_seat_get_keyboard(seat);
