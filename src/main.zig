@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("config.zig");
 const utils = @import("utils.zig");
 
 const c = @import("c.zig").c;
@@ -37,9 +38,11 @@ const WinglessServer = struct {
     new_input: c.wl_listener = undefined,
     seat: *c.wlr_seat = undefined,
 
+    wingless_config: config.WinglessConfig = undefined,
+
     allocator: std.mem.Allocator = undefined,
 
-    pub fn init() !*WinglessServer {
+    pub fn init(conf: config.WinglessConfig) !*WinglessServer {
         var allocator = std.heap.page_allocator;
 
         var server = try allocator.create(WinglessServer);
@@ -101,6 +104,8 @@ const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
+        server.wingless_config = conf;
+
         server.allocator = allocator;
 
         return server;
@@ -109,9 +114,22 @@ const WinglessServer = struct {
     pub fn deinit(self: *WinglessServer) !void {
         std.debug.print("DEINIT\n", .{});
 
-        // c.wl_list_remove(&self.new_input.link);
-        // c.wl_list_remove(&self.new_output.link);
+        c.wl_list_remove(&self.new_xdg_toplevel.link);
+        c.wl_list_remove(&self.new_xdg_popup.link);
+        c.wl_list_remove(&self.new_xdg_surface.link);
 
+        c.wl_list_remove(&self.cursor_motion.link);
+        c.wl_list_remove(&self.cursor_motion_absolute.link);
+        c.wl_list_remove(&self.cursor_button.link);
+        c.wl_list_remove(&self.cursor_axis.link);
+        c.wl_list_remove(&self.cursor_frame.link);
+
+        c.wl_list_remove(&self.new_input.link);
+        c.wl_list_remove(&self.new_output.link);
+
+        c.wlr_scene_node_destroy(&self.scene.tree.node);
+        c.wlr_xcursor_manager_destroy(self.cursor_mgr);
+        c.wlr_cursor_destroy(self.cursor);
         c.wlr_allocator_destroy(self.wlr_allocator);
         c.wlr_renderer_destroy(self.renderer);
         c.wlr_backend_destroy(self.backend);
@@ -196,7 +214,7 @@ const WinglessToplevel = struct {
             .map = .{ .link = undefined, .notify = xdg_toplevel_map },
             .unmap = undefined,
             .commit = .{ .link = undefined, .notify = xdg_toplevel_commit },
-            .destroy = undefined,
+            .destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy },
         };
 
         {
@@ -205,6 +223,7 @@ const WinglessToplevel = struct {
 
             c.wl_signal_add(&surface.events.map, &toplevel.map);
             c.wl_signal_add(&surface.events.commit, &toplevel.commit);
+            c.wl_signal_add(&surface.events.destroy, &toplevel.destroy);
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -214,13 +233,50 @@ const WinglessToplevel = struct {
 
         return toplevel;
     }
+
+    pub fn deinit(self: *WinglessToplevel) void {
+        c.wl_list_remove(&self.map.link);
+        c.wl_list_remove(&self.unmap.link);
+        c.wl_list_remove(&self.commit.link);
+        c.wl_list_remove(&self.destroy.link);
+    }
 };
 
 fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
+}
 
-    std.debug.print("new client connected\n", .{});
+fn tab_next(server: *WinglessServer) void {
+    if (c.wl_list_empty(&server.toplevels) != 0) return;
+
+    const link: *c.wl_list = server.toplevels.next;
+    if (link == &server.toplevels) return;
+
+    var next: *c.wl_list = link.next;
+    if (next == &server.toplevels) next = next.next;
+
+    if (next == &server.toplevels) return;
+
+    const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", next);
+
+    focus_toplevel(toplevel.?);
+}
+
+fn tab_prev(server: *WinglessServer) void {
+    if (c.wl_list_empty(&server.toplevels) != 0) return;
+
+    const link: *c.wl_list = server.toplevels.next;
+    if (link == &server.toplevels) return;
+
+    var prev: *c.wl_list = link.prev;
+    if (prev == &server.toplevels) prev = prev.prev;
+
+    if (prev == &server.toplevels) return;
+
+    const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", prev);
+
+    focus_toplevel(toplevel.?);
 }
 
 fn focus_toplevel(toplevel: *WinglessToplevel) void {
@@ -270,22 +326,32 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
+        const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+        const surface: *c.wlr_surface = wlr_surface.surface;
+        const sx = surface.current.dx;
+        const sy = surface.current.dy;
+        const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(sx), @floatFromInt(sy)) orelse @panic("nope");
+
         var w: c_int = 0;
         var h: c_int = 0;
-        const o: *WinglessOutput = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("link", toplevel.server.outputs.next)));
-        c.wlr_output_effective_resolution(o.output, &w, &h);
+
+        c.wlr_output_effective_resolution(o, &w, &h);
         _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
 
         _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
     }
-    std.debug.print("toplevel commit!\n", .{});
+}
+
+fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
+
+    toplevel.deinit();
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     _ = listener;
-
-    std.debug.print("new surface!\n", .{});
 }
 
 fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -294,7 +360,6 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 
     const toplevel = WinglessToplevel.init(server, xdg_toplevel) catch @panic("Failed to create toplevel");
     _ = toplevel;
-    std.debug.print("new toplevel!\n", .{});
 }
 
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -380,14 +445,6 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     c.wlr_seat_pointer_notify_frame(server.seat);
 }
 
-fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = data;
-    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("modifiers", listener)));
-
-    c.wlr_seat_set_keyboard(keyboard.server.seat, keyboard.wlr_keyboard);
-    c.wlr_seat_keyboard_notify_modifiers(keyboard.server.seat, &keyboard.wlr_keyboard.modifiers);
-}
-
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
@@ -406,7 +463,6 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             for (0..@intCast(nsyms)) |i| {
                 const sym = syms[i];
 
-                std.debug.print("handled {any}\n", .{syms[i]});
                 if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
                 if (sym == c.XKB_KEY_k) {
                     var child = std.process.Child.init(
@@ -415,28 +471,49 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                     );
 
                     var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
-                    // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
+                    env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
                     child.env_map = @constCast(&env);
 
                     child.spawn() catch @panic("Kitty failed");
-                    std.debug.print("spawned kitty\n", .{});
 
                     handled = true;
+                }
+
+                for (server.wingless_config.keybinds) |keybind| {
+                    if (keybind.key == sym) {
+                        switch (keybind.function) {
+                            .tab_next => tab_next(server),
+                            .tab_prev => tab_prev(server),
+                        }
+                        handled = true;
+                    }
                 }
             }
         }
     }
 
     if (handled == false) {
-        std.debug.print("sent input\n", .{});
         c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
         c.wlr_seat_keyboard_notify_key(seat, event.time_msec, event.keycode, event.state);
     }
 }
 
-fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
+fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("modifiers", listener)));
+
+    c.wlr_seat_set_keyboard(keyboard.server.seat, keyboard.wlr_keyboard);
+    c.wlr_seat_keyboard_notify_modifiers(keyboard.server.seat, &keyboard.wlr_keyboard.modifiers);
+}
+
+fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("modifiers", listener)));
+
+    c.wl_list_remove(&keyboard.modifiers.link);
+    c.wl_list_remove(&keyboard.key.link);
+    c.wl_list_remove(&keyboard.destroy.link);
+    c.wl_list_remove(&keyboard.link);
 }
 
 fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -538,8 +615,10 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
 pub fn main() !void {
     // c.wlr_log_init(c.WLR_DEBUG, null);
+    const allocator = std.heap.page_allocator;
+    const conf = try config.getConfig(allocator);
 
-    var server = try WinglessServer.init();
+    var server = try WinglessServer.init(conf);
 
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
@@ -547,6 +626,25 @@ pub fn main() !void {
     std.debug.print("Running wayland compositor on {s}\n", .{socket});
 
     c.wl_display_run(server.display);
+
+    try server.deinit();
+}
+
+comptime {
+    _ = @import("config.zig");
+}
+
+test "init/deinit leak" {
+    const allocator = std.heap.page_allocator;
+    const conf = try config.getConfig(allocator);
+
+    var server = try WinglessServer.init(conf);
+
+    _ = c.wl_display_add_socket_auto(server.display);
+    _ = c.wlr_backend_start(server.backend);
+
+    c.wl_display_flush_clients(server.display);
+    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
 
     try server.deinit();
 }
