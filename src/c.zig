@@ -7,6 +7,7 @@ pub const c = @cImport({
     @cInclude("wlr/backend.h");
     @cInclude("wlr/backend/wayland.h");
     @cInclude("wlr/backend/x11.h");
+    @cInclude("wlr/interfaces/wlr_keyboard.h");
     @cInclude("wlr/render/wlr_renderer.h");
     @cInclude("wlr/render/swapchain.h");
     @cInclude("wlr/render/allocator.h");

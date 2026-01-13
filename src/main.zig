@@ -681,27 +681,26 @@ fn cb(
 test "keyboard input propagation" {
     const server = try testSetup();
 
-    std.debug.print("doing test\n", .{});
     const client = c.wl_display_connect(null).?;
     defer c.wl_display_disconnect(client);
 
     tests.testPump(server, client);
-
     const context = try tests.getTestContext(std.testing.allocator, client, server);
+
+    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
+    tests.testPump(server, client);
 
     const surface = c.wl_compositor_create_surface(context.compositor);
     const xdg_surface = c.xdg_wm_base_get_xdg_surface(context.wm_base, surface);
-    const toplevel = c.xdg_surface_get_toplevel(xdg_surface);
-    _ = toplevel;
-
+    _ = c.xdg_surface_get_toplevel(xdg_surface);
     c.wl_surface_commit(surface);
 
     tests.testPump(server, client);
 
-    var keyboard: ?*c.wl_keyboard = null;
+    const keyboard: ?*c.wlr_keyboard = c.wl_seat_get_keyboard(context.seat);
+    try std.testing.expect(keyboard != null);
 
-    keyboard = c.wl_seat_get_keyboard(context.seat);
-    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
+    var test_kbd = tests.TestKeyboard{};
 
     const wl_keyboard_listener = c.wl_keyboard_listener{
         .keymap = null,
@@ -711,7 +710,8 @@ test "keyboard input propagation" {
         .modifiers = null,
         .repeat_info = null,
     };
-    _ = wl_keyboard_listener;
+
+    _ = c.wl_keyboard_add_listener(keyboard.?, &wl_keyboard_listener, @ptrCast(&test_kbd));
 
     const ev: c.wlr_keyboard_key_event = .{
         .time_msec = 0,
@@ -720,14 +720,12 @@ test "keyboard input propagation" {
         .update_state = true,
     };
 
-    c.wlr_seat_keyboard_notify_key(
-        server.seat,
-        ev.time_msec,
-        ev.keycode,
-        ev.state,
-    );
+    c.wlr_seat_keyboard_notify_key(server.seat, ev.time_msec, ev.keycode, ev.state);
 
+    c.wl_signal_emit(@ptrCast(&vkbd.virtual_keyboards.next), @ptrCast(&ev));
     tests.testPump(server, client);
+
+    try std.testing.expect(test_kbd.last_key_id != null);
 
     try server.deinit();
 }
