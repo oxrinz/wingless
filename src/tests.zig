@@ -63,6 +63,7 @@ pub fn getTestContext(allocator: std.mem.Allocator, client: *c.wl_display, serve
 
 pub const TestKeyboard = struct {
     last_key_id: ?u32 = null,
+    kb: c.wlr_keyboard,
 
     pub fn key(
         data: ?*anyopaque,
