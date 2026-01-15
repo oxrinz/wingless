@@ -22,6 +22,7 @@ pub const TestContext = struct {
     compositor: *c.wl_compositor,
     wm_base: *c.xdg_wm_base,
     seat: *c.wl_seat,
+    shm: *c.wl_shm,
 };
 
 fn cb(
@@ -39,9 +40,11 @@ fn cb(
     if (std.mem.eql(u8, iface_name, "wl_seat")) {
         ctx_ptr.*.seat = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_seat_interface, 1).?);
     } else if (std.mem.eql(u8, iface_name, "wl_compositor")) {
-        ctx_ptr.*.compositor = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_compositor_interface, 1).?);
+        ctx_ptr.*.compositor = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_compositor_interface, 4).?);
     } else if (std.mem.eql(u8, iface_name, "xdg_wm_base")) {
         ctx_ptr.*.wm_base = @ptrCast(c.wl_registry_bind(registry, name, &c.xdg_wm_base_interface, 1).?);
+    } else if (std.mem.eql(u8, iface_name, "wl_shm")) {
+        ctx_ptr.*.shm = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_shm_interface, 1).?);
     }
 }
 
@@ -61,26 +64,65 @@ pub fn getTestContext(allocator: std.mem.Allocator, client: *c.wl_display, serve
     return ctx;
 }
 
-pub const TestKeyboard = struct {
-    last_key_id: ?u32 = null,
-    kb: c.wlr_keyboard,
-
-    pub fn key(
-        data: ?*anyopaque,
-        keyboard: ?*c.wl_keyboard,
-        serial: u32,
-        time: u32,
-        key_id: u32,
-        state: u32,
-    ) callconv(.c) void {
-        _ = keyboard;
-        _ = serial;
-        _ = time;
-        _ = state;
-
-        std.debug.print("KEY FIRED\n", .{});
-
-        const self: *TestKeyboard = @ptrCast(@alignCast(data.?));
-        self.last_key_id = key_id;
-    }
+pub const XdgSurfaceState = struct {
+    configure_serial: u32 = 0,
 };
+
+fn xdg_surface_configure(
+    data: ?*anyopaque,
+    xdg_surface: ?*c.xdg_surface,
+    serial: u32,
+) callconv(.c) void {
+    _ = xdg_surface;
+    const state: *XdgSurfaceState = @ptrCast(@alignCast(data.?));
+    state.configure_serial = serial;
+}
+
+pub const xdg_surface_listener = c.xdg_surface_listener{
+    .configure = xdg_surface_configure,
+};
+
+pub fn createSurface(server: *WinglessServer, ctx: *TestContext, client: *c.wl_display) !void {
+    const surface = c.wl_compositor_create_surface(ctx.compositor);
+    const xdg_surface = c.xdg_wm_base_get_xdg_surface(ctx.wm_base, surface);
+    _ = c.xdg_surface_get_toplevel(xdg_surface);
+
+    var state = XdgSurfaceState{};
+    _ = c.xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, &state);
+
+    c.wl_surface_commit(surface);
+    testPump(server, client);
+
+    c.xdg_surface_ack_configure(xdg_surface, state.configure_serial);
+
+    // buffer attatchment
+    const width = 1;
+    const height = 1;
+    const stride = width * 4;
+    const size = stride * height;
+
+    var file = try std.fs.cwd().createFile(
+        ".wingless-test-shm",
+        .{ .read = true, .truncate = true },
+    );
+    defer file.close();
+
+    try file.setEndPos(size);
+
+    const pool = c.wl_shm_create_pool(ctx.shm, file.handle, size);
+    const buffer = c.wl_shm_pool_create_buffer(
+        pool,
+        0,
+        width,
+        height,
+        stride,
+        c.WL_SHM_FORMAT_XRGB8888,
+    );
+
+    c.wl_surface_attach(surface, buffer, 0, 0);
+    c.wl_surface_damage_buffer(surface, 0, 0, width, height);
+
+    c.wl_surface_commit(surface);
+
+    testPump(server, client);
+}

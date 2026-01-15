@@ -113,7 +113,7 @@ pub const WinglessServer = struct {
         return server;
     }
 
-    pub fn deinit(self: *WinglessServer) !void {
+    pub fn deinit(self: *WinglessServer) void {
         c.wl_list_remove(&self.new_xdg_toplevel.link);
         c.wl_list_remove(&self.new_xdg_popup.link);
         c.wl_list_remove(&self.new_xdg_surface.link);
@@ -252,15 +252,12 @@ const WinglessToplevel = struct {
 fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
-
-    std.debug.print("client connected\n", .{});
 }
 
 fn tab_next(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
 
     const next = server.focused_toplevel.?.link.next;
-
     const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", next);
 
     focus_toplevel(toplevel.?);
@@ -268,21 +265,26 @@ fn tab_next(server: *WinglessServer) void {
 
 fn tab_prev(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
-    const prev = server.focused_toplevel.?.link.prev;
 
+    const prev = server.focused_toplevel.?.link.prev;
     const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", prev);
 
     focus_toplevel(toplevel.?);
 }
 
 fn focus_toplevel(toplevel: *WinglessToplevel) void {
-    std.debug.print("focus toplevel\n", .{});
     const server = toplevel.server;
 
     const seat = server.seat;
 
     if (server.focused_toplevel == toplevel) return;
     server.focused_toplevel = toplevel;
+
+    std.debug.print("focus toplevel: {any}\n", .{@intFromPtr(toplevel)});
+    std.debug.print("focus server: {any}\n", .{@intFromPtr(server)});
+    std.debug.print("focus toplevel server: {any}\n", .{@intFromPtr(server)});
+
+    std.debug.print("seat kb state: {any}\n", .{seat});
 
     if (seat.keyboard_state.focused_surface != null) {
         const prev = c.wlr_xdg_toplevel_try_from_wlr_surface(seat.keyboard_state.focused_surface);
@@ -301,10 +303,11 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("toplevel map", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+
+    std.debug.print("map server: {any}\n", .{@intFromPtr(toplevel.server)});
 
     c.wl_list_insert(&toplevel.server.toplevels, &toplevel.link);
 
@@ -312,10 +315,12 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 }
 
 fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("commit\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("commit", listener)));
+
+    std.debug.print("commit toplevel: {any}\n", .{@intFromPtr(toplevel)});
+    std.debug.print("commit server: {any}\n", .{@intFromPtr(toplevel.server)});
 
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
@@ -336,7 +341,6 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 }
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("destroyed toplevel", .{});
     _ = data;
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
 
@@ -349,7 +353,6 @@ fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callco
 }
 
 fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("wooo new toplevel\n", .{});
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_toplevel", listener)));
     const xdg_toplevel: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(data.?));
 
@@ -441,7 +444,6 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 }
 
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("FUCKING KEY!\n", .{});
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
@@ -450,6 +452,14 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     const keycode = event.keycode + 8;
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
+
+    if (server.focused_toplevel != null) {
+        const prev = server.focused_toplevel.?.link.prev;
+
+        const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", prev);
+
+        std.debug.print("keyboard handle key server: {any}\n", .{@intFromPtr(toplevel.?.server)});
+    }
 
     var handled = false;
 
@@ -618,7 +628,7 @@ pub fn main() !void {
 
     c.wl_display_run(server.display);
 
-    try server.deinit();
+    server.deinit();
 }
 
 comptime {
@@ -647,7 +657,7 @@ test "init/deinit leak" {
     c.wl_display_flush_clients(server.display);
     _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
 
-    try server.deinit();
+    server.deinit();
 }
 
 test "client open and close" {
@@ -661,91 +671,26 @@ test "client open and close" {
 
     c.wl_display_disconnect(client_display);
 
-    try server.deinit();
+    server.deinit();
 }
 
-fn cb(
-    data: ?*anyopaque,
-    registry: ?*c.wl_registry,
-    name: u32,
-    iface: [*c]const u8,
-    version: u32,
-) callconv(.c) void {
-    _ = version;
-    const seat_ptr: **c.wl_seat = @ptrCast(@alignCast(data.?));
-
-    std.debug.print("outside addr: {any}\n", .{@intFromPtr(seat_ptr.*)});
-
-    if (std.mem.eql(u8, std.mem.span(iface), "wl_seat")) {
-        seat_ptr.* = @ptrCast(c.wl_registry_bind(registry, name, &c.wl_seat_interface, 1).?);
-    }
-}
-
-test "keyboard input propagation" {
+test "tab switching between two toplevels" {
     const server = try testSetup();
+    defer server.deinit();
 
     const client = c.wl_display_connect(null).?;
     defer c.wl_display_disconnect(client);
 
     tests.testPump(server, client);
-    const context = try tests.getTestContext(std.testing.allocator, client, server);
 
-    std.debug.print("keyboard: {any}\n", .{c.wlr_seat_get_keyboard(server.seat)});
+    const ctx = try tests.getTestContext(std.testing.allocator, client, server);
 
-    c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_KEYBOARD);
-    tests.testPump(server, client);
+    try tests.createSurface(server, ctx, client);
 
-    const surface = c.wl_compositor_create_surface(context.compositor);
-    const xdg_surface = c.xdg_wm_base_get_xdg_surface(context.wm_base, surface);
-    _ = c.xdg_surface_get_toplevel(xdg_surface);
-    c.wl_surface_commit(surface);
+    try std.testing.expect(c.wl_list_empty(&server.toplevels) == 0);
 
-    tests.testPump(server, client);
-
-    if (true) return;
-
-    const wl_keyboard_listener = c.wl_keyboard_listener{
-        .keymap = null,
-        .enter = null,
-        .leave = null,
-        .key = tests.TestKeyboard.key,
-        .modifiers = null,
-        .repeat_info = null,
-    };
-    _ = wl_keyboard_listener;
-
-    const ev: c.wlr_keyboard_key_event = .{
-        .time_msec = 0,
-        .keycode = 30,
-        .state = c.WL_KEYBOARD_KEY_STATE_PRESSED,
-        .update_state = true,
-    };
-
-    c.wlr_seat_keyboard_notify_key(server.seat, ev.time_msec, ev.keycode, ev.state);
-
-    tests.testPump(server, client);
-    tests.testPump(server, client);
-    tests.testPump(server, client);
-
-    try server.deinit();
-}
-
-test "tab next after client close" {
-    const server = try testSetup();
+    const first = server.focused_toplevel;
+    try std.testing.expect(first != null);
 
     tab_prev(server);
-
-    const client_display = c.wl_display_connect(null);
-    try std.testing.expect(client_display != null);
-
-    c.wl_display_flush_clients(server.display);
-    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
-
-    c.wl_display_disconnect(client_display);
-
-    tab_prev(server);
-
-    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
-
-    try server.deinit();
 }
