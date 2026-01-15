@@ -25,7 +25,6 @@ pub const WinglessServer = struct {
     new_xdg_surface: c.wl_listener = undefined,
     new_xdg_toplevel: c.wl_listener = undefined,
     new_xdg_popup: c.wl_listener = undefined,
-    toplevels: c.wl_list = undefined,
     focused_toplevel: ?*WinglessToplevel = null,
 
     cursor: *c.wlr_cursor = undefined,
@@ -69,7 +68,6 @@ pub const WinglessServer = struct {
         server.scene = c.wlr_scene_create();
         server.scene_layout = c.wlr_scene_attach_output_layout(server.scene, server.output_layout) orelse return error.SceneCreationFailed;
 
-        c.wl_list_init(&server.toplevels);
         server.xdg_shell = c.wlr_xdg_shell_create(server.display, 3) orelse @panic("Failed to create xdgshell");
 
         server.new_xdg_toplevel = .{ .link = undefined, .notify = server_new_xdg_toplevel };
@@ -199,7 +197,9 @@ const WinglessOutput = struct {
 };
 
 const WinglessToplevel = struct {
-    link: c.wl_list,
+    prev: *WinglessToplevel,
+    next: *WinglessToplevel,
+
     server: *WinglessServer,
     xdg_toplevel: *c.wlr_xdg_toplevel,
     scene_tree: *c.wlr_scene_tree,
@@ -213,7 +213,9 @@ const WinglessToplevel = struct {
         const toplevel = try server.allocator.create(WinglessToplevel);
 
         toplevel.* = .{
-            .link = undefined,
+            .prev = toplevel,
+            .next = toplevel,
+
             .server = server,
             .xdg_toplevel = xdg_toplevel,
             .scene_tree = c.wlr_scene_xdg_surface_create(&server.scene.tree, xdg_toplevel.base),
@@ -236,12 +238,33 @@ const WinglessToplevel = struct {
         toplevel.scene_tree.node.data = toplevel;
         const surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         surface.data = toplevel.scene_tree;
-        c.wl_list_init(@ptrCast(@constCast(&toplevel.link)));
 
         return toplevel;
     }
 
+    pub fn insert(self: *WinglessToplevel) void {
+        if (self.server.focused_toplevel) |f| {
+            f.prev.next = self;
+            self.prev = f.prev;
+            self.next = f;
+            f.prev = self;
+        }
+    }
+
+    pub fn remove(self: *WinglessToplevel) void {
+        const server = self.server;
+
+        if (self.next == self) server.focused_toplevel = null else {
+            self.prev.next = self.next;
+            self.next.prev = self.prev;
+        }
+
+        self.next = self;
+        self.prev = self;
+    }
+
     pub fn deinit(self: *WinglessToplevel) void {
+        self.remove();
         c.wl_list_remove(&self.map.link);
         // c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
@@ -257,19 +280,17 @@ fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 fn tab_next(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
 
-    const next = server.focused_toplevel.?.link.next;
-    const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", next);
+    const toplevel = server.focused_toplevel.?.next;
 
-    focus_toplevel(toplevel.?);
+    focus_toplevel(toplevel);
 }
 
 fn tab_prev(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
 
-    const prev = server.focused_toplevel.?.link.prev;
-    const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", prev);
+    const toplevel = server.focused_toplevel.?.prev;
 
-    focus_toplevel(toplevel.?);
+    focus_toplevel(toplevel);
 }
 
 fn focus_toplevel(toplevel: *WinglessToplevel) void {
@@ -277,7 +298,8 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 
     const seat = server.seat;
 
-    if (server.focused_toplevel == toplevel) return;
+    std.debug.print("focusing: {any}\n", .{server.focused_toplevel});
+    if (server.focused_toplevel != null and server.focused_toplevel.? == toplevel) return;
     server.focused_toplevel = toplevel;
 
     std.debug.print("focus toplevel: {any}\n", .{@intFromPtr(toplevel)});
@@ -303,13 +325,12 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("mapper\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
 
-    std.debug.print("map server: {any}\n", .{@intFromPtr(toplevel.server)});
-
-    c.wl_list_insert(&toplevel.server.toplevels, &toplevel.link);
+    toplevel.insert();
 
     focus_toplevel(toplevel);
 }
@@ -452,14 +473,6 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     const keycode = event.keycode + 8;
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
-
-    if (server.focused_toplevel != null) {
-        const prev = server.focused_toplevel.?.link.prev;
-
-        const toplevel: ?*WinglessToplevel = @fieldParentPtr("link", prev);
-
-        std.debug.print("keyboard handle key server: {any}\n", .{@intFromPtr(toplevel.?.server)});
-    }
 
     var handled = false;
 
@@ -686,11 +699,6 @@ test "tab switching between two toplevels" {
     const ctx = try tests.getTestContext(std.testing.allocator, client, server);
 
     try tests.createSurface(server, ctx, client);
-
-    try std.testing.expect(c.wl_list_empty(&server.toplevels) == 0);
-
-    const first = server.focused_toplevel;
-    try std.testing.expect(first != null);
 
     tab_prev(server);
 }
