@@ -264,6 +264,11 @@ const WinglessToplevel = struct {
     }
 
     pub fn deinit(self: *WinglessToplevel) void {
+        if (self.server.focused_toplevel.? == self) {
+            self.server.focused_toplevel = self.next;
+            focus_toplevel(self.server.focused_toplevel.?);
+        }
+
         self.remove();
         c.wl_list_remove(&self.map.link);
         // c.wl_list_remove(&self.unmap.link);
@@ -272,9 +277,41 @@ const WinglessToplevel = struct {
     }
 };
 
+const WinglessPopup = struct {
+    xdg_popup: *c.wlr_xdg_popup,
+    commit: c.wl_listener,
+    destroy: c.wl_listener,
+
+    pub fn init(allocator: std.mem.Allocator, xdg_popup: *c.wlr_xdg_popup) !*WinglessPopup {
+        const popup = try allocator.create(WinglessPopup);
+
+        popup.* = .{
+            .xdg_popup = xdg_popup,
+            .commit = .{ .link = undefined, .notify = xdg_popup_commit },
+            .destroy = .{ .link = undefined, .notify = xdg_popup_destroy },
+        };
+
+        const base: *c.wlr_xdg_surface = xdg_popup.base.?;
+        const surface: *c.wlr_surface = base.surface.?;
+        c.wl_signal_add(&surface.events.commit, &popup.commit);
+        c.wl_signal_add(&surface.events.destroy, &popup.destroy);
+
+        return popup;
+    }
+
+    pub fn deinit(self: *WinglessPopup) void {
+        c.wl_list_remove(&self.commit.link);
+        c.wl_list_remove(&self.destroy.link);
+    }
+};
+
 fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = listener;
     _ = data;
+}
+
+fn close_focused_toplevel(server: *WinglessServer) void {
+    c.wlr_xdg_toplevel_send_close(server.focused_toplevel.?.xdg_toplevel);
 }
 
 fn tab_next(server: *WinglessServer) void {
@@ -298,15 +335,8 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 
     const seat = server.seat;
 
-    std.debug.print("focusing: {any}\n", .{server.focused_toplevel});
     if (server.focused_toplevel != null and server.focused_toplevel.? == toplevel) return;
     server.focused_toplevel = toplevel;
-
-    std.debug.print("focus toplevel: {any}\n", .{@intFromPtr(toplevel)});
-    std.debug.print("focus server: {any}\n", .{@intFromPtr(server)});
-    std.debug.print("focus toplevel server: {any}\n", .{@intFromPtr(server)});
-
-    std.debug.print("seat kb state: {any}\n", .{seat});
 
     if (seat.keyboard_state.focused_surface != null) {
         const prev = c.wlr_xdg_toplevel_try_from_wlr_surface(seat.keyboard_state.focused_surface);
@@ -325,7 +355,6 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("mapper\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
@@ -340,9 +369,6 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("commit", listener)));
 
-    std.debug.print("commit toplevel: {any}\n", .{@intFromPtr(toplevel)});
-    std.debug.print("commit server: {any}\n", .{@intFromPtr(toplevel.server)});
-
     const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
     if (xdg_surface.initial_commit) {
         const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
@@ -355,9 +381,13 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
         var h: c_int = 0;
 
         c.wlr_output_effective_resolution(o, &w, &h);
-        _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
 
-        _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
+        if (toplevel.xdg_toplevel.parent == null) {
+            _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
+            _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
+        } else {
+            _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+        }
     }
 }
 
@@ -381,9 +411,31 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     _ = toplevel;
 }
 
-fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
+fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
+
+    popup.deinit();
+}
+
+fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
+
+    const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
+    _ = if (base.initial_commit) c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
+}
+
+fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_popup", listener)));
+
+    const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data));
+    _ = WinglessPopup.init(server.allocator, xdg_popup) catch @panic("Out of memory");
+
+    const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
+    const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
+    const base: *c.wlr_xdg_surface = xdg_popup.base.?;
+    base.data = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
 }
 
 fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *[*c]c.wlr_surface, sx: *f64, sy: *f64) ?*WinglessToplevel {
@@ -503,6 +555,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                         switch (keybind.function) {
                             .tab_next => tab_next(server),
                             .tab_prev => tab_prev(server),
+                            .close_focused => close_focused_toplevel(server),
                         }
                         handled = true;
                     }

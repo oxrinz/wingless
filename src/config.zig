@@ -4,6 +4,7 @@ const c = @import("c.zig").c;
 pub const WinglessFunction = enum {
     tab_next,
     tab_prev,
+    close_focused,
 };
 
 pub const Keybind = struct {
@@ -53,9 +54,10 @@ fn readNextToken(allocator: std.mem.Allocator, line: []const u8) !struct { token
 // fn readLine(line: []const u8) !Keybind {}
 
 pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
-    var keybinds = try allocator.alloc(Keybind, 2);
+    var keybinds = try allocator.alloc(Keybind, 3);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
+    keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
     return .{ .keybinds = keybinds };
 }
 
