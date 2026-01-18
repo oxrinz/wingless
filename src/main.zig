@@ -828,13 +828,13 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         );
     }
 
-    output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
-
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
     defer c.wlr_output_state_finish(&state);
 
     _ = c.wlr_scene_output_build_state(scene_output, &state, null);
+
+    output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
 
     const scene_pass = c.wlr_renderer_begin_buffer_pass(
         server.renderer,
@@ -851,13 +851,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
-    _ = c.wlr_output_commit_state(output.output, &state);
-
-    var out_state: c.wlr_output_state = undefined;
-    c.wlr_output_state_init(&out_state);
-    defer c.wlr_output_state_finish(&out_state);
-
-    const out_pass = c.wlr_output_begin_render_pass(output.output, &out_state, null) orelse return;
+    const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
     //var out_ctx = SceneRenderCtx{
     //.renderer = server.renderer,
@@ -866,7 +860,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     //c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
-    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, out_state.buffer);
+    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
 
     gl.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
 
@@ -916,6 +910,9 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     gl.glActiveTexture(gl.GL_TEXTURE0);
     gl.glBindTexture(attribs.target, attribs.tex);
 
+    std.debug.print("fuck man fuck: {}\n", .{gl.glIsTexture(attribs.tex)});
+    std.debug.print("fuck man: {}\n", .{gl.glGetError()});
+
     gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
@@ -932,7 +929,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     // overlay ends here
 
     _ = c.wlr_render_pass_submit(out_pass);
-    _ = c.wlr_output_commit_state(output.output, &out_state);
+    _ = c.wlr_output_commit_state(output.output, &state);
 
     c.wlr_buffer_unlock(output.blur_buffer.?);
 
