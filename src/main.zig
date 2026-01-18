@@ -760,7 +760,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) + 0.5;
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5);
         \\}
     ;
 
@@ -769,7 +769,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
     out.gl_prog_solid = glLinkProgram(vs, fs);
 
     out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog_solid, "pos");
-    out.gl_color_loc = gl.glGetUniformLocation(out.gl_prog_solid, "color");
+    out.gl_color_loc = gl.glGetUniformLocation(out.gl_prog_solid, "scene");
 
     gl.glGenBuffers(1, &out.gl_vbo);
 }
@@ -841,14 +841,12 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         null,
     ) orelse return;
 
-    const ctx = SceneRenderCtx{
+    var ctx = SceneRenderCtx{
         .renderer = server.renderer,
         .pass = scene_pass,
     };
 
-    _ = ctx;
-
-    // c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
+    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
@@ -877,8 +875,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     // draw blurred overlay
     ensureSolidProgram(output);
-
-    const rgba = [_]f32{ 1.0, 0.0, 0.0, 0.6 };
 
     gl.glViewport(0, 0, w, h);
 
@@ -914,17 +910,15 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     gl.glUseProgram(output.gl_prog_solid);
 
-    gl.glUniform4f(output.gl_color_loc, rgba[0], rgba[1], rgba[2], rgba[3]);
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_tex);
+    gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
 
     gl.glEnableVertexAttribArray(@intCast(output.gl_pos_loc));
     gl.glVertexAttribPointer(@intCast(output.gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
-
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_tex);
-    gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
