@@ -760,7 +760,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 1.0);
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5);
         \\}
     ;
 
@@ -900,10 +900,16 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         ndc_y(fy + fh, H),
     };
 
+    const tex = c.wlr_texture_from_buffer(server.renderer, output.blur_buffer.?) orelse return;
+    defer c.wlr_texture_destroy(tex);
+
+    var attribs: c.wlr_gles2_texture_attribs = undefined;
+    c.wlr_gles2_texture_get_attribs(tex, &attribs);
+
     gl.glUseProgram(output.gl_prog_solid);
 
     gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_tex);
+    gl.glBindTexture(attribs.target, attribs.tex);
     gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
