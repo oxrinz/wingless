@@ -359,11 +359,11 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 
     if (seat.keyboard_state.focused_surface != null) {
         const prev = c.wlr_xdg_toplevel_try_from_wlr_surface(seat.keyboard_state.focused_surface);
-        _ = if (prev != null) c.wlr_xdg_toplevel_set_activated(prev, false);
+        _ = if (prev != null) c.wlr_xdg_toplevel_set_activated(prev, true);
     }
 
     c.wlr_scene_node_raise_to_top(&toplevel.scene_tree.node);
-    _ = c.wlr_xdg_toplevel_set_activated(toplevel.xdg_toplevel, false);
+    _ = c.wlr_xdg_toplevel_set_activated(toplevel.xdg_toplevel, true);
 
     if (c.wlr_seat_get_keyboard(seat)) |kbd| {
         const wlr_kbd: *c.wlr_keyboard = kbd;
@@ -760,7 +760,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5);
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 1.0);
         \\}
     ;
 
@@ -849,14 +849,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
 
     _ = c.wlr_render_pass_submit(scene_pass);
-
-    const fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, output.blur_buffer);
-    if (fbo == 0) @panic("no fbo");
-
-    gl.glBindFramebuffer(c.GL_FRAMEBUFFER, fbo);
-    gl.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
-
-    gl.glCopyTexSubImage2D(c.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
 
     // run blur here
 
