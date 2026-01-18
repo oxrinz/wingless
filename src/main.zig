@@ -174,6 +174,8 @@ const WinglessOutput = struct {
     gl_pos_loc: c_int = -1,
     gl_color_loc: c_int = -1,
 
+    offscreen_buffer: ?*c.wlr_buffer = null,
+
     blur_swapchain: ?*c.wlr_swapchain = null,
     blur_buffer: ?*c.wlr_buffer = null,
     blur_fmt_set: c.wlr_drm_format_set = .{ .len = 0, .capacity = 0, .formats = null },
@@ -760,7 +762,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5) + vec4(uv * 0.5, 0.0, 0.0);
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 1.5) + vec4(uv * 0.5, 0.0, 0.0);
         \\}
     ;
 
@@ -781,64 +783,28 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const scene = output.server.scene;
     const scene_output = c.wlr_scene_get_scene_output(scene, output.output);
 
-    var w: c_int = 0;
-    var h: c_int = 0;
-    c.wlr_output_transformed_resolution(output.output, &w, &h);
-
-    if (output.blur_swapchain == null or
-        output.blur_width != w or
-        output.blur_height != h)
-    {
-        if (output.blur_swapchain != null)
-            c.wlr_swapchain_destroy(output.blur_swapchain.?);
-
-        output.blur_swapchain = c.wlr_swapchain_create(
-            server.wlr_allocator,
-            w,
-            h,
-            output.blur_fmt,
-        ) orelse @panic("no swapchain");
-
-        output.blur_width = w;
-        output.blur_height = h;
-
-        if (output.blur_tex == 0) {
-            gl.glGenTextures(1, &output.blur_tex);
-            gl.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
-
-            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
-            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
-            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_EDGE);
-            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_EDGE);
-
-            gl.glGenFramebuffers(1, @ptrCast(&output.blur_fbo));
-        }
-
-        c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
-        c.glTexImage2D(
-            c.GL_TEXTURE_2D,
-            0,
-            c.GL_RGBA,
-            w,
-            h,
-            0,
-            c.GL_RGBA,
-            c.GL_UNSIGNED_BYTE,
-            null,
-        );
-    }
-
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
     defer c.wlr_output_state_finish(&state);
 
     _ = c.wlr_scene_output_build_state(scene_output, &state, null);
 
-    output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
+    var w: c_int = 0;
+    var h: c_int = 0;
+    c.wlr_output_transformed_resolution(output.output, &w, &h);
+
+    if (output.offscreen_buffer == null or
+        output.blur_width != w or
+        output.blur_height != h)
+    {
+        output.blur_width = w;
+        output.blur_height = h;
+        output.offscreen_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.blur_fmt));
+    }
 
     const scene_pass = c.wlr_renderer_begin_buffer_pass(
         server.renderer,
-        output.blur_buffer,
+        output.offscreen_buffer.?,
         null,
     ) orelse return;
 
@@ -853,16 +819,12 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
-    //var out_ctx = SceneRenderCtx{
-    //.renderer = server.renderer,
-    //.pass = out_pass,
-    //};
+    var out_ctx = SceneRenderCtx{
+        .renderer = server.renderer,
+        .pass = out_pass,
+    };
 
-    //c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
-
-    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
-
-    gl.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
+    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
     // draw blurred overlay
     ensureSolidProgram(output);
@@ -899,19 +861,15 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         ndc_y(fy + fh, H),
     };
 
-    const tex = c.wlr_texture_from_buffer(server.renderer, output.blur_buffer.?) orelse return;
-    defer c.wlr_texture_destroy(tex);
+    const scene_tex = c.wlr_texture_from_buffer(server.renderer, output.offscreen_buffer.?);
 
     var attribs: c.wlr_gles2_texture_attribs = undefined;
-    c.wlr_gles2_texture_get_attribs(tex, &attribs);
+    c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
 
     gl.glUseProgram(output.gl_prog_solid);
 
     gl.glActiveTexture(gl.GL_TEXTURE0);
     gl.glBindTexture(attribs.target, attribs.tex);
-
-    std.debug.print("fuck man fuck: {}\n", .{gl.glIsTexture(attribs.tex)});
-    std.debug.print("fuck man: {}\n", .{gl.glGetError()});
 
     gl.glUniform1i(output.gl_color_loc, 0);
 
@@ -930,8 +888,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
-
-    c.wlr_buffer_unlock(output.blur_buffer.?);
 
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));
