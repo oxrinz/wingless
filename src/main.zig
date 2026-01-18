@@ -171,6 +171,7 @@ const WinglessOutput = struct {
 
     gl_prog_solid: c_uint = 0,
     gl_vbo: c_uint = 0,
+    gl_vao: c_uint = 0,
     gl_pos_loc: c_int = -1,
     gl_color_loc: c_int = -1,
 
@@ -798,6 +799,29 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
         output.blur_width = w;
         output.blur_height = h;
+
+        if (output.blur_tex == 0) {
+            c.glGenTextures(1, &output.blur_tex);
+            c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
+
+            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
+            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
+            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_EDGE);
+            c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_EDGE);
+        }
+
+        c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
+        c.glTexImage2D(
+            c.GL_TEXTURE_2D,
+            0,
+            c.GL_RGBA,
+            w,
+            h,
+            0,
+            c.GL_RGBA,
+            c.GL_UNSIGNED_BYTE,
+            null,
+        );
     }
 
     output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
@@ -842,10 +866,12 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     var out_ctx = SceneRenderCtx{
         .renderer = server.renderer,
-        .pass = scene_pass,
+        .pass = out_pass,
     };
 
     c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
+
+    _ = c.wlr_render_pass_submit(out_pass);
 
     const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
 
@@ -905,7 +931,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     // overlay ends here
 
-    _ = c.wlr_render_pass_submit(out_pass);
+    std.debug.print("START\n", .{});
     _ = c.wlr_output_commit_state(output.output, &state);
 
     var now: c.timespec = undefined;
