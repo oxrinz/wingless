@@ -12,6 +12,7 @@ pub const c = @cImport({
     @cInclude("wlr/render/swapchain.h");
     @cInclude("wlr/render/allocator.h");
     @cInclude("wlr/render/drm_format_set.h");
+    @cInclude("wlr/render/gles2.h");
     @cInclude("wlr/types/wlr_virtual_keyboard_v1.h");
     @cInclude("wlr/types/wlr_cursor.h");
     @cInclude("wlr/types/wlr_compositor.h");

@@ -169,10 +169,12 @@ const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
-    fbo: c_int = 0,
-    tex: c_int = 0,
-    width: i32 = 0,
-    height: i32 = 0,
+    blur_swapchain: *c.wlr_swapchain = undefined,
+    blur_buffer: *c.wlr_buffer = undefined,
+    blur_fbo: c_int = 0,
+    blur_tex: c_uint = 0,
+    blur_width: i32 = 0,
+    blur_height: i32 = 0,
 
     frame: c.wl_listener,
     request_state: c.wl_listener,
@@ -630,13 +632,41 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     c.wlr_seat_set_capabilities(server.seat, @intCast(caps));
 }
 
+const SceneRenderCtx = struct {
+    renderer: *c.wlr_renderer,
+    pass: *c.wlr_render_pass,
+};
+
 fn render_scene_buffer_iter(
-    scene_buf: *c.wlr_scene_buffer,
+    scene_buf: [*c]c.wlr_scene_buffer,
     sx: c_int,
     sy: c_int,
     data: ?*anyopaque,
 ) callconv(.c) void {
-    const pass: *c.wlr_render_pass = @ptrCast(@alignCast(data.?));
+    const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
+    const fixed_scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf.?));
+
+    const tex = c.wlr_texture_from_buffer(ctx.renderer, fixed_scene_buf.buffer) orelse return;
+
+    const dst = c.wlr_box{
+        .x = sx,
+        .y = sy,
+        .width = fixed_scene_buf.dst_width,
+        .height = fixed_scene_buf.dst_height,
+    };
+
+    var opts = c.wlr_render_texture_options{
+        .texture = tex,
+        .src_box = fixed_scene_buf.src_box,
+        .dst_box = dst,
+        .alpha = if (fixed_scene_buf.opacity < 1.0) @ptrCast(&fixed_scene_buf.opacity) else null,
+        .transform = fixed_scene_buf.transform,
+        .filter_mode = fixed_scene_buf.filter_mode,
+        .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
+    };
+
+    c.wlr_render_pass_add_texture(ctx.pass, &opts);
+    c.wlr_texture_destroy(tex);
 }
 
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -652,15 +682,45 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_scene_output_build_state(scene_output, &state, null);
 
-    // const scene_pass = c.wlr_renderer_begin_buffer_pass(
-    //server.renderer
+    const scene_pass = c.wlr_renderer_begin_buffer_pass(
+        server.renderer,
+        output.blur_buffer,
+        null,
+    ) orelse return;
 
-    // c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, scene_pass,);
-    _ = c.wlr_scene_output_commit(scene_output, null);
+    c.wlr_scene_output_for_each_buffer(
+        scene_output,
+        render_scene_buffer_iter,
+        scene_pass,
+    );
 
-    // rendering test
-    gl.glEnable(gl.GL_BLEND);
-    gl.glBlendFunc(gl.GL_SRC_ALPHA, 0);
+    _ = c.wlr_render_pass_submit(scene_pass);
+
+    const fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, output.blur_buffer);
+    if (fbo == 0) @panic("no fbo");
+
+    c.glBindFramebuffer(c.GL_FRAMEBUFFER, fbo);
+    c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
+
+    var w: c_int = 0;
+    var h: c_int = 0;
+    c.wlr_output_transformed_resolution(output.output, &w, &h);
+    c.glCopyTexSubImage2D(c.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+
+    // run blur here
+
+    const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
+
+    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, out_pass);
+
+    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
+
+    c.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
+
+    // draw blurred overlay here
+
+    _ = c.wlr_render_pass_submit(out_pass);
+    _ = c.wlr_output_commit_state(output.output, &state);
 
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));
