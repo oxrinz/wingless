@@ -169,8 +169,10 @@ const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
-    blur_swapchain: *c.wlr_swapchain = undefined,
-    blur_buffer: *c.wlr_buffer = undefined,
+    blur_swapchain: ?*c.wlr_swapchain = null,
+    blur_buffer: ?*c.wlr_buffer = null,
+    blur_fmt_set: c.wlr_drm_format_set = .{ .len = 0, .capacity = 0, .formats = null },
+    blur_fmt: *const c.wlr_drm_format = undefined,
     blur_fbo: c_int = 0,
     blur_tex: c_uint = 0,
     blur_width: i32 = 0,
@@ -191,6 +193,9 @@ const WinglessOutput = struct {
             .request_state = .{ .link = undefined, .notify = output_request_state },
             .destroy = .{ .link = undefined, .notify = output_destroy },
         };
+
+        if (!c.wlr_drm_format_set_add(&output.blur_fmt_set, c.DRM_FORMAT_ARGB8888, 0)) @panic("no fmt");
+        output.blur_fmt = @ptrCast(c.wlr_drm_format_set_get(&output.blur_fmt_set, c.DRM_FORMAT_ARGB8888).?);
 
         c.wl_list_init(@ptrCast(@constCast(&output.link)));
 
@@ -676,6 +681,30 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const scene = output.server.scene;
     const scene_output = c.wlr_scene_get_scene_output(scene, output.output);
 
+    var w: c_int = 0;
+    var h: c_int = 0;
+    c.wlr_output_transformed_resolution(output.output, &w, &h);
+
+    if (output.blur_swapchain == null or
+        output.blur_width != w or
+        output.blur_height != h)
+    {
+        if (output.blur_swapchain != null)
+            c.wlr_swapchain_destroy(output.blur_swapchain.?);
+
+        output.blur_swapchain = c.wlr_swapchain_create(
+            server.wlr_allocator,
+            w,
+            h,
+            output.blur_fmt,
+        ) orelse @panic("no swapchain");
+
+        output.blur_width = w;
+        output.blur_height = h;
+    }
+
+    output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
+
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
     defer c.wlr_output_state_finish(&state);
@@ -688,10 +717,15 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         null,
     ) orelse return;
 
+    var ctx = SceneRenderCtx{
+        .renderer = server.renderer,
+        .pass = scene_pass,
+    };
+
     c.wlr_scene_output_for_each_buffer(
         scene_output,
         render_scene_buffer_iter,
-        scene_pass,
+        &ctx,
     );
 
     _ = c.wlr_render_pass_submit(scene_pass);
@@ -702,9 +736,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.glBindFramebuffer(c.GL_FRAMEBUFFER, fbo);
     c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
 
-    var w: c_int = 0;
-    var h: c_int = 0;
-    c.wlr_output_transformed_resolution(output.output, &w, &h);
     c.glCopyTexSubImage2D(c.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
 
     // run blur here
