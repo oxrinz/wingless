@@ -5,6 +5,7 @@ const utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
 const c = @import("c.zig").c;
+const gl = @import("c.zig").gl;
 
 pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
@@ -167,6 +168,12 @@ const WinglessOutput = struct {
     link: c.wl_list,
     server: *WinglessServer,
     output: *c.wlr_output,
+
+    fbo: c_int = 0,
+    tex: c_int = 0,
+    width: i32 = 0,
+    height: i32 = 0,
+
     frame: c.wl_listener,
     request_state: c.wl_listener,
     destroy: c.wl_listener,
@@ -623,14 +630,37 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     c.wlr_seat_set_capabilities(server.seat, @intCast(caps));
 }
 
+fn render_scene_buffer_iter(
+    scene_buf: *c.wlr_scene_buffer,
+    sx: c_int,
+    sy: c_int,
+    data: ?*anyopaque,
+) callconv(.c) void {
+    const pass: *c.wlr_render_pass = @ptrCast(@alignCast(data.?));
+}
+
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("frame", listener)));
+    const server = output.server;
     const scene = output.server.scene;
-
     const scene_output = c.wlr_scene_get_scene_output(scene, output.output);
 
+    var state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(&state);
+    defer c.wlr_output_state_finish(&state);
+
+    _ = c.wlr_scene_output_build_state(scene_output, &state, null);
+
+    // const scene_pass = c.wlr_renderer_begin_buffer_pass(
+    //server.renderer
+
+    // c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, scene_pass,);
     _ = c.wlr_scene_output_commit(scene_output, null);
+
+    // rendering test
+    gl.glEnable(gl.GL_BLEND);
+    gl.glBlendFunc(gl.GL_SRC_ALPHA, 0);
 
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));

@@ -11,6 +11,7 @@ pub const c = @cImport({
     @cInclude("wlr/render/wlr_renderer.h");
     @cInclude("wlr/render/swapchain.h");
     @cInclude("wlr/render/allocator.h");
+    @cInclude("wlr/render/drm_format_set.h");
     @cInclude("wlr/types/wlr_virtual_keyboard_v1.h");
     @cInclude("wlr/types/wlr_cursor.h");
     @cInclude("wlr/types/wlr_compositor.h");
@@ -24,4 +25,9 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_xdg_shell.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wayland-server-core.h");
+    @cInclude("drm/drm_fourcc.h");
+});
+
+pub const gl = @cImport({
+    @cInclude("GLES2/gl2.h");
 });
