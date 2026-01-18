@@ -760,7 +760,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5) + vec4(uv * 0.2, 0.0, 0.0);
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5) + vec4(uv * 0.5, 0.0, 0.0);
         \\}
     ;
 
@@ -829,7 +829,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     }
 
     output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
-    defer c.wlr_buffer_unlock(output.blur_buffer.?);
 
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
@@ -852,7 +851,13 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
-    const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
+    _ = c.wlr_output_commit_state(output.output, &state);
+
+    var out_state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(&out_state);
+    defer c.wlr_output_state_finish(&out_state);
+
+    const out_pass = c.wlr_output_begin_render_pass(output.output, &out_state, null) orelse return;
 
     //var out_ctx = SceneRenderCtx{
     //.renderer = server.renderer,
@@ -861,7 +866,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     //c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
-    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
+    const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, out_state.buffer);
 
     gl.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
 
@@ -906,12 +911,10 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(tex, &attribs);
 
-    std.debug.print("please dont be 0 {}\n", .{attribs.tex});
-
     gl.glUseProgram(output.gl_prog_solid);
 
     gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(attribs.target, output.blur_tex);
+    gl.glBindTexture(attribs.target, attribs.tex);
 
     gl.glUniform1i(output.gl_color_loc, 0);
 
@@ -929,7 +932,9 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     // overlay ends here
 
     _ = c.wlr_render_pass_submit(out_pass);
-    _ = c.wlr_output_commit_state(output.output, &state);
+    _ = c.wlr_output_commit_state(output.output, &out_state);
+
+    c.wlr_buffer_unlock(output.blur_buffer.?);
 
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));
