@@ -749,15 +749,18 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
 
     const vs_src =
         \\attribute vec2 pos;
+        \\varying vec2 uv;
         \\void main() {
+        \\  uv = (pos + 1.0) * 0.5;
         \\  gl_Position = vec4(pos, 0.0, 1.0);
         \\}
     ;
     const fs_src =
         \\precision mediump float;
-        \\uniform vec4 color;
+        \\uniform sampler2D scene;
+        \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = color;
+        \\  gl_FragColor = texture2D(scene, uv) + 0.5;
         \\}
     ;
 
@@ -838,16 +841,14 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         null,
     ) orelse return;
 
-    var ctx = SceneRenderCtx{
+    const ctx = SceneRenderCtx{
         .renderer = server.renderer,
         .pass = scene_pass,
     };
 
-    c.wlr_scene_output_for_each_buffer(
-        scene_output,
-        render_scene_buffer_iter,
-        &ctx,
-    );
+    _ = ctx;
+
+    // c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
@@ -888,10 +889,10 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     gl.glEnable(c.GL_BLEND);
     gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
-    const fx = 100.0;
-    const fy = 100.0;
-    const fw = 100.0;
-    const fh = 100.0;
+    const fx: f32 = 0;
+    const fy: f32 = 0;
+    const fw: f32 = @floatFromInt(w);
+    const fh: f32 = @floatFromInt(h);
 
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
@@ -920,6 +921,10 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     gl.glEnableVertexAttribArray(@intCast(output.gl_pos_loc));
     gl.glVertexAttribPointer(@intCast(output.gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
+
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_tex);
+    gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
