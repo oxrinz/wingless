@@ -760,7 +760,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
         \\uniform sampler2D scene;
         \\varying vec2 uv;
         \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5);
+        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 0.5) + vec4(uv * 0.2, 0.0, 0.0);
         \\}
     ;
 
@@ -810,6 +810,8 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
             c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
             c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_EDGE);
             c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_EDGE);
+
+            gl.glGenFramebuffers(1, @ptrCast(&output.blur_fbo));
         }
 
         c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
@@ -850,16 +852,14 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
-    // run blur here
-
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
-    var out_ctx = SceneRenderCtx{
-        .renderer = server.renderer,
-        .pass = out_pass,
-    };
+    //var out_ctx = SceneRenderCtx{
+    //.renderer = server.renderer,
+    //.pass = out_pass,
+    //};
 
-    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
+    //c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
     const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
 
@@ -906,10 +906,13 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(tex, &attribs);
 
+    std.debug.print("please dont be 0 {}\n", .{attribs.tex});
+
     gl.glUseProgram(output.gl_prog_solid);
 
     gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(attribs.target, attribs.tex);
+    gl.glBindTexture(attribs.target, output.blur_tex);
+
     gl.glUniform1i(output.gl_color_loc, 0);
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
