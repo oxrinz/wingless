@@ -171,7 +171,6 @@ const WinglessOutput = struct {
 
     gl_prog_solid: c_uint = 0,
     gl_vbo: c_uint = 0,
-    gl_vao: c_uint = 0,
     gl_pos_loc: c_int = -1,
     gl_color_loc: c_int = -1,
 
@@ -767,7 +766,7 @@ fn ensureSolidProgram(out: *WinglessOutput) void {
     out.gl_prog_solid = glLinkProgram(vs, fs);
 
     out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog_solid, "pos");
-    out.gl_color_loc = gl.glGetAttribLocation(out.gl_prog_solid, "color");
+    out.gl_color_loc = gl.glGetUniformLocation(out.gl_prog_solid, "color");
 
     gl.glGenBuffers(1, &out.gl_vbo);
 }
@@ -801,8 +800,8 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         output.blur_height = h;
 
         if (output.blur_tex == 0) {
-            c.glGenTextures(1, &output.blur_tex);
-            c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
+            gl.glGenTextures(1, &output.blur_tex);
+            gl.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
 
             c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
             c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
@@ -855,10 +854,10 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, output.blur_buffer);
     if (fbo == 0) @panic("no fbo");
 
-    c.glBindFramebuffer(c.GL_FRAMEBUFFER, fbo);
-    c.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
+    gl.glBindFramebuffer(c.GL_FRAMEBUFFER, fbo);
+    gl.glBindTexture(c.GL_TEXTURE_2D, output.blur_tex);
 
-    c.glCopyTexSubImage2D(c.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+    gl.glCopyTexSubImage2D(c.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
 
     // run blur here
 
@@ -871,25 +870,23 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
-    _ = c.wlr_render_pass_submit(out_pass);
-
     const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
 
-    c.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
+    gl.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
 
     // draw blurred overlay
     ensureSolidProgram(output);
 
     const rgba = [_]f32{ 1.0, 0.0, 0.0, 0.6 };
 
-    c.glViewport(0, 0, w, h);
+    gl.glViewport(0, 0, w, h);
 
-    c.glDisable(c.GL_SCISSOR_TEST);
-    c.glDisable(c.GL_DEPTH_TEST);
-    c.glDisable(c.GL_CULL_FACE);
+    gl.glDisable(c.GL_SCISSOR_TEST);
+    gl.glDisable(c.GL_DEPTH_TEST);
+    gl.glDisable(c.GL_CULL_FACE);
 
-    c.glEnable(c.GL_BLEND);
-    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+    gl.glEnable(c.GL_BLEND);
+    gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
     const fx = 100.0;
     const fy = 100.0;
@@ -931,7 +928,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     // overlay ends here
 
-    std.debug.print("START\n", .{});
+    _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
 
     var now: c.timespec = undefined;
