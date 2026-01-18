@@ -169,6 +169,11 @@ const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
+    gl_prog_solid: c_uint = 0,
+    gl_vbo: c_uint = 0,
+    gl_pos_loc: c_int = -1,
+    gl_color_loc: c_int = -1,
+
     blur_swapchain: ?*c.wlr_swapchain = null,
     blur_buffer: ?*c.wlr_buffer = null,
     blur_fmt_set: c.wlr_drm_format_set = .{ .len = 0, .capacity = 0, .formats = null },
@@ -674,6 +679,98 @@ fn render_scene_buffer_iter(
     c.wlr_texture_destroy(tex);
 }
 
+fn ndc_x(x: f32, w: f32) f32 {
+    return (x / w) * 2.0 - 1.0;
+}
+
+fn ndc_y(y: f32, h: f32) f32 {
+    return 1.0 - (y / h) * 2.0;
+}
+
+fn glCompileShader(kind: c_uint, src: []const u8) c_uint {
+    const sh = gl.glCreateShader(kind);
+
+    var buf: [2048]u8 = undefined;
+    if (src.len + 1 > buf.len) @panic("shader too long to compile");
+    @memcpy(buf[0..src.len], src);
+    buf[src.len] = 0;
+
+    var p: [*c]const u8 = @ptrCast(&buf[0]);
+    var len: c_int = @intCast(src.len);
+
+    gl.glShaderSource(sh, 1, &p, &len);
+    gl.glCompileShader(sh);
+
+    var ok: c_int = 0;
+    gl.glGetShaderiv(sh, gl.GL_COMPILE_STATUS, &ok);
+
+    if (ok == 0) {
+        var log_len: c_int = 0;
+        gl.glGetShaderiv(sh, gl.GL_INFO_LOG_LENGTH, &log_len);
+        if (log_len > 1) {
+            var log: [1024]u8 = undefined;
+            var out_len: c_int = 0;
+            gl.glGetShaderInfoLog(sh, @min(log.len - 1, @as(usize, @intCast(log_len))), &out_len, @ptrCast(&log[0]));
+            log[@intCast(out_len)] = 0;
+            std.debug.print("shader compile log:\n{s}\n", .{log[0..@intCast(out_len)]});
+        }
+    }
+
+    return sh;
+}
+
+fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
+    const prog = gl.glCreateProgram();
+    gl.glAttachShader(prog, vs);
+    gl.glAttachShader(prog, fs);
+    gl.glLinkProgram(prog);
+
+    var ok: c_int = 0;
+    gl.glGetProgramiv(prog, gl.GL_LINK_STATUS, &ok);
+    if (ok == 0) {
+        var log_len: c_int = 0;
+        gl.glGetProgramiv(prog, gl.GL_INFO_LOG_LENGTH, &log_len);
+        if (log_len > 1) {
+            var log: [1024]u8 = undefined;
+            var out_len: c_int = 0;
+            gl.glGetProgramInfoLog(prog, @min(log.len - 1, @as(usize, @intCast(log_len))), &out_len, @ptrCast(&log[0]));
+            log[@intCast(out_len)] = 0;
+            std.debug.print("program link log:\n{s}\n", .{log[0..@intCast(out_len)]});
+        }
+    }
+
+    gl.glDeleteShader(vs);
+    gl.glDeleteShader(fs);
+    return prog;
+}
+
+fn ensureSolidProgram(out: *WinglessOutput) void {
+    if (out.gl_prog_solid != 0) return;
+
+    const vs_src =
+        \\attribute vec2 pos;
+        \\void main() {
+        \\  gl_Position = vec4(pos, 0.0, 1.0);
+        \\}
+    ;
+    const fs_src =
+        \\precision mediump float;
+        \\uniform vec4 color;
+        \\void main() {
+        \\  gl_FragColor = color;
+        \\}
+    ;
+
+    const vs = glCompileShader(gl.GL_VERTEX_SHADER, vs_src);
+    const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, fs_src);
+    out.gl_prog_solid = glLinkProgram(vs, fs);
+
+    out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog_solid, "pos");
+    out.gl_color_loc = gl.glGetAttribLocation(out.gl_prog_solid, "color");
+
+    gl.glGenBuffers(1, &out.gl_vbo);
+}
+
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("frame", listener)));
@@ -704,6 +801,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     }
 
     output.blur_buffer = c.wlr_swapchain_acquire(output.blur_swapchain.?) orelse return;
+    defer c.wlr_buffer_unlock(output.blur_buffer.?);
 
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
@@ -742,13 +840,70 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
-    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, out_pass);
+    var out_ctx = SceneRenderCtx{
+        .renderer = server.renderer,
+        .pass = scene_pass,
+    };
+
+    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
     const out_fbo = c.wlr_gles2_renderer_get_buffer_fbo(server.renderer, state.buffer);
 
     c.glBindFramebuffer(c.GL_FRAMEBUFFER, out_fbo);
 
-    // draw blurred overlay here
+    // draw blurred overlay
+    ensureSolidProgram(output);
+
+    const rgba = [_]f32{ 1.0, 0.0, 0.0, 0.6 };
+
+    c.glViewport(0, 0, w, h);
+
+    c.glDisable(c.GL_SCISSOR_TEST);
+    c.glDisable(c.GL_DEPTH_TEST);
+    c.glDisable(c.GL_CULL_FACE);
+
+    c.glEnable(c.GL_BLEND);
+    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+
+    const fx = 100.0;
+    const fy = 100.0;
+    const fw = 100.0;
+    const fh = 100.0;
+
+    const W: f32 = @floatFromInt(w);
+    const H: f32 = @floatFromInt(h);
+
+    const verts = [_]f32{
+        ndc_x(fx, W),
+        ndc_y(fy, H),
+        ndc_x(fx + fw, W),
+        ndc_y(fy, H),
+        ndc_x(fx, W),
+        ndc_y(fy + fh, H),
+        ndc_x(fx + fw, W),
+        ndc_y(fy, H),
+        ndc_x(fx + fw, W),
+        ndc_y(fy + fh, H),
+        ndc_x(fx, W),
+        ndc_y(fy + fh, H),
+    };
+
+    gl.glUseProgram(output.gl_prog_solid);
+
+    gl.glUniform4f(output.gl_color_loc, rgba[0], rgba[1], rgba[2], rgba[3]);
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
+    gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
+
+    gl.glEnableVertexAttribArray(@intCast(output.gl_pos_loc));
+    gl.glVertexAttribPointer(@intCast(output.gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
+
+    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
+
+    gl.glDisableVertexAttribArray(@intCast(output.gl_pos_loc));
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+
+    // overlay ends here
 
     _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
