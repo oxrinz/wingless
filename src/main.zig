@@ -3,6 +3,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const utils = @import("utils.zig");
 const tests = @import("tests.zig");
+const ui = @import("ui.zig");
 
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
@@ -164,26 +165,22 @@ const WinglessKeyboard = struct {
     }
 };
 
-const WinglessOutput = struct {
+pub const WinglessOutput = struct {
     link: c.wl_list,
     server: *WinglessServer,
     output: *c.wlr_output,
 
-    gl_prog_solid: c_uint = 0,
+    gl_prog: c_uint = 0,
     gl_vbo: c_uint = 0,
     gl_pos_loc: c_int = -1,
-    gl_color_loc: c_int = -1,
+    gl_scene_loc: c_int = -1,
 
-    offscreen_buffer: ?*c.wlr_buffer = null,
+    scene_buffer: ?*c.wlr_buffer = null,
 
-    blur_swapchain: ?*c.wlr_swapchain = null,
-    blur_buffer: ?*c.wlr_buffer = null,
-    blur_fmt_set: c.wlr_drm_format_set = .{ .len = 0, .capacity = 0, .formats = null },
-    blur_fmt: *const c.wlr_drm_format = undefined,
-    blur_fbo: c_int = 0,
-    blur_tex: c_uint = 0,
-    blur_width: i32 = 0,
-    blur_height: i32 = 0,
+    ui_gl_fmt_set: c.wlr_drm_format_set = .{ .len = 0, .capacity = 0, .formats = null },
+    ui_gl_fmt: *const c.wlr_drm_format = undefined,
+    width: i32 = 0,
+    height: i32 = 0,
 
     frame: c.wl_listener,
     request_state: c.wl_listener,
@@ -201,8 +198,8 @@ const WinglessOutput = struct {
             .destroy = .{ .link = undefined, .notify = output_destroy },
         };
 
-        if (!c.wlr_drm_format_set_add(&output.blur_fmt_set, c.DRM_FORMAT_ARGB8888, 0)) @panic("no fmt");
-        output.blur_fmt = @ptrCast(c.wlr_drm_format_set_get(&output.blur_fmt_set, c.DRM_FORMAT_ARGB8888).?);
+        if (!c.wlr_drm_format_set_add(&output.ui_gl_fmt_set, c.DRM_FORMAT_ARGB8888, 0)) @panic("no fmt");
+        output.ui_gl_fmt = @ptrCast(c.wlr_drm_format_set_get(&output.ui_gl_fmt_set, c.DRM_FORMAT_ARGB8888).?);
 
         c.wl_list_init(@ptrCast(@constCast(&output.link)));
 
@@ -681,101 +678,6 @@ fn render_scene_buffer_iter(
     c.wlr_texture_destroy(tex);
 }
 
-fn ndc_x(x: f32, w: f32) f32 {
-    return (x / w) * 2.0 - 1.0;
-}
-
-fn ndc_y(y: f32, h: f32) f32 {
-    return 1.0 - (y / h) * 2.0;
-}
-
-fn glCompileShader(kind: c_uint, src: []const u8) c_uint {
-    const sh = gl.glCreateShader(kind);
-
-    var buf: [2048]u8 = undefined;
-    if (src.len + 1 > buf.len) @panic("shader too long to compile");
-    @memcpy(buf[0..src.len], src);
-    buf[src.len] = 0;
-
-    var p: [*c]const u8 = @ptrCast(&buf[0]);
-    var len: c_int = @intCast(src.len);
-
-    gl.glShaderSource(sh, 1, &p, &len);
-    gl.glCompileShader(sh);
-
-    var ok: c_int = 0;
-    gl.glGetShaderiv(sh, gl.GL_COMPILE_STATUS, &ok);
-
-    if (ok == 0) {
-        var log_len: c_int = 0;
-        gl.glGetShaderiv(sh, gl.GL_INFO_LOG_LENGTH, &log_len);
-        if (log_len > 1) {
-            var log: [1024]u8 = undefined;
-            var out_len: c_int = 0;
-            gl.glGetShaderInfoLog(sh, @min(log.len - 1, @as(usize, @intCast(log_len))), &out_len, @ptrCast(&log[0]));
-            log[@intCast(out_len)] = 0;
-            std.debug.print("shader compile log:\n{s}\n", .{log[0..@intCast(out_len)]});
-        }
-    }
-
-    return sh;
-}
-
-fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
-    const prog = gl.glCreateProgram();
-    gl.glAttachShader(prog, vs);
-    gl.glAttachShader(prog, fs);
-    gl.glLinkProgram(prog);
-
-    var ok: c_int = 0;
-    gl.glGetProgramiv(prog, gl.GL_LINK_STATUS, &ok);
-    if (ok == 0) {
-        var log_len: c_int = 0;
-        gl.glGetProgramiv(prog, gl.GL_INFO_LOG_LENGTH, &log_len);
-        if (log_len > 1) {
-            var log: [1024]u8 = undefined;
-            var out_len: c_int = 0;
-            gl.glGetProgramInfoLog(prog, @min(log.len - 1, @as(usize, @intCast(log_len))), &out_len, @ptrCast(&log[0]));
-            log[@intCast(out_len)] = 0;
-            std.debug.print("program link log:\n{s}\n", .{log[0..@intCast(out_len)]});
-        }
-    }
-
-    gl.glDeleteShader(vs);
-    gl.glDeleteShader(fs);
-    return prog;
-}
-
-fn ensureSolidProgram(out: *WinglessOutput) void {
-    if (out.gl_prog_solid != 0) return;
-
-    const vs_src =
-        \\attribute vec2 pos;
-        \\varying vec2 uv;
-        \\void main() {
-        \\  uv = (pos + 1.0) * 0.5;
-        \\  gl_Position = vec4(pos, 0.0, 1.0);
-        \\}
-    ;
-    const fs_src =
-        \\precision mediump float;
-        \\uniform sampler2D scene;
-        \\varying vec2 uv;
-        \\void main() {
-        \\  gl_FragColor = texture2D(scene, uv) * vec4(1.0, 0.0, 0.0, 1.5) + vec4(uv * 0.5, 0.0, 0.0);
-        \\}
-    ;
-
-    const vs = glCompileShader(gl.GL_VERTEX_SHADER, vs_src);
-    const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, fs_src);
-    out.gl_prog_solid = glLinkProgram(vs, fs);
-
-    out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog_solid, "pos");
-    out.gl_color_loc = gl.glGetUniformLocation(out.gl_prog_solid, "scene");
-
-    gl.glGenBuffers(1, &out.gl_vbo);
-}
-
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("frame", listener)));
@@ -793,18 +695,20 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     var h: c_int = 0;
     c.wlr_output_transformed_resolution(output.output, &w, &h);
 
-    if (output.offscreen_buffer == null or
-        output.blur_width != w or
-        output.blur_height != h)
+    // reset buffer on resize
+    if (output.scene_buffer == null or
+        output.width != w or
+        output.height != h)
     {
-        output.blur_width = w;
-        output.blur_height = h;
-        output.offscreen_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.blur_fmt));
+        output.width = w;
+        output.height = h;
+        output.scene_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.ui_gl_fmt));
     }
 
+    // render scene onto scene buffer
     const scene_pass = c.wlr_renderer_begin_buffer_pass(
         server.renderer,
-        output.offscreen_buffer.?,
+        output.scene_buffer.?,
         null,
     ) orelse return;
 
@@ -817,8 +721,11 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_render_pass_submit(scene_pass);
 
+    // start output pass
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
+    // render scene to output
+    // TODO: reuse existing scene buffer
     var out_ctx = SceneRenderCtx{
         .renderer = server.renderer,
         .pass = out_pass,
@@ -826,65 +733,8 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
-    // draw blurred overlay
-    ensureSolidProgram(output);
-
-    gl.glViewport(0, 0, w, h);
-
-    gl.glDisable(c.GL_SCISSOR_TEST);
-    gl.glDisable(c.GL_DEPTH_TEST);
-    gl.glDisable(c.GL_CULL_FACE);
-
-    gl.glEnable(c.GL_BLEND);
-    gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
-
-    const fx: f32 = 0;
-    const fy: f32 = 0;
-    const fw: f32 = @floatFromInt(w);
-    const fh: f32 = @floatFromInt(h);
-
-    const W: f32 = @floatFromInt(w);
-    const H: f32 = @floatFromInt(h);
-
-    const verts = [_]f32{
-        ndc_x(fx, W),
-        ndc_y(fy, H),
-        ndc_x(fx + fw, W),
-        ndc_y(fy, H),
-        ndc_x(fx, W),
-        ndc_y(fy + fh, H),
-        ndc_x(fx + fw, W),
-        ndc_y(fy, H),
-        ndc_x(fx + fw, W),
-        ndc_y(fy + fh, H),
-        ndc_x(fx, W),
-        ndc_y(fy + fh, H),
-    };
-
-    const scene_tex = c.wlr_texture_from_buffer(server.renderer, output.offscreen_buffer.?);
-
-    var attribs: c.wlr_gles2_texture_attribs = undefined;
-    c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
-
-    gl.glUseProgram(output.gl_prog_solid);
-
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(attribs.target, attribs.tex);
-
-    gl.glUniform1i(output.gl_color_loc, 0);
-
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
-    gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
-
-    gl.glEnableVertexAttribArray(@intCast(output.gl_pos_loc));
-    gl.glVertexAttribPointer(@intCast(output.gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
-
-    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
-
-    gl.glDisableVertexAttribArray(@intCast(output.gl_pos_loc));
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
-
-    // overlay ends here
+    // render ui
+    try ui.renderUI(server, output, w, h);
 
     _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
