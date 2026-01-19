@@ -7,6 +7,9 @@ const WinglessServer = main.WinglessServer;
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
 
+const ui_vert_src = @embedFile("shaders/ui.vert");
+const ui_frag_src = @embedFile("shaders/ui.frag");
+
 fn ndc_x(x: f32, w: f32) f32 {
     return (x / w) * 2.0 - 1.0;
 }
@@ -75,32 +78,8 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
 fn ensureSolidProgram(out: *WinglessOutput) void {
     if (out.gl_prog != 0) return;
 
-    const vs_src =
-        \\attribute vec2 pos;
-        \\varying vec2 uv;
-        \\void main() {
-        \\  uv = (pos + 1.0) * 0.5;
-        \\  gl_Position = vec4(pos, 0.0, 1.0);
-        \\}
-    ;
-    const fs_src =
-        \\precision highp float;
-        \\uniform sampler2D scene;
-        \\varying vec2 uv;
-        \\void main() {
-        \\  vec2 p = uv * 2.0 - 1.0;
-        \\  float r = length(p);
-        \\  float theta = atan(p.y, p.x);
-        \\  r = pow(r, 1.1);
-        \\  p = r * vec2(cos(theta), sin(theta));
-        \\  p = p * 0.5 + 0.5;
-        \\  gl_FragColor = texture2D(scene, p);
-        \\  // gl_FragColor = vec4(p, 0.0, 1.0);
-        \\}
-    ;
-
-    const vs = glCompileShader(gl.GL_VERTEX_SHADER, vs_src);
-    const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, fs_src);
+    const vs = glCompileShader(gl.GL_VERTEX_SHADER, ui_vert_src);
+    const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, ui_frag_src);
     out.gl_prog = glLinkProgram(vs, fs);
 
     out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog, "pos");
@@ -121,10 +100,14 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     gl.glEnable(c.GL_BLEND);
     gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
-    const fx: f32 = 0;
-    const fy: f32 = 0;
-    const fw: f32 = @floatFromInt(w);
-    const fh: f32 = @floatFromInt(h);
+    const two: i32 = 2;
+    const two_hundred: i32 = 200;
+    const one_hundred: i32 = 100;
+
+    const fx: f32 = @floatFromInt(@divFloor(@as(i32, w), two) - two_hundred);
+    const fy: f32 = @floatFromInt(@divFloor(@as(i32, h), two) - one_hundred);
+    const fw: f32 = 400;
+    const fh: f32 = 200;
 
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
