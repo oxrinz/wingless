@@ -173,6 +173,7 @@ pub const WinglessOutput = struct {
     beacon_background: ?ui.BeaconBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
 
+    gl_vao: c_uint = 0,
     gl_vbo: c_uint = 0,
 
     scene_buffer: ?*c.wlr_buffer = null,

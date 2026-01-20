@@ -45,6 +45,10 @@ const Glyph = struct {
     w: f32,
     h: f32,
 
+    x_off: f32,
+    y_off: f32,
+    advance: f32,
+
     u0: f32,
     v0: f32,
     u1: f32,
@@ -161,6 +165,10 @@ fn ensurePrograms(out: *WinglessOutput) void {
 
         const prog = glLinkProgram(vs, fs);
 
+        std.debug.print("yeah: {}\n", .{
+            gl.glGetAttribLocation(prog, "uv"),
+        });
+
         out.glass_text = .{
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
@@ -207,10 +215,25 @@ fn drawGlassChar(
     gl.glBindTexture(gl.GL_TEXTURE_2D, font.atlas_tex);
     gl.glUniform1i(output.glass_text.?.atlas_loc, 0);
 
-    const x0 = ndc_x(x, screen_w);
-    const y0 = ndc_y(y, screen_h);
-    const x1 = ndc_x(x + g.w, screen_w);
-    const y1 = ndc_y(y + g.h, screen_h);
+    {
+        const x0 = ndc_x(x, screen_w);
+        const y0 = ndc_y(y, screen_h);
+        const x1 = ndc_x(x + screen_w, screen_w);
+        const y1 = ndc_y(y + screen_h, screen_h);
+
+        const verts = [_]f32{ x0, y0, x1, y0, x0, y1, x1, y0, x1, y1, x0, y1 };
+        _ = verts;
+    }
+
+    const scale: f32 = 148.0;
+
+    const gx = x + g.x_off;
+    const gy = y - g.y_off;
+
+    const x0 = ndc_x(gx, screen_w);
+    const y0 = ndc_y(gy, screen_h);
+    const x1 = ndc_x(gx + g.w * scale, screen_w);
+    const y1 = ndc_y(gy + g.h * scale, screen_h);
 
     const verts = [_]f32{
         x0, y0, g.u0, g.v0,
@@ -221,7 +244,9 @@ fn drawGlassChar(
         x0, y1, g.u0, g.v1,
     };
 
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
+    std.debug.print("fuck: {any}\n", .{verts});
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vao);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
 
     const stride = 4 * @sizeOf(f32);
@@ -271,9 +296,18 @@ fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_u
         const bottom: f32 = @floatCast(atlasb.get("bottom").?.float);
         const top: f32 = @floatCast(atlasb.get("top").?.float);
 
+        const left_p: f32 = @floatCast(plane.get("left").?.float);
+        const right_p: f32 = @floatCast(plane.get("right").?.float);
+        const bottom_p: f32 = @floatCast(plane.get("bottom").?.float);
+        const top_p: f32 = @floatCast(plane.get("top").?.float);
+
         font.glyphs[@intCast(code)] = Glyph{
-            .w = @floatCast(plane.get("right").?.float - plane.get("left").?.float),
-            .h = @floatCast(plane.get("top").?.float - plane.get("bottom").?.float),
+            .w = right_p - left_p,
+            .h = top_p - bottom_p,
+
+            .x_off = left_p,
+            .y_off = bottom_p,
+            .advance = @floatCast(g.object.get("advance").?.float),
 
             .u0 = left / aw,
             .u1 = right / aw,
@@ -335,6 +369,10 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     // setup
     if (output.gl_vbo == 0)
         gl.glGenBuffers(1, &output.gl_vbo);
+
+    if (output.gl_vao == 0)
+        gl.glGenBuffers(1, &output.gl_vao);
+
     ensurePrograms(output);
 
     gl.glViewport(0, 0, w, h);
@@ -380,11 +418,11 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     drawGlassChar(output, &glass_font, 'H', x, y, W, H);
     x += 32;
-    drawGlassChar(output, &glass_font, 'e', x, y, W, H);
+    //drawGlassChar(output, &glass_font, 'e', x, y, W, H);
     x += 28;
-    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    //drawGlassChar(output, &glass_font, 'l', x, y, W, H);
     x += 16;
-    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    //drawGlassChar(output, &glass_font, 'l', x, y, W, H);
     x += 16;
-    drawGlassChar(output, &glass_font, 'o', x, y, W, H);
+    //drawGlassChar(output, &glass_font, 'o', x, y, W, H);
 }
