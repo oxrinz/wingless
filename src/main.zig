@@ -555,7 +555,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
                 if (sym == c.XKB_KEY_k) {
                     var child = std.process.Child.init(
-                        &[_][]const u8{"kitty"},
+                        &[_][]const u8{"zen-browser"},
                         std.heap.page_allocator,
                     );
 

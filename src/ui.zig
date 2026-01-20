@@ -165,7 +165,7 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
             .uv_loc = gl.glGetAttribLocation(prog, "uv"),
-            .atlas_loc = gl.glGetAttribLocation(prog, "atlas"),
+            .atlas_loc = gl.glGetUniformLocation(prog, "atlas"),
         };
     }
 }
@@ -231,6 +231,8 @@ fn drawGlassChar(
 
     gl.glEnableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
     gl.glVertexAttribPointer(@intCast(output.glass_text.?.uv_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(2 * @sizeOf(f32)));
+
+    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
     gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.pos_loc));
     gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
@@ -371,4 +373,18 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const H: f32 = @floatFromInt(h);
 
     drawQuad(output, W / 2 - 600, H / 2 - 600, 1200, 1200, W, H, output.beacon_background.?.pos_loc);
+
+    // text pass
+    var x: f32 = W / 2 - 200;
+    const y: f32 = H / 2 - 40;
+
+    drawGlassChar(output, &glass_font, 'H', x, y, W, H);
+    x += 32;
+    drawGlassChar(output, &glass_font, 'e', x, y, W, H);
+    x += 28;
+    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    x += 16;
+    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    x += 16;
+    drawGlassChar(output, &glass_font, 'o', x, y, W, H);
 }
