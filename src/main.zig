@@ -170,10 +170,14 @@ pub const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
+    beacon_anim_state: f32 = 0,
+
     gl_prog: c_uint = 0,
     gl_vbo: c_uint = 0,
+
     gl_pos_loc: c_int = -1,
     gl_scene_loc: c_int = -1,
+    gl_state_loc: c_int = -1,
 
     scene_buffer: ?*c.wlr_buffer = null,
 
@@ -566,6 +570,9 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                     child.spawn() catch @panic("Kitty failed");
 
                     handled = true;
+                }
+                if (sym == c.XKB_KEY_b) {
+                    ui.beacon_open = !ui.beacon_open;
                 }
 
                 for (server.wingless_config.keybinds) |keybind| {
