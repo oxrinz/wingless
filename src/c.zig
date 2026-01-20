@@ -27,6 +27,7 @@ pub const c = @cImport({
     @cInclude("wlr/util/log.h");
     @cInclude("wayland-server-core.h");
     @cInclude("drm/drm_fourcc.h");
+    @cInclude("stb/stb_image.h");
 });
 
 pub const gl = @cImport({

@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/xdg-shell-protocol.c" } });
 
+    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "src/stb_impl.c" } });
     exe.linkSystemLibrary("GLESv2");
     exe.linkSystemLibrary("EGL");
     exe.linkSystemLibrary("wlroots-0.19");

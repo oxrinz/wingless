@@ -19,6 +19,43 @@ var last_ns: i128 = 0;
 pub var beacon_open = false;
 var beacon_state: f32 = 0;
 
+var glass_font: Font = undefined;
+
+pub const BeaconBackgroundProgram = struct {
+    prog: c_uint,
+
+    pos_loc: c_int,
+
+    scene_loc: c_int,
+    state_loc: c_int,
+};
+
+pub const GlassTextProgram = struct {
+    prog: c_uint,
+
+    pos_loc: c_int,
+    uv_loc: c_int,
+
+    atlas_loc: c_int,
+    // px_range_loc: c_int,
+    // color_loc: c_int,
+};
+
+const Glyph = struct {
+    w: f32,
+    h: f32,
+
+    u0: f32,
+    v0: f32,
+    u1: f32,
+    v1: f32,
+};
+
+const Font = struct {
+    atlas_tex: c_uint,
+    glyphs: [256]?Glyph,
+};
+
 fn getDeltaSeconds() f32 {
     const now = std.time.nanoTimestamp();
     if (last_ns == 0) {
@@ -100,21 +137,40 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
     return prog;
 }
 
-fn ensureSolidProgram(out: *WinglessOutput) void {
-    if (out.gl_prog != 0) return;
+fn ensurePrograms(out: *WinglessOutput) void {
+    if (out.beacon_background != null) return;
+    // beacon_background
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, ui_vert_src);
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, ui_frag_src);
 
-    const vs = glCompileShader(gl.GL_VERTEX_SHADER, ui_vert_src);
-    const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, ui_frag_src);
-    out.gl_prog = glLinkProgram(vs, fs);
+        const prog = glLinkProgram(vs, fs);
 
-    out.gl_pos_loc = gl.glGetAttribLocation(out.gl_prog, "pos");
-    out.gl_scene_loc = gl.glGetUniformLocation(out.gl_prog, "scene");
-    out.gl_state_loc = gl.glGetUniformLocation(out.gl_prog, "state");
+        out.beacon_background = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .scene_loc = gl.glGetUniformLocation(prog, "scene"),
+            .state_loc = gl.glGetUniformLocation(prog, "state"),
+        };
+    }
 
-    gl.glGenBuffers(1, &out.gl_vbo);
+    // glass_text
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, @embedFile("shaders/glass_text.vert"));
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/glass_text.frag"));
+
+        const prog = glLinkProgram(vs, fs);
+
+        out.glass_text = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .uv_loc = gl.glGetAttribLocation(prog, "uv"),
+            .atlas_loc = gl.glGetAttribLocation(prog, "atlas"),
+        };
+    }
 }
 
-fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32) void {
+fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, gl_pos_loc: c_int) void {
     const x0 = ndc_x(x, screen_w);
     const y0 = ndc_y(y, screen_h);
     const x1 = ndc_x(x + w, screen_w);
@@ -125,13 +181,146 @@ fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
 
-    gl.glEnableVertexAttribArray(@intCast(output.gl_pos_loc));
-    gl.glVertexAttribPointer(@intCast(output.gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
+    gl.glEnableVertexAttribArray(@intCast(gl_pos_loc));
+    gl.glVertexAttribPointer(@intCast(gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
 
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
-    gl.glDisableVertexAttribArray(@intCast(output.gl_pos_loc));
+    gl.glDisableVertexAttribArray(@intCast(gl_pos_loc));
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+}
+
+fn drawGlassChar(
+    output: *WinglessOutput,
+    font: *const Font,
+    ch: u8,
+    x: f32,
+    y: f32,
+    screen_w: f32,
+    screen_h: f32,
+) void {
+    const g = font.glyphs[ch] orelse return;
+
+    gl.glUseProgram(output.glass_text.?.prog);
+
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, font.atlas_tex);
+    gl.glUniform1i(output.glass_text.?.atlas_loc, 0);
+
+    const x0 = ndc_x(x, screen_w);
+    const y0 = ndc_y(y, screen_h);
+    const x1 = ndc_x(x + g.w, screen_w);
+    const y1 = ndc_y(y + g.h, screen_h);
+
+    const verts = [_]f32{
+        x0, y0, g.u0, g.v0,
+        x1, y0, g.u1, g.v0,
+        x0, y1, g.u0, g.v1,
+        x1, y0, g.u1, g.v0,
+        x1, y1, g.u1, g.v1,
+        x0, y1, g.u0, g.v1,
+    };
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
+    gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
+
+    const stride = 4 * @sizeOf(f32);
+
+    gl.glEnableVertexAttribArray(@intCast(output.glass_text.?.pos_loc));
+    gl.glVertexAttribPointer(@intCast(output.glass_text.?.pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(0));
+
+    gl.glEnableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
+    gl.glVertexAttribPointer(@intCast(output.glass_text.?.uv_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(2 * @sizeOf(f32)));
+
+    gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.pos_loc));
+    gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
+}
+
+fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_uint) !Font {
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+
+    var font = Font{
+        .atlas_tex = atlas_tex,
+        .glyphs = [_]?Glyph{null} ** 256,
+    };
+
+    const root = parsed.value;
+    const atlas = root.object.get("atlas").?.object;
+
+    const aw: f32 = @floatFromInt(atlas.get("width").?.integer);
+    const ah: f32 = @floatFromInt(atlas.get("height").?.integer);
+
+    for (root.object.get("glyphs").?.array.items) |g| {
+        const code = g.object.get("unicode").?.integer;
+        if (code < 0 or code > 255) continue;
+
+        const plane_val = g.object.get("planeBounds");
+        if (plane_val == null) continue;
+
+        const atlas_val = g.object.get("atlasBounds");
+        if (atlas_val == null) continue;
+
+        const plane = plane_val.?.object;
+        const atlasb = atlas_val.?.object;
+
+        const left: f32 = @floatCast(atlasb.get("left").?.float);
+        const right: f32 = @floatCast(atlasb.get("right").?.float);
+        const bottom: f32 = @floatCast(atlasb.get("bottom").?.float);
+        const top: f32 = @floatCast(atlasb.get("top").?.float);
+
+        font.glyphs[@intCast(code)] = Glyph{
+            .w = @floatCast(plane.get("right").?.float - plane.get("left").?.float),
+            .h = @floatCast(plane.get("top").?.float - plane.get("bottom").?.float),
+
+            .u0 = left / aw,
+            .u1 = right / aw,
+            .v1 = 1.0 - (bottom / ah),
+            .v0 = 1.0 - (top / ah),
+        };
+    }
+
+    return font;
+}
+
+fn loadTextureFromPng(png: []const u8) c_uint {
+    var w: c_int = 0;
+    var h: c_int = 0;
+    var comp: c_int = 0;
+
+    const pixels = c.stbi_load_from_memory(png.ptr, @intCast(png.len), &w, &h, &comp, 4);
+    defer c.stbi_image_free(pixels);
+
+    var tex: c_uint = 0;
+    gl.glGenTextures(1, &tex);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
+
+    gl.glTexImage2D(
+        gl.GL_TEXTURE_2D,
+        0,
+        gl.GL_RGBA,
+        w,
+        h,
+        0,
+        gl.GL_RGBA,
+        gl.GL_UNSIGNED_BYTE,
+        pixels,
+    );
+
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+
+    return tex;
+}
+
+pub fn initUI(allocator: std.mem.Allocator) !void {
+    const font_json = @embedFile("assets/roboto-msdf.json");
+    const font_png = @embedFile("assets/roboto-msdf.png");
+
+    const atlas_tex = loadTextureFromPng(font_png);
+    glass_font = try loadFont(allocator, font_json, atlas_tex);
 }
 
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
@@ -142,7 +331,9 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 10.0);
 
     // setup
-    ensureSolidProgram(output);
+    if (output.gl_vbo == 0)
+        gl.glGenBuffers(1, &output.gl_vbo);
+    ensurePrograms(output);
 
     gl.glViewport(0, 0, w, h);
 
@@ -163,7 +354,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
 
-    gl.glUseProgram(output.gl_prog);
+    gl.glUseProgram(output.beacon_background.?.prog);
 
     gl.glActiveTexture(gl.GL_TEXTURE0);
     gl.glBindTexture(attribs.target, attribs.tex);
@@ -173,11 +364,11 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
     gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
 
-    gl.glUniform1i(output.gl_scene_loc, 0);
-    gl.glUniform1f(output.gl_state_loc, beacon_state);
+    gl.glUniform1i(output.beacon_background.?.scene_loc, 0);
+    gl.glUniform1f(output.beacon_background.?.state_loc, beacon_state);
 
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
 
-    drawQuad(output, W / 2 - 600, H / 2 - 600, 1200, 1200, W, H);
+    drawQuad(output, W / 2 - 600, H / 2 - 600, 1200, 1200, W, H, output.beacon_background.?.pos_loc);
 }

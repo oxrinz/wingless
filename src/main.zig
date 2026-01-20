@@ -170,14 +170,10 @@ pub const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
-    beacon_anim_state: f32 = 0,
+    beacon_background: ?ui.BeaconBackgroundProgram = null,
+    glass_text: ?ui.GlassTextProgram = null,
 
-    gl_prog: c_uint = 0,
     gl_vbo: c_uint = 0,
-
-    gl_pos_loc: c_int = -1,
-    gl_scene_loc: c_int = -1,
-    gl_state_loc: c_int = -1,
 
     scene_buffer: ?*c.wlr_buffer = null,
 
@@ -799,12 +795,13 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const conf = try config.getConfig(allocator);
 
+    try ui.initUI(allocator);
+
     var server = try WinglessServer.init(conf);
 
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
-    std.debug.print("Running wayland compositor on {s}\n", .{socket});
 
     c.wl_display_run(server.display);
 
