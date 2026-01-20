@@ -37,8 +37,7 @@ pub const GlassTextProgram = struct {
     uv_loc: c_int,
 
     atlas_loc: c_int,
-    // px_range_loc: c_int,
-    // color_loc: c_int,
+    px_range_loc: c_int,
 };
 
 const Glyph = struct {
@@ -58,6 +57,7 @@ const Glyph = struct {
 const Font = struct {
     atlas_tex: c_uint,
     glyphs: [256]?Glyph,
+    px_range: f32,
 };
 
 fn getDeltaSeconds() f32 {
@@ -156,6 +156,8 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
             .state_loc = gl.glGetUniformLocation(prog, "state"),
         };
+
+        if (out.beacon_background.?.pos_loc < 0) @panic("pos not found");
     }
 
     // glass_text
@@ -174,6 +176,7 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
             .uv_loc = gl.glGetAttribLocation(prog, "uv"),
             .atlas_loc = gl.glGetUniformLocation(prog, "atlas"),
+            .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
         };
     }
 }
@@ -214,6 +217,7 @@ fn drawGlassChar(
     gl.glActiveTexture(gl.GL_TEXTURE0);
     gl.glBindTexture(gl.GL_TEXTURE_2D, font.atlas_tex);
     gl.glUniform1i(output.glass_text.?.atlas_loc, 0);
+    gl.glUniform1f(output.glass_text.?.px_range_loc, font.px_range);
 
     {
         const x0 = ndc_x(x, screen_w);
@@ -236,17 +240,15 @@ fn drawGlassChar(
     const y1 = ndc_y(gy + g.h * scale, screen_h);
 
     const verts = [_]f32{
-        x0, y0, g.u0, g.v0,
-        x1, y0, g.u1, g.v0,
-        x0, y1, g.u0, g.v1,
-        x1, y0, g.u1, g.v0,
-        x1, y1, g.u1, g.v1,
-        x0, y1, g.u0, g.v1,
+        x0, y0, g.u0, g.v1,
+        x1, y0, g.u1, g.v1,
+        x0, y1, g.u0, g.v0,
+        x1, y0, g.u1, g.v1,
+        x1, y1, g.u1, g.v0,
+        x0, y1, g.u0, g.v0,
     };
 
-    std.debug.print("fuck: {any}\n", .{verts});
-
-    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vao);
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
 
     const stride = 4 * @sizeOf(f32);
@@ -261,19 +263,22 @@ fn drawGlassChar(
 
     gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.pos_loc));
     gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
 fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_uint) !Font {
     var parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
     defer parsed.deinit();
 
+    const root = parsed.value;
+    const atlas = root.object.get("atlas").?.object;
+
     var font = Font{
         .atlas_tex = atlas_tex,
         .glyphs = [_]?Glyph{null} ** 256,
+        .px_range = @floatFromInt(atlas.get("distanceRange").?.integer),
     };
-
-    const root = parsed.value;
-    const atlas = root.object.get("atlas").?.object;
 
     const aw: f32 = @floatFromInt(atlas.get("width").?.integer);
     const ah: f32 = @floatFromInt(atlas.get("height").?.integer);
@@ -311,8 +316,8 @@ fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_u
 
             .u0 = left / aw,
             .u1 = right / aw,
-            .v1 = 1.0 - (bottom / ah),
             .v0 = 1.0 - (top / ah),
+            .v1 = 1.0 - (bottom / ah),
         };
     }
 
@@ -324,7 +329,7 @@ fn loadTextureFromPng(png: []const u8) c_uint {
     var h: c_int = 0;
     var comp: c_int = 0;
 
-    const pixels = c.stbi_load_from_memory(png.ptr, @intCast(png.len), &w, &h, &comp, 4);
+    const pixels = c.stbi_load_from_memory(png.ptr, @intCast(png.len), &w, &h, &comp, 4) orelse @panic("no png");
     defer c.stbi_image_free(pixels);
 
     var tex: c_uint = 0;
@@ -351,6 +356,8 @@ fn loadTextureFromPng(png: []const u8) c_uint {
     return tex;
 }
 
+var initialized = false;
+
 pub fn initUI(allocator: std.mem.Allocator) !void {
     const font_json = @embedFile("assets/roboto-msdf.json");
     const font_png = @embedFile("assets/roboto-msdf.png");
@@ -360,6 +367,10 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 }
 
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
+    if (initialized == false) {
+        try initUI(std.heap.page_allocator);
+        initialized = true;
+    }
     const dt = getDeltaSeconds();
 
     // update state
@@ -417,12 +428,12 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const y: f32 = H / 2 - 40;
 
     drawGlassChar(output, &glass_font, 'H', x, y, W, H);
-    x += 32;
-    //drawGlassChar(output, &glass_font, 'e', x, y, W, H);
-    x += 28;
-    //drawGlassChar(output, &glass_font, 'l', x, y, W, H);
-    x += 16;
-    //drawGlassChar(output, &glass_font, 'l', x, y, W, H);
-    x += 16;
-    //drawGlassChar(output, &glass_font, 'o', x, y, W, H);
+    x += glass_font.glyphs['H'].?.advance * 128;
+    drawGlassChar(output, &glass_font, 'e', x, y, W, H);
+    x += glass_font.glyphs['e'].?.advance * 128;
+    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    x += glass_font.glyphs['l'].?.advance * 128;
+    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
+    x += glass_font.glyphs['l'].?.advance * 128;
+    drawGlassChar(output, &glass_font, 'o', x, y, W, H);
 }

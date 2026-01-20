@@ -738,7 +738,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
 
     // render ui
-    try ui.renderUI(server, output, w, h);
+    ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
 
     _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
@@ -795,8 +795,6 @@ pub fn main() !void {
     // c.wlr_log_init(c.WLR_DEBUG, null);
     const allocator = std.heap.page_allocator;
     const conf = try config.getConfig(allocator);
-
-    try ui.initUI(allocator);
 
     var server = try WinglessServer.init(conf);
 

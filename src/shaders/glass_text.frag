@@ -2,6 +2,7 @@
 precision mediump float;
 
 uniform sampler2D atlas;
+uniform float pxRange;
 
 varying vec2 v_uv;
 
@@ -10,12 +11,12 @@ float median(float a, float b, float c) {
 }
 
 void main() {
-  vec3 sample = texture2D(atlas, v_uv).rgb;
+  vec3 s = texture2D(atlas, v_uv).rgb;
 
-  float sd = median(sample.r, sample.g, sample.b);
+  float sd = median(s.r, s.g, s.b) - 0.5;
 
-  float w = fwidth(sd);
-  float alpha = smoothstep(0.5 - w, 0.5 + w, sd);
+  float screenPxRange = pxRange * length(vec2(dFdx(v_uv.x), dFdy(v_uv.y)));
+  float alpha = clamp(sd / screenPxRange + 0.5, 0.0, 1.0);
 
-  gl_FragColor = vec4(sample, 1.);
+  gl_FragColor = vec4(vec3(1), alpha);
 }
