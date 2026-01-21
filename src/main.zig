@@ -545,10 +545,9 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
             ui.beacon_open = !ui.beacon_open;
         },
         .launch_app => {
-            const name: []const u8 = @ptrCast(@alignCast(args.?[0]));
-            std.debug.print("launching app: {s}\n", .{name});
+            const name: *[]const u8 = @ptrCast(@alignCast(args.?[0]));
             var child = std.process.Child.init(
-                &[_][]const u8{name},
+                &[_][]const u8{name.*},
                 std.heap.page_allocator,
             );
 
@@ -576,21 +575,6 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 const sym = syms[i];
 
                 if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
-                if (sym == c.XKB_KEY_k) {
-                    var child = std.process.Child.init(
-                        &[_][]const u8{"kitty"},
-                        std.heap.page_allocator,
-                    );
-
-                    var env = std.process.getEnvMap(std.heap.page_allocator) catch @panic("bruh");
-                    // env.put("WAYLAND_DEBUG", "1") catch @panic("bruh");
-                    child.env_map = @constCast(&env);
-
-                    child.spawn() catch @panic("Kitty failed");
-
-                    handled = true;
-                }
-
                 for (server.wingless_config.keybinds) |keybind| {
                     if (keybind.key == sym) {
                         launchCommand(keybind.function, null, server);
@@ -606,21 +590,28 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 if (sym == c.XKB_KEY_BackSpace) {
                     _ = ui.beacon_buffer.pop();
 
+                    ui.updateBeaconSuggestions(server.allocator) catch @panic("oops");
+                    handled = true;
                     continue;
                 } else if (sym == c.XKB_KEY_Return) {
                     // launch command
                     ui.beacon_open = false;
-                    var command_string = server.allocator.alloc(u8, ui.beacon_buffer.items.len) catch @panic("out of memory");
-                    command_string = ui.beacon_buffer.toOwnedSlice(server.allocator) catch @panic("out of memory");
+                    ui.beacon_buffer.clearRetainingCapacity();
+
+                    const command_string = ui.beacon_suggestions[0];
+
                     const command = std.meta.stringToEnum(config.WinglessFunction, command_string);
                     if (command) |cmd|
                         launchCommand(cmd, null, server)
                     else {
+                        const name_ptr = server.allocator.create([]const u8) catch @panic("out of memory");
+                        name_ptr.* = command_string;
+
                         const args = server.allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
-                        args[0] = @ptrCast(command_string.ptr);
-                        std.debug.print("launching app: {s}\n", .{@as([]u8, @ptrCast(args[0]))});
+                        args[0] = @ptrCast(name_ptr);
                         launchCommand(.launch_app, args, server);
                     }
+                    handled = true;
                     continue;
                 }
 
@@ -631,6 +622,8 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 if (len > 1) {
                     ui.beacon_buffer.appendSlice(server.allocator, buf[0..@intCast(len - 1)]) catch {};
                 }
+
+                ui.updateBeaconSuggestions(server.allocator) catch @panic("oops");
 
                 handled = true;
             }

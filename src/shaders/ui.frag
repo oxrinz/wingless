@@ -1,6 +1,9 @@
+#extension GL_OES_standard_derivatives : enable
+
 precision highp float;
 uniform sampler2D scene;
 uniform float state;
+uniform float suggestionState;
 varying vec2 uv;
 
 vec2 resolution = vec2(2540, 1440);
@@ -35,39 +38,55 @@ void main() {
   float ratio = resolution.x / resolution.y;
   vec2 fragCoord = uv * resolution;
 
-  vec2 glassSize = vec2(800. * state, 75. * clamp(state * 9., 0., 1.));
-  vec2 glassCenter = vec2(resolution.x / 2., resolution.y / 2.);
-  vec2 glassCoord = fragCoord - glassCenter;
+  float roundness = 75.;
+
+  // opening / closing animation
+  float paneHeight = 75. * clamp(state * 9., 0., 1.);
+  // suggestion animation
+  paneHeight += 200. * suggestionState;
+
+  vec2 paneSize = vec2(800. * state, paneHeight);
+  vec2 paneCenter = vec2(resolution.x / 2., resolution.y / 2.);
+  paneCenter.y += 50. * suggestionState;
+
+  vec2 glassCoord = fragCoord - paneCenter;
 
   // glass refractions
-  float size = min(glassSize.x, glassSize.y);
-  // glassSize / {num} defines the roundness
-  float inversedSDF =
-      -sdf(glassCoord, glassSize * 0.5, glassSize.y / 2.) / size;
+  float size = roundness;
+  // paneSize / {num} defines the roundness
+  float inversedSDF = -sdf(glassCoord, paneSize * 0.5, roundness / 2.) / size;
 
   float alpha = 1.0;
   vec3 glassColor = vec3(0.0);
 
   // shadow
-  float shadowStrength = 0.75 * state;
+  float shadowStrength = 0.5 * state;
+  float maxShadow = 0.3;
   vec2 shadowOffset = vec2(0., 18.);
-  vec2 shadowGlassSize = vec2(glassSize.x * 1.3, glassSize.y * 3.);
-  float shadowSize = min(shadowGlassSize.x, shadowGlassSize.y);
-  float shadowSDF = -sdf(glassCoord - shadowOffset, shadowGlassSize * 0.5,
-                         shadowGlassSize.y / 2.) /
-                    shadowSize;
+  vec2 shadowGlassSize = vec2(paneSize.x * 1.3, paneSize.y * 3.0);
+  shadowGlassSize.y *= mix(0.5, 1.0, 1. - suggestionState);
+  float shadowRoundness = roundness * 2.;
+  float shadowSDF =
+      -sdf(glassCoord - shadowOffset, shadowGlassSize * 0.5, shadowRoundness) /
+      shadowRoundness;
   float shadow = shadowSDF * shadowStrength;
+  shadow = clamp(shadow, 0., maxShadow);
   alpha = shadow;
 
-  if (inversedSDF > 0.0) {
-    alpha = 1.;
+  // smooth edges
+  float aa = fwidth(inversedSDF);
+  float edge = smoothstep(0., aa, inversedSDF);
+
+  alpha = max(alpha, edge);
+
+  if (edge > 0.0) {
     float distFromCenter = 1.0 - clamp(inversedSDF / 0.2, 0.0, 1.0);
     float distortion = 1.0 - sqrt(1.0 - pow(distFromCenter, 2.0));
     // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
     // the middle that is present when the rectable is long and thin they can,
     // and SHOULD be removed if the size of the rectangle is somewhat balanced
     vec2 normalizedGlassCoord = clamp(normalize(glassCoord) / 5., -.1, .1);
-    vec2 offset = distortion * normalizedGlassCoord * glassSize * 0.5;
+    vec2 offset = distortion * normalizedGlassCoord * paneSize * 0.5;
     vec2 glassColorCoord = fragCoord - offset;
 
     float blurIntensity = 1.2;
@@ -88,6 +107,8 @@ void main() {
 
     // bright
     glassColor += vec3(0.05);
+
+    glassColor *= edge;
   }
 
   gl_FragColor = vec4(glassColor, alpha);

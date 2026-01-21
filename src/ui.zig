@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const config = @import("config.zig");
+
 const main = @import("main.zig");
 const WinglessOutput = main.WinglessOutput;
 const WinglessServer = main.WinglessServer;
@@ -18,7 +20,9 @@ var last_ns: i128 = 0;
 
 pub var beacon_open = false;
 var beacon_state: f32 = 0;
+var beacon_suggestion_state: f32 = 0;
 pub var beacon_buffer: std.ArrayList(u8) = .empty;
+pub var beacon_suggestions: []const []const u8 = &.{};
 
 var glass_font: Font = undefined;
 
@@ -29,6 +33,7 @@ pub const BeaconBackgroundProgram = struct {
 
     scene_loc: c_int,
     state_loc: c_int,
+    suggestion_state_loc: c_int,
 };
 
 pub const GlassTextProgram = struct {
@@ -39,6 +44,7 @@ pub const GlassTextProgram = struct {
 
     atlas_loc: c_int,
     px_range_loc: c_int,
+    thickness_loc: c_int,
 };
 
 const Glyph = struct {
@@ -156,6 +162,7 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
             .state_loc = gl.glGetUniformLocation(prog, "state"),
+            .suggestion_state_loc = gl.glGetUniformLocation(prog, "suggestionState"),
         };
 
         if (out.beacon_background.?.pos_loc < 0) @panic("pos not found");
@@ -178,6 +185,7 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .uv_loc = gl.glGetAttribLocation(prog, "uv"),
             .atlas_loc = gl.glGetUniformLocation(prog, "atlas"),
             .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
+            .thickness_loc = gl.glGetUniformLocation(prog, "thickness"),
         };
     }
 }
@@ -210,7 +218,9 @@ fn drawGlassChar(
     y: f32,
     screen_w: f32,
     screen_h: f32,
+    thickness: f32,
 ) f32 {
+    if (ch == ' ') return 12;
     const g = font.glyphs[ch] orelse return 0;
 
     gl.glUseProgram(output.glass_text.?.prog);
@@ -219,6 +229,7 @@ fn drawGlassChar(
     gl.glBindTexture(gl.GL_TEXTURE_2D, font.atlas_tex);
     gl.glUniform1i(output.glass_text.?.atlas_loc, 0);
     gl.glUniform1f(output.glass_text.?.px_range_loc, font.px_range);
+    gl.glUniform1f(output.glass_text.?.thickness_loc, thickness);
 
     {
         const x0 = ndc_x(x, screen_w);
@@ -268,6 +279,22 @@ fn drawGlassChar(
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 
     return glass_font.glyphs[ch].?.advance * scale;
+}
+
+fn drawGlassSentence(
+    output: *WinglessOutput,
+    font: *const Font,
+    sentence: []const u8,
+    x: f32,
+    y: f32,
+    screen_w: f32,
+    screen_h: f32,
+    thickness: f32,
+) void {
+    var real_x = x;
+    for (sentence) |char| {
+        real_x += drawGlassChar(output, font, char, real_x, y, screen_w, screen_h, thickness);
+    }
 }
 
 fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_uint) !Font {
@@ -369,9 +396,97 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     glass_font = try loadFont(allocator, font_json, atlas_tex);
 }
 
+var commands: ?[][]const u8 = null;
+
+// TODO: this should be fuzzy
+pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
+    if (commands == null) {
+        // commands
+        var command_array: std.ArrayList([]const u8) = .empty;
+        for (std.enums.values(config.WinglessFunction)) |function| {
+            command_array.append(std.heap.page_allocator, @constCast(@tagName(function))) catch @panic("fuck");
+        }
+
+        // path executables
+        const path = try std.process.getEnvVarOwned(allocator, "PATH");
+        defer allocator.free(path);
+
+        var dirs = std.mem.splitScalar(u8, path, ':');
+        while (dirs.next()) |dir_path| {
+            var dir = try std.fs.openDirAbsolute(dir_path, .{ .iterate = true });
+            defer dir.close();
+
+            var it = dir.iterate();
+            while (try it.next()) |e| {
+                if (e.kind != .file) continue;
+
+                const stat = dir.statFile(e.name) catch continue;
+                if (stat.mode & 0o111 == 0) continue;
+
+                try command_array.append(allocator, try allocator.dupe(u8, e.name));
+            }
+        }
+
+        // desktop apps
+        // TODO: do desktop apps
+        //        if (false) {
+        //            const paths = [_][]const u8{ "/usr/share/applications", try std.fs.path.join(allocator, &.{
+        //                try std.process.getEnvVarOwned(allocator, "HOME"),
+        //                ".local/share/applications",
+        //            }) };
+        //
+        //            for (paths) |path| {
+        //                if (path.len == 0) continue;
+        //                var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
+        //                defer dir.close();
+        //
+        //                var it = dir.iterate();
+        //                while (try it.next()) |e| {
+        //                    if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
+        //
+        //                    // parse .desktop file
+        //                    const full = try std.fs.path.join(allocator, &.{ path, e.name });
+        //                    defer allocator.free(full);
+        //
+        //                    const file = try std.fs.openFileAbsolute(full, .{});
+        //                    defer file.close();
+        //
+        //                    const data = try file.readToEndAlloc(allocator, 64 * 1024);
+        //                    defer allocator.free(data);
+        //
+        //                    var line_it = std.mem.splitScalar(u8, data, '\n');
+        //                    while (line_it.next()) |line| {
+        //                        if (std.mem.startsWith(u8, line, "Exec=")) {
+        //                            var cmd = line["Exec=".len..];
+        //
+        //                            // strip arguments TODO: shouldn't strip arguments
+        //                            const space = std.mem.indexOfScalar(u8, cmd, ' ') orelse cmd.len;
+        //                            std.debug.print("YEAAA: {s}\n", .{cmd[0..space]});
+        //                            try command_array.append(allocator, try allocator.dupe(u8, cmd[0..space]));
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //       }
+
+        commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");
+    }
+
+    var results: std.ArrayList([]const u8) = .empty;
+
+    for (commands.?) |command| {
+        if (std.mem.startsWith(u8, command, beacon_buffer.items)) {
+            results.append(std.heap.page_allocator, command) catch @panic("oh no");
+        }
+    }
+
+    beacon_suggestions = results.toOwnedSlice(std.heap.page_allocator) catch @panic("oh noo");
+}
+
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
     if (initialized == false) {
         try initUI(std.heap.page_allocator);
+
         initialized = true;
     }
     const dt = getDeltaSeconds();
@@ -379,6 +494,9 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     // update state
     const beacon_state_target: f32 = if (beacon_open) 1.0 else 0.0;
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
+
+    const beacon_suggestion_state_target: f32 = if (beacon_buffer.items.len >= 2) 1.0 else 0.0;
+    beacon_suggestion_state = lerp(beacon_suggestion_state, beacon_suggestion_state_target, dt * 20.0);
 
     // setup
     if (output.gl_vbo == 0)
@@ -420,6 +538,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     gl.glUniform1i(output.beacon_background.?.scene_loc, 0);
     gl.glUniform1f(output.beacon_background.?.state_loc, beacon_state);
+    gl.glUniform1f(output.beacon_background.?.suggestion_state_loc, beacon_suggestion_state);
 
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
@@ -427,12 +546,28 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     drawQuad(output, W / 2 - 800, H / 2 - 600, 1600, 1200, W, H, output.beacon_background.?.pos_loc);
 
     // text pass
-    var x: f32 = W / 2 - 370;
-    const y: f32 = H / 2 - 10;
+    const x: f32 = W / 2 - 370;
+    const y: f32 = H / 2 - 10 + beacon_suggestion_state * 50;
+
+    const suggestion_offset: f32 = 60;
+    var suggestion_y = y - 80;
+    const empty_suggestion_text = "Command not found :c";
 
     if (beacon_open) {
-        for (beacon_buffer.items) |char| {
-            x += drawGlassChar(output, &glass_font, char, x, y, W, H);
+        drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, W, H, 0.2);
+
+        // draw suggestions
+        if (beacon_suggestion_state > 0.9) {
+            for (0..beacon_suggestions.len) |i| {
+                if (i > 2) break;
+                const suggestion = beacon_suggestions[i];
+                drawGlassSentence(output, &glass_font, suggestion, x, suggestion_y, W, H, 0.0);
+                suggestion_y -= suggestion_offset;
+            }
+
+            if (beacon_suggestions.len == 0) {
+                drawGlassSentence(output, &glass_font, empty_suggestion_text, x, suggestion_y, W, H, 0.0);
+            }
         }
     }
 }
