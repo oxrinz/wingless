@@ -18,6 +18,7 @@ var last_ns: i128 = 0;
 
 pub var beacon_open = false;
 var beacon_state: f32 = 0;
+pub var beacon_buffer: std.ArrayList(u8) = .empty;
 
 var glass_font: Font = undefined;
 
@@ -209,8 +210,8 @@ fn drawGlassChar(
     y: f32,
     screen_w: f32,
     screen_h: f32,
-) void {
-    const g = font.glyphs[ch] orelse return;
+) f32 {
+    const g = font.glyphs[ch] orelse return 0;
 
     gl.glUseProgram(output.glass_text.?.prog);
 
@@ -229,10 +230,10 @@ fn drawGlassChar(
         _ = verts;
     }
 
-    const scale: f32 = 148.0;
+    const scale: f32 = 32.0;
 
     const gx = x + g.x_off;
-    const gy = y - g.y_off;
+    const gy = y + g.y_off * scale;
 
     const x0 = ndc_x(gx, screen_w);
     const y0 = ndc_y(gy, screen_h);
@@ -265,6 +266,8 @@ fn drawGlassChar(
     gl.glDisableVertexAttribArray(@intCast(output.glass_text.?.uv_loc));
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+
+    return glass_font.glyphs[ch].?.advance * scale;
 }
 
 fn loadFont(allocator: std.mem.Allocator, json_bytes: []const u8, atlas_tex: c_uint) !Font {
@@ -359,8 +362,8 @@ fn loadTextureFromPng(png: []const u8) c_uint {
 var initialized = false;
 
 pub fn initUI(allocator: std.mem.Allocator) !void {
-    const font_json = @embedFile("assets/roboto-msdf.json");
-    const font_png = @embedFile("assets/roboto-msdf.png");
+    const font_json = @embedFile("assets/font.json");
+    const font_png = @embedFile("assets/font.png");
 
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
@@ -375,7 +378,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     // update state
     const beacon_state_target: f32 = if (beacon_open) 1.0 else 0.0;
-    beacon_state = lerp(beacon_state, beacon_state_target, dt * 10.0);
+    beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
 
     // setup
     if (output.gl_vbo == 0)
@@ -421,19 +424,15 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
 
-    drawQuad(output, W / 2 - 600, H / 2 - 600, 1200, 1200, W, H, output.beacon_background.?.pos_loc);
+    drawQuad(output, W / 2 - 800, H / 2 - 600, 1600, 1200, W, H, output.beacon_background.?.pos_loc);
 
     // text pass
-    var x: f32 = W / 2 - 200;
-    const y: f32 = H / 2 - 40;
+    var x: f32 = W / 2 - 370;
+    const y: f32 = H / 2 - 10;
 
-    drawGlassChar(output, &glass_font, 'H', x, y, W, H);
-    x += glass_font.glyphs['H'].?.advance * 128;
-    drawGlassChar(output, &glass_font, 'e', x, y, W, H);
-    x += glass_font.glyphs['e'].?.advance * 128;
-    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
-    x += glass_font.glyphs['l'].?.advance * 128;
-    drawGlassChar(output, &glass_font, 'l', x, y, W, H);
-    x += glass_font.glyphs['l'].?.advance * 128;
-    drawGlassChar(output, &glass_font, 'o', x, y, W, H);
+    if (beacon_open) {
+        for (beacon_buffer.items) |char| {
+            x += drawGlassChar(output, &glass_font, char, x, y, W, H);
+        }
+    }
 }

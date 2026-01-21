@@ -34,9 +34,8 @@ vec3 getBlurredColor(vec2 coord, float blurRadius) {
 void main() {
   float ratio = resolution.x / resolution.y;
   vec2 fragCoord = uv * resolution;
-  vec3 backgroundColor = getTextureColorAt(fragCoord);
 
-  vec2 glassSize = vec2(900. * state, 100. * clamp(state * 9., 0., 1.));
+  vec2 glassSize = vec2(800. * state, 75. * clamp(state * 9., 0., 1.));
   vec2 glassCenter = vec2(resolution.x / 2., resolution.y / 2.);
   vec2 glassCoord = fragCoord - glassCenter;
 
@@ -46,32 +45,50 @@ void main() {
   float inversedSDF =
       -sdf(glassCoord, glassSize * 0.5, glassSize.y / 2.) / size;
 
-  if (inversedSDF < 0.0) {
-    return;
+  float alpha = 1.0;
+  vec3 glassColor = vec3(0.0);
+
+  // shadow
+  float shadowStrength = 0.75 * state;
+  vec2 shadowOffset = vec2(0., 18.);
+  vec2 shadowGlassSize = vec2(glassSize.x * 1.3, glassSize.y * 3.);
+  float shadowSize = min(shadowGlassSize.x, shadowGlassSize.y);
+  float shadowSDF = -sdf(glassCoord - shadowOffset, shadowGlassSize * 0.5,
+                         shadowGlassSize.y / 2.) /
+                    shadowSize;
+  float shadow = shadowSDF * shadowStrength;
+  alpha = shadow;
+
+  if (inversedSDF > 0.0) {
+    alpha = 1.;
+    float distFromCenter = 1.0 - clamp(inversedSDF / 0.2, 0.0, 1.0);
+    float distortion = 1.0 - sqrt(1.0 - pow(distFromCenter, 2.0));
+    // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
+    // the middle that is present when the rectable is long and thin they can,
+    // and SHOULD be removed if the size of the rectangle is somewhat balanced
+    vec2 normalizedGlassCoord = clamp(normalize(glassCoord) / 5., -.1, .1);
+    vec2 offset = distortion * normalizedGlassCoord * glassSize * 0.5;
+    vec2 glassColorCoord = fragCoord - offset;
+
+    float blurIntensity = 1.2;
+    float blurRadius = blurIntensity * (1.0 - distFromCenter * 0.5);
+    glassColor = getBlurredColor(glassColorCoord, blurRadius) * (1. - shadow);
+    glassColor *= 0.9;
+
+    // highlight
+    float hlDistFromEdge = inversedSDF + .1;
+    float hlDistFromCenter = 0.05 - inversedSDF;
+    float intersection = clamp(min(hlDistFromEdge, hlDistFromCenter), 0., 1.);
+
+    vec2 scaledUv = (uv * 2. - 1.);
+    scaledUv.y -= 0.1;
+    scaledUv.x -= 0.5;
+    float mask = min(-scaledUv.x, -scaledUv.y) * 5.;
+    glassColor += clamp(vec3(intersection * mask) * 10., 0., 1.);
+
+    // bright
+    glassColor += vec3(0.05);
   }
 
-  float distFromCenter = 1.0 - clamp(inversedSDF / 0.2, 0.0, 1.0);
-  float distortion = 1.0 - sqrt(1.0 - pow(distFromCenter, 2.0));
-  // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
-  // the middle that is present when the rectable is long and thin they can, and
-  // SHOULD be removed if the size of the rectangle is somewhat balanced
-  vec2 normalizedGlassCoord = clamp(normalize(glassCoord) / 5., -.1, .1);
-  vec2 offset = distortion * normalizedGlassCoord * glassSize * 0.5;
-  vec2 glassColorCoord = fragCoord - offset;
-
-  float blurIntensity = 1.2;
-  float blurRadius = blurIntensity * (1.0 - distFromCenter * 0.5);
-  vec3 glassColor = getBlurredColor(glassColorCoord, blurRadius);
-  glassColor *= 0.9;
-
-  // highlight
-  float hlDistFromEdge = inversedSDF + .1;
-  float hlDistFromCenter = 0.05 - inversedSDF;
-  float intersection = clamp(min(hlDistFromEdge, hlDistFromCenter), 0., 1.);
-
-  vec2 scaledUv = (uv * 2. - 1.) * 1.5;
-  float mask = min(-scaledUv.x, -scaledUv.y) * 5.;
-  glassColor *= clamp(vec3(intersection * mask) * 10. + 1., 1., 2.);
-
-  gl_FragColor = vec4(glassColor, 1.0);
+  gl_FragColor = vec4(glassColor, alpha);
 }

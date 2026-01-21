@@ -5,6 +5,8 @@ pub const WinglessFunction = enum {
     tab_next,
     tab_prev,
     close_focused,
+    toggle_beacon,
+    launch_app,
 };
 
 pub const Keybind = struct {
@@ -54,10 +56,11 @@ fn readNextToken(allocator: std.mem.Allocator, line: []const u8) !struct { token
 // fn readLine(line: []const u8) !Keybind {}
 
 pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
-    var keybinds = try allocator.alloc(Keybind, 3);
+    var keybinds = try allocator.alloc(Keybind, 4);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
     keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
+    keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
     return .{ .keybinds = keybinds };
 }
 

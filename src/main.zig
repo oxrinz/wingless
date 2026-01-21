@@ -535,6 +535,28 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     c.wlr_seat_pointer_notify_frame(server.seat);
 }
 
+fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server: *WinglessServer) void {
+    switch (function) {
+        .tab_next => tab_next(server),
+        .tab_prev => tab_prev(server),
+        .close_focused => close_focused_toplevel(server),
+        .toggle_beacon => {
+            if (ui.beacon_open == true) ui.beacon_buffer.clearRetainingCapacity();
+            ui.beacon_open = !ui.beacon_open;
+        },
+        .launch_app => {
+            const name: []const u8 = @ptrCast(@alignCast(args.?[0]));
+            std.debug.print("launching app: {s}\n", .{name});
+            var child = std.process.Child.init(
+                &[_][]const u8{name},
+                std.heap.page_allocator,
+            );
+
+            child.spawn() catch @panic("App launch failed");
+        },
+    }
+}
+
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
@@ -549,14 +571,14 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
         const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
-        if (0 < (modifiers & c.WLR_MODIFIER_ALT)) {
+        if (0 < (modifiers & c.WLR_MODIFIER_LOGO)) {
             for (0..@intCast(nsyms)) |i| {
                 const sym = syms[i];
 
                 if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
                 if (sym == c.XKB_KEY_k) {
                     var child = std.process.Child.init(
-                        &[_][]const u8{"zen-browser"},
+                        &[_][]const u8{"kitty"},
                         std.heap.page_allocator,
                     );
 
@@ -568,20 +590,49 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
                     handled = true;
                 }
-                if (sym == c.XKB_KEY_b) {
-                    ui.beacon_open = !ui.beacon_open;
-                }
 
                 for (server.wingless_config.keybinds) |keybind| {
                     if (keybind.key == sym) {
-                        switch (keybind.function) {
-                            .tab_next => tab_next(server),
-                            .tab_prev => tab_prev(server),
-                            .close_focused => close_focused_toplevel(server),
-                        }
+                        launchCommand(keybind.function, null, server);
                         handled = true;
                     }
                 }
+            }
+        }
+
+        if (ui.beacon_open == true and handled == false) {
+            for (0..@intCast(nsyms)) |i| {
+                const sym = syms[i];
+                if (sym == c.XKB_KEY_BackSpace) {
+                    _ = ui.beacon_buffer.pop();
+
+                    continue;
+                } else if (sym == c.XKB_KEY_Return) {
+                    // launch command
+                    ui.beacon_open = false;
+                    var command_string = server.allocator.alloc(u8, ui.beacon_buffer.items.len) catch @panic("out of memory");
+                    command_string = ui.beacon_buffer.toOwnedSlice(server.allocator) catch @panic("out of memory");
+                    const command = std.meta.stringToEnum(config.WinglessFunction, command_string);
+                    if (command) |cmd|
+                        launchCommand(cmd, null, server)
+                    else {
+                        const args = server.allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
+                        args[0] = @ptrCast(command_string.ptr);
+                        std.debug.print("launching app: {s}\n", .{@as([]u8, @ptrCast(args[0]))});
+                        launchCommand(.launch_app, args, server);
+                    }
+                    continue;
+                }
+
+                var buf: [8]u8 = undefined;
+
+                const len = c.xkb_keysym_to_utf8(syms[i], &buf, buf.len);
+
+                if (len > 1) {
+                    ui.beacon_buffer.appendSlice(server.allocator, buf[0..@intCast(len - 1)]) catch {};
+                }
+
+                handled = true;
             }
         }
     }
