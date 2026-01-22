@@ -495,7 +495,14 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const beacon_state_target: f32 = if (beacon_open) 1.0 else 0.0;
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
 
-    const beacon_suggestion_state_target: f32 = if (beacon_buffer.items.len >= 2) 1.0 else 0.0;
+    const beacon_suggestion_state_target: f32 = if (beacon_buffer.items.len >= 2)
+        switch (beacon_suggestions.len) {
+            0, 1 => 0.4,
+            2 => 0.7,
+            else => 1,
+        }
+    else
+        0.0;
     beacon_suggestion_state = lerp(beacon_suggestion_state, beacon_suggestion_state_target, dt * 20.0);
 
     // setup
@@ -551,13 +558,13 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     const suggestion_offset: f32 = 60;
     var suggestion_y = y - 80;
-    const empty_suggestion_text = "Command not found :c";
+    const empty_suggestion_text = "Unknown command !";
 
     if (beacon_open) {
         drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, W, H, 0.2);
 
         // draw suggestions
-        if (beacon_suggestion_state > 0.9) {
+        if (beacon_suggestion_state_target > 0.1) {
             for (0..beacon_suggestions.len) |i| {
                 if (i > 2) break;
                 const suggestion = beacon_suggestions[i];
