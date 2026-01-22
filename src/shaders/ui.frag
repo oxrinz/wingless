@@ -60,17 +60,15 @@ void main() {
   vec3 glassColor = vec3(0.0);
 
   // shadow
-  float shadowStrength = 0.5 * state;
-  float maxShadow = 0.3;
-  vec2 shadowOffset = vec2(0., 18.);
-  vec2 shadowGlassSize = vec2(paneSize.x * 1.3, paneSize.y * 3.0);
-  shadowGlassSize.y *= mix(0.5, 1.0, 1. - suggestionState);
-  float shadowRoundness = roundness * 2.;
-  float shadowSDF =
-      -sdf(glassCoord - shadowOffset, shadowGlassSize * 0.5, shadowRoundness) /
-      shadowRoundness;
-  float shadow = shadowSDF * shadowStrength;
-  shadow = clamp(shadow, 0., maxShadow);
+  float shadowStrength = 0.6 * state;
+  float shadowSDF = sdf(glassCoord, paneSize * 0.5, roundness / 2.);
+
+  float fill = step(shadowSDF, 0.);
+  float curvature = 8.0;
+  float falloff = 400.00;
+  float outline = exp(-curvature * max(shadowSDF, 0.) / falloff);
+  float shadow = max(fill, outline);
+  shadow *= shadowStrength;
   alpha = shadow;
 
   // smooth edges

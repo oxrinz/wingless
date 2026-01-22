@@ -22,7 +22,7 @@ pub var beacon_open = false;
 var beacon_state: f32 = 0;
 var beacon_suggestion_state: f32 = 0;
 pub var beacon_buffer: std.ArrayList(u8) = .empty;
-pub var beacon_suggestions: []const []const u8 = &.{};
+pub var beacon_suggestions: []*BeaconCommand = &.{};
 
 var glass_font: Font = undefined;
 
@@ -66,6 +66,15 @@ const Font = struct {
     glyphs: [256]?Glyph,
     px_range: f32,
 };
+
+pub const BeaconCommand = struct {
+    name: []const u8,
+    function: config.WinglessFunction,
+    args: ?[]*anyopaque = null,
+    image: []const u8,
+};
+
+pub var beacon_commands: []*BeaconCommand = &.{};
 
 fn getDeltaSeconds() f32 {
     const now = std.time.nanoTimestamp();
@@ -394,93 +403,83 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
-}
 
-var commands: ?[][]const u8 = null;
+    // beacon commands
+    var command_array: std.ArrayList(*BeaconCommand) = .empty;
+    for (std.enums.values(config.WinglessFunction)) |function| {
+        const object = allocator.create(BeaconCommand) catch return;
+        object.* = .{ .name = try allocator.dupe(u8, @constCast(@tagName(function))) };
 
-// TODO: this should be fuzzy
-pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
-    if (commands == null) {
-        // commands
-        var command_array: std.ArrayList([]const u8) = .empty;
-        for (std.enums.values(config.WinglessFunction)) |function| {
-            command_array.append(std.heap.page_allocator, @constCast(@tagName(function))) catch @panic("fuck");
-        }
+        command_array.append(std.heap.page_allocator, object) catch @panic("fuck");
+    }
 
-        // path executables
-        const path = try std.process.getEnvVarOwned(allocator, "PATH");
-        defer allocator.free(path);
+    // desktop apps
+    const name_ptr = server.allocator.create([]const u8) catch @panic("out of memory");
+    name_ptr.* = command_string;
 
-        var dirs = std.mem.splitScalar(u8, path, ':');
-        while (dirs.next()) |dir_path| {
-            var dir = try std.fs.openDirAbsolute(dir_path, .{ .iterate = true });
+    const args = server.allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
+    args[0] = @ptrCast(name_ptr);
+
+    if (false) {
+        const paths = [_][]const u8{ "/usr/share/applications", try std.fs.path.join(allocator, &.{
+            try std.process.getEnvVarOwned(allocator, "HOME"),
+            ".local/share/applications",
+        }) };
+
+        for (paths) |path| {
+            if (path.len == 0) continue;
+            var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
             defer dir.close();
 
             var it = dir.iterate();
             while (try it.next()) |e| {
-                if (e.kind != .file) continue;
+                if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
 
-                const stat = dir.statFile(e.name) catch continue;
-                if (stat.mode & 0o111 == 0) continue;
+                // parse .desktop file
+                const full = try std.fs.path.join(allocator, &.{ path, e.name });
+                defer allocator.free(full);
 
-                try command_array.append(allocator, try allocator.dupe(u8, e.name));
+                const file = try std.fs.openFileAbsolute(full, .{});
+                defer file.close();
+
+                const data = try file.readToEndAlloc(allocator, 64 * 1024);
+                defer allocator.free(data);
+
+                var line_it = std.mem.splitScalar(u8, data, '\n');
+                while (line_it.next()) |line| {
+                    if (std.mem.startsWith(u8, line, "Exec=")) {
+                        var cmd = line["Exec=".len..];
+
+                        // strip arguments TODO: shouldn't strip arguments
+                        const space = std.mem.indexOfScalar(u8, cmd, ' ') orelse cmd.len;
+                        std.debug.print("YEAAA: {s}\n", .{cmd[0..space]});
+                        try command_array.append(allocator, try allocator.dupe(u8, cmd[0..space]));
+
+                        const object = allocator.create(BeaconCommand) catch return;
+                        object.* = .{
+                            .function = .launch_app,
+                            .name = try allocator.dupe(u8, @constCast(@tagName(function))),
+                        };
+                    }
+                }
             }
         }
-
-        // desktop apps
-        // TODO: do desktop apps
-        //        if (false) {
-        //            const paths = [_][]const u8{ "/usr/share/applications", try std.fs.path.join(allocator, &.{
-        //                try std.process.getEnvVarOwned(allocator, "HOME"),
-        //                ".local/share/applications",
-        //            }) };
-        //
-        //            for (paths) |path| {
-        //                if (path.len == 0) continue;
-        //                var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
-        //                defer dir.close();
-        //
-        //                var it = dir.iterate();
-        //                while (try it.next()) |e| {
-        //                    if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
-        //
-        //                    // parse .desktop file
-        //                    const full = try std.fs.path.join(allocator, &.{ path, e.name });
-        //                    defer allocator.free(full);
-        //
-        //                    const file = try std.fs.openFileAbsolute(full, .{});
-        //                    defer file.close();
-        //
-        //                    const data = try file.readToEndAlloc(allocator, 64 * 1024);
-        //                    defer allocator.free(data);
-        //
-        //                    var line_it = std.mem.splitScalar(u8, data, '\n');
-        //                    while (line_it.next()) |line| {
-        //                        if (std.mem.startsWith(u8, line, "Exec=")) {
-        //                            var cmd = line["Exec=".len..];
-        //
-        //                            // strip arguments TODO: shouldn't strip arguments
-        //                            const space = std.mem.indexOfScalar(u8, cmd, ' ') orelse cmd.len;
-        //                            std.debug.print("YEAAA: {s}\n", .{cmd[0..space]});
-        //                            try command_array.append(allocator, try allocator.dupe(u8, cmd[0..space]));
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //       }
-
-        commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");
     }
 
-    var results: std.ArrayList([]const u8) = .empty;
+    beacon_commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");
+}
 
-    for (commands.?) |command| {
-        if (std.mem.startsWith(u8, command, beacon_buffer.items)) {
-            results.append(std.heap.page_allocator, command) catch @panic("oh no");
+// TODO: this should be fuzzy
+pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
+    var results: std.ArrayList(*BeaconCommand) = .empty;
+
+    for (beacon_commands) |command| {
+        if (std.mem.startsWith(u8, command.name, beacon_buffer.items)) {
+            results.append(allocator, @constCast(command)) catch @panic("oh no");
         }
     }
 
-    beacon_suggestions = results.toOwnedSlice(std.heap.page_allocator) catch @panic("oh noo");
+    beacon_suggestions = results.toOwnedSlice(allocator) catch @panic("oh noo");
 }
 
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
@@ -567,7 +566,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         if (beacon_suggestion_state_target > 0.1) {
             for (0..beacon_suggestions.len) |i| {
                 if (i > 2) break;
-                const suggestion = beacon_suggestions[i];
+
+                const suggestion = beacon_suggestions[i].name;
                 drawGlassSentence(output, &glass_font, suggestion, x, suggestion_y, W, H, 0.0);
                 suggestion_y -= suggestion_offset;
             }

@@ -535,6 +535,11 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     c.wlr_seat_pointer_notify_frame(server.seat);
 }
 
+fn spawnCmd(argv: []const []const u8) void {
+    var child = std.process.Child.init(argv, std.heap.page_allocator);
+    child.spawn() catch {};
+}
+
 fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server: *WinglessServer) void {
     switch (function) {
         .tab_next => tab_next(server),
@@ -552,6 +557,17 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
             );
 
             child.spawn() catch @panic("App launch failed");
+        },
+
+        .volume_down => spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" }),
+        .volume_up => spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" }),
+        .volume_set => {
+            const percent: *u8 = @ptrCast(args.?[0]);
+            const p: u8 = if (percent.* > 150) 150 else percent.*;
+
+            var buf: [8]u8 = undefined;
+            const s = std.fmt.bufPrint(&buf, "{d}%", .{p}) catch return;
+            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
         },
     }
 }
@@ -598,12 +614,13 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                     ui.beacon_open = false;
                     ui.beacon_buffer.clearRetainingCapacity();
 
-                    const command_string = ui.beacon_suggestions[0];
+                    const command = ui.beacon_suggestions[0];
 
-                    const command = std.meta.stringToEnum(config.WinglessFunction, command_string);
-                    if (command) |cmd|
-                        launchCommand(cmd, null, server)
-                    else {
+                    launchCommand(command.function, command.args, server);
+
+                    if (command.command == .launch_app) {
+                        launchCommand(command, command.args, server);
+                    } else {
                         const name_ptr = server.allocator.create([]const u8) catch @panic("out of memory");
                         name_ptr.* = command_string;
 
