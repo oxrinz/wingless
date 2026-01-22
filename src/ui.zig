@@ -71,7 +71,7 @@ pub const BeaconCommand = struct {
     name: []const u8,
     function: config.WinglessFunction,
     args: ?[]*anyopaque = null,
-    image: []const u8,
+    icon: ?[]const u8,
 };
 
 pub var beacon_commands: []*BeaconCommand = &.{};
@@ -408,62 +408,101 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     var command_array: std.ArrayList(*BeaconCommand) = .empty;
     for (std.enums.values(config.WinglessFunction)) |function| {
         const object = allocator.create(BeaconCommand) catch return;
-        object.* = .{ .name = try allocator.dupe(u8, @constCast(@tagName(function))) };
+        object.* = .{
+            .name = try allocator.dupe(u8, @constCast(@tagName(function))),
+            .args = null,
+            .function = function,
+            .icon = null,
+        };
 
         command_array.append(std.heap.page_allocator, object) catch @panic("fuck");
     }
 
     // desktop apps
-    const name_ptr = server.allocator.create([]const u8) catch @panic("out of memory");
-    name_ptr.* = command_string;
+    const paths = [_][]const u8{ "/usr/share/applications", try std.fs.path.join(allocator, &.{
+        try std.process.getEnvVarOwned(allocator, "HOME"),
+        ".local/share/applications",
+    }) };
 
-    const args = server.allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
-    args[0] = @ptrCast(name_ptr);
+    for (paths) |path| {
+        if (path.len == 0) continue;
+        var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
+        defer dir.close();
 
-    if (false) {
-        const paths = [_][]const u8{ "/usr/share/applications", try std.fs.path.join(allocator, &.{
-            try std.process.getEnvVarOwned(allocator, "HOME"),
-            ".local/share/applications",
-        }) };
+        var it = dir.iterate();
+        while (try it.next()) |e| {
+            if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
 
-        for (paths) |path| {
-            if (path.len == 0) continue;
-            var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
-            defer dir.close();
+            const full = try std.fs.path.join(allocator, &.{ path, e.name });
+            defer allocator.free(full);
 
-            var it = dir.iterate();
-            while (try it.next()) |e| {
-                if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
+            const file = try std.fs.openFileAbsolute(full, .{});
+            defer file.close();
 
-                // parse .desktop file
-                const full = try std.fs.path.join(allocator, &.{ path, e.name });
-                defer allocator.free(full);
+            const data = try file.readToEndAlloc(allocator, 64 * 1024);
+            defer allocator.free(data);
 
-                const file = try std.fs.openFileAbsolute(full, .{});
-                defer file.close();
+            // parse .desktop file
+            var in_group = false;
+            var line_it = std.mem.splitScalar(u8, data, '\n');
 
-                const data = try file.readToEndAlloc(allocator, 64 * 1024);
-                defer allocator.free(data);
+            std.debug.print("checking {s} rn\n", .{full});
 
-                var line_it = std.mem.splitScalar(u8, data, '\n');
-                while (line_it.next()) |line| {
-                    if (std.mem.startsWith(u8, line, "Exec=")) {
-                        var cmd = line["Exec=".len..];
+            var name: ?[]const u8 = null;
+            var exec: ?[]const u8 = null;
+            var icon: ?[]const u8 = null;
 
-                        // strip arguments TODO: shouldn't strip arguments
-                        const space = std.mem.indexOfScalar(u8, cmd, ' ') orelse cmd.len;
-                        std.debug.print("YEAAA: {s}\n", .{cmd[0..space]});
-                        try command_array.append(allocator, try allocator.dupe(u8, cmd[0..space]));
+            while (line_it.next()) |raw_line| {
+                const line = std.mem.trim(u8, raw_line, " \t\r");
+                if (line.len == 0 or line[0] == '#') continue;
 
-                        const object = allocator.create(BeaconCommand) catch return;
-                        object.* = .{
-                            .function = .launch_app,
-                            .name = try allocator.dupe(u8, @constCast(@tagName(function))),
-                        };
-                    }
+                if (line[0] == '[') {
+                    if (std.mem.eql(u8, line, "[Desktop Entry]")) {
+                        in_group = true;
+                        continue;
+                    } else if (in_group == false) break else continue;
+                }
+
+                if (!in_group) continue;
+
+                // parse group
+                const eq = std.mem.indexOfScalar(u8, line, '=') orelse continue;
+                const key = line[0..eq];
+                const val = line[eq + 1 ..];
+
+                if (std.mem.eql(u8, key, "Type")) {
+                    // TODO: check type and only add applications too lazy to do that rn
+                } else if (std.mem.eql(u8, key, "Name")) {
+                    name = try allocator.dupe(u8, val);
+                } else if (std.mem.eql(u8, key, "Exec")) {
+                    exec = try allocator.dupe(u8, val);
+                } else if (std.mem.eql(u8, key, "Icon")) {
+                    icon = try allocator.dupe(u8, val);
                 }
             }
+
+            if (name != null and exec != null) {
+                const name_ptr = allocator.create([]const u8) catch @panic("out of memory");
+                name_ptr.* = exec.?;
+
+                const args = allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
+                args[0] = @ptrCast(name_ptr);
+
+                const object = allocator.create(BeaconCommand) catch return;
+                object.* = .{
+                    .function = .launch_app,
+                    .name = name.?,
+                    .icon = icon,
+                    .args = args,
+                };
+
+                command_array.append(std.heap.page_allocator, object) catch @panic("fuck");
+            }
         }
+    }
+
+    for (command_array.items) |cmd| {
+        std.debug.print("beacon command: {s}\n", .{cmd.name});
     }
 
     beacon_commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");

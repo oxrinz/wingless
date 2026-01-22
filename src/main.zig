@@ -618,16 +618,6 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
                     launchCommand(command.function, command.args, server);
 
-                    if (command.command == .launch_app) {
-                        launchCommand(command, command.args, server);
-                    } else {
-                        const name_ptr = server.allocator.create([]const u8) catch @panic("out of memory");
-                        name_ptr.* = command_string;
-
-                        const args = server.allocator.alloc(*anyopaque, 1) catch @panic("out of memory");
-                        args[0] = @ptrCast(name_ptr);
-                        launchCommand(.launch_app, args, server);
-                    }
                     handled = true;
                     continue;
                 }
