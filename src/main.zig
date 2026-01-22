@@ -556,6 +556,8 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                 std.heap.page_allocator,
             );
 
+            std.debug.print("launching: {s}\n", .{name.*});
+
             child.spawn() catch @panic("App launch failed");
         },
 

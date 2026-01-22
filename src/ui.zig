@@ -431,7 +431,7 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
         var it = dir.iterate();
         while (try it.next()) |e| {
-            if (e.kind == .file and std.mem.endsWith(u8, e.name, ".desktop")) continue;
+            if (e.kind != .file and !std.mem.endsWith(u8, e.name, ".desktop")) continue;
 
             const full = try std.fs.path.join(allocator, &.{ path, e.name });
             defer allocator.free(full);
@@ -457,10 +457,7 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
                 if (line.len == 0 or line[0] == '#') continue;
 
                 if (line[0] == '[') {
-                    if (std.mem.eql(u8, line, "[Desktop Entry]")) {
-                        in_group = true;
-                        continue;
-                    } else if (in_group == false) break else continue;
+                    in_group = std.mem.eql(u8, line, "[Desktop Entry]");
                 }
 
                 if (!in_group) continue;
@@ -482,6 +479,8 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
             }
 
             if (name != null and exec != null) {
+                exec = std.mem.trimRight(u8, exec.?, " %uUfF");
+
                 const name_ptr = allocator.create([]const u8) catch @panic("out of memory");
                 name_ptr.* = exec.?;
 
@@ -510,15 +509,66 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
 // TODO: this should be fuzzy
 pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
-    var results: std.ArrayList(*BeaconCommand) = .empty;
+    const Match = struct {
+        cmd: *BeaconCommand,
+        dist: usize,
+    };
+
+    var matches: std.ArrayList(Match) = .empty;
+    defer matches.deinit(allocator);
 
     for (beacon_commands) |command| {
-        if (std.mem.startsWith(u8, command.name, beacon_buffer.items)) {
-            results.append(allocator, @constCast(command)) catch @panic("oh no");
+        // levenstein fuzzy
+        const a = command.name;
+        const b = beacon_buffer.items;
+
+        const n = a.len;
+        const m = b.len;
+
+        var prev = try allocator.alloc(usize, n + 1);
+        defer allocator.free(prev);
+
+        var curr = try allocator.alloc(usize, n + 1);
+        defer allocator.free(curr);
+
+        for (0..n + 1) |j| prev[j] = j;
+
+        for (1..m + 1) |i| {
+            curr[0] = i;
+            for (1..n + 1) |j| {
+                const cost: usize = if (std.ascii.toLower(a[i - 1]) == std.ascii.toLower(b[j - 1])) 0 else 1;
+
+                curr[j] = @min(
+                    @min(curr[j - 1] + 1, prev[j] + 1),
+                    prev[j - 1] + cost,
+                );
+            }
+            std.mem.swap([]usize, &prev, &curr);
+        }
+
+        const dist = prev[n];
+
+        const max_dist = @max(1, beacon_buffer.items.len / 4);
+
+        if (dist <= max_dist) {
+            try matches.append(allocator, .{ .cmd = @constCast(command), .dist = dist });
         }
     }
 
-    beacon_suggestions = results.toOwnedSlice(allocator) catch @panic("oh noo");
+    const Less = struct {
+        pub fn lessThan(_: void, a: Match, b: Match) bool {
+            if (a.dist != b.dist) return a.dist < b.dist;
+
+            return a.cmd.name.len < b.cmd.name.len;
+        }
+    };
+
+    std.sort.block(Match, matches.items, {}, Less.lessThan);
+
+    var results = try allocator.alloc(*BeaconCommand, matches.items.len);
+    for (matches.items, 0..) |m, i| results[i] = m.cmd;
+
+    beacon_suggestions = results;
 }
 
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
