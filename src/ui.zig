@@ -501,10 +501,22 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     beacon_commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");
 }
 
+fn normalizeString(buf: []const u8, allocator: std.mem.Allocator) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(allocator);
+
+    for (buf) |char| {
+        if (char != ' ' and char != '-' and char != '_') {
+            try out.append(allocator, std.ascii.toLower(char));
+        }
+    }
+    return try out.toOwnedSlice(allocator);
+}
+
 pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
     const Match = struct {
         cmd: *BeaconCommand,
-        dist: usize,
+        score: isize,
     };
 
     var matches: std.ArrayList(Match) = .empty;
@@ -512,8 +524,8 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
 
     for (beacon_commands) |command| {
         // levenstein fuzzy
-        const a = command.name;
-        const b = beacon_buffer.items;
+        const a = try normalizeString(command.name, allocator);
+        const b = try normalizeString(beacon_buffer.items, allocator);
 
         const n = a.len;
         const m = b.len;
@@ -541,18 +553,22 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
 
         const dist = prev[m];
 
-        const max_dist = @max(1, beacon_buffer.items.len / 4);
+        var score: isize = @intCast(dist);
 
-        if (dist <= max_dist) {
-            try matches.append(allocator, .{ .cmd = @constCast(command), .dist = dist });
+        // penalize short names and add prefix / substring bonus
+        if (std.mem.startsWith(u8, a, b)) score -= 5 else if (std.mem.indexOf(u8, a, b) != null) score -= 3;
+        score += @intCast(a.len / 10);
+
+        // TODO: add score based on how many times the user has launched the app in the recent times
+
+        if (score <= 4) {
+            try matches.append(allocator, .{ .cmd = @constCast(command), .score = score });
         }
     }
 
     const Less = struct {
         pub fn lessThan(_: void, a: Match, b: Match) bool {
-            if (a.dist != b.dist) return a.dist < b.dist;
-
-            return a.cmd.name.len < b.cmd.name.len;
+            return a.score < b.score;
         }
     };
 
