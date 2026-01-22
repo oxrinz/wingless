@@ -446,8 +446,6 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
             var in_group = false;
             var line_it = std.mem.splitScalar(u8, data, '\n');
 
-            std.debug.print("checking {s} rn\n", .{full});
-
             var name: ?[]const u8 = null;
             var exec: ?[]const u8 = null;
             var icon: ?[]const u8 = null;
@@ -500,14 +498,9 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
         }
     }
 
-    for (command_array.items) |cmd| {
-        std.debug.print("beacon command: {s}\n", .{cmd.name});
-    }
-
     beacon_commands = command_array.toOwnedSlice(std.heap.page_allocator) catch @panic("oh no");
 }
 
-// TODO: this should be fuzzy
 pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
     const Match = struct {
         cmd: *BeaconCommand,
@@ -525,17 +518,17 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
         const n = a.len;
         const m = b.len;
 
-        var prev = try allocator.alloc(usize, n + 1);
+        var prev = try allocator.alloc(usize, m + 1);
         defer allocator.free(prev);
 
-        var curr = try allocator.alloc(usize, n + 1);
+        var curr = try allocator.alloc(usize, m + 1);
         defer allocator.free(curr);
 
-        for (0..n + 1) |j| prev[j] = j;
+        for (0..m + 1) |j| prev[j] = j;
 
-        for (1..m + 1) |i| {
+        for (1..n + 1) |i| {
             curr[0] = i;
-            for (1..n + 1) |j| {
+            for (1..m + 1) |j| {
                 const cost: usize = if (std.ascii.toLower(a[i - 1]) == std.ascii.toLower(b[j - 1])) 0 else 1;
 
                 curr[j] = @min(
@@ -546,7 +539,7 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
             std.mem.swap([]usize, &prev, &curr);
         }
 
-        const dist = prev[n];
+        const dist = prev[m];
 
         const max_dist = @max(1, beacon_buffer.items.len / 4);
 
