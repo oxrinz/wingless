@@ -170,6 +170,8 @@ pub const WinglessOutput = struct {
     server: *WinglessServer,
     output: *c.wlr_output,
 
+    image: ?ui.ImageProgram = null,
+    fill: ?ui.FillProgram = null,
     beacon_background: ?ui.BeaconBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
 

@@ -19,12 +19,23 @@ pub const AnimState = struct { elapsed: u64 };
 var last_ns: i128 = 0;
 
 pub var beacon_open = false;
+
 var beacon_state: f32 = 0;
 var beacon_suggestion_state: f32 = 0;
+var beacon_line_state: f32 = 0;
+
 pub var beacon_buffer: std.ArrayList(u8) = .empty;
 pub var beacon_suggestions: []*BeaconCommand = &.{};
 
 var glass_font: Font = undefined;
+
+var icon_cache: std.StringHashMap(Icon) = undefined;
+
+const Icon = struct {
+    tex: c_uint,
+    w: u32,
+    h: u32,
+};
 
 pub const BeaconBackgroundProgram = struct {
     prog: c_uint,
@@ -45,6 +56,23 @@ pub const GlassTextProgram = struct {
     atlas_loc: c_int,
     px_range_loc: c_int,
     thickness_loc: c_int,
+};
+
+pub const FillProgram = struct {
+    prog: c_uint,
+
+    pos_loc: c_int,
+
+    color_loc: c_int,
+};
+
+pub const ImageProgram = struct {
+    prog: c_uint,
+
+    pos_loc: c_int,
+
+    uv_loc: c_int,
+    image_loc: c_int,
 };
 
 const Glyph = struct {
@@ -184,10 +212,6 @@ fn ensurePrograms(out: *WinglessOutput) void {
 
         const prog = glLinkProgram(vs, fs);
 
-        std.debug.print("yeah: {}\n", .{
-            gl.glGetAttribLocation(prog, "uv"),
-        });
-
         out.glass_text = .{
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
@@ -195,6 +219,35 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .atlas_loc = gl.glGetUniformLocation(prog, "atlas"),
             .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
             .thickness_loc = gl.glGetUniformLocation(prog, "thickness"),
+        };
+    }
+
+    // fill
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, @embedFile("shaders/fill.vert"));
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/fill.frag"));
+
+        const prog = glLinkProgram(vs, fs);
+
+        out.fill = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .color_loc = gl.glGetUniformLocation(prog, "color"),
+        };
+    }
+
+    // image
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, @embedFile("shaders/image.vert"));
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/image.frag"));
+
+        const prog = glLinkProgram(vs, fs);
+
+        out.image = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .uv_loc = gl.glGetAttribLocation(prog, "uv"),
+            .image_loc = gl.glGetUniformLocation(prog, "image"),
         };
     }
 }
@@ -401,6 +454,8 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     const font_json = @embedFile("assets/font.json");
     const font_png = @embedFile("assets/font.png");
 
+    icon_cache = std.StringHashMap(Icon).init(allocator);
+
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
 
@@ -513,6 +568,120 @@ fn normalizeString(buf: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     return try out.toOwnedSlice(allocator);
 }
 
+// potentially merge with updateBeaconSuggestions
+fn resolveIconPath(allocator: std.mem.Allocator, icon: []const u8) !?[]const u8 {
+    if (std.fs.path.isAbsolute(icon)) {
+        if (std.fs.openFileAbsolute(icon, .{}) catch null != null) return try allocator.dupe(u8, icon);
+        return null;
+    }
+
+    const themes = [_][]const u8{ "Adwaita", "hicolor" };
+    const sizes = [_][]const u8{
+        "128x128",
+        "64x64",
+        "48x48",
+        "32x32",
+        "scalable", // for svg later
+    };
+
+    const home = try std.process.getEnvVarOwned(allocator, "HOME");
+    const dirs = [_][]const u8{
+        try std.fs.path.join(allocator, &.{ home, ".local/share/icons" }),
+        try std.fs.path.join(allocator, &.{ home, ".icons" }),
+        "/usr/share/icons",
+        "/usr/share/pixmaps",
+    };
+    defer allocator.free(dirs[0]);
+    defer allocator.free(dirs[1]);
+
+    for (dirs) |dir| {
+        for (themes) |theme| {
+            for (sizes) |size| {
+                const path = try std.fs.path.join(
+                    allocator,
+                    &.{
+                        dir, theme, size, "apps", try std.mem.concat(allocator, u8, &.{ icon, ".png" }),
+                    },
+                );
+
+                if (std.fs.openFileAbsolute(path, .{}) catch null != null) return path;
+                allocator.free(path);
+            }
+        }
+    }
+
+    // pixmaps
+    for (dirs) |base| {
+        const path = try std.fs.path.join(allocator, &.{
+            base,
+            try std.mem.concat(allocator, u8, &.{ icon, ".png" }),
+        });
+
+        if (std.fs.openFileAbsolute(path, .{}) catch null != null) return path;
+        allocator.free(path);
+    }
+
+    return null;
+}
+
+fn getIcon(allocator: std.mem.Allocator, icon_name: []const u8) ?Icon {
+    const path = (resolveIconPath(allocator, icon_name) catch return null) orelse return null;
+    defer allocator.free(path);
+
+    std.debug.print("cache: {any}\n", .{icon_cache});
+
+    std.debug.print("path: {s}\n", .{path});
+    if (icon_cache.get(path)) |cached| return cached;
+
+    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
+    defer file.close();
+
+    const png = file.readToEndAlloc(allocator, 256 * 1024) catch return null;
+    defer allocator.free(png);
+
+    var w: c_int = 0;
+    var h: c_int = 0;
+    var comp: c_int = 0;
+
+    const pixels = c.stbi_load_from_memory(
+        png.ptr,
+        @intCast(png.len),
+        &w,
+        &h,
+        &comp,
+        4,
+    ) orelse return null;
+    defer c.stbi_image_free(pixels);
+
+    var tex: c_uint = 0;
+    gl.glGenTextures(1, &tex);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
+
+    gl.glTexImage2D(
+        gl.GL_TEXTURE_2D,
+        0,
+        gl.GL_RGBA,
+        w,
+        h,
+        0,
+        gl.GL_RGBA,
+        gl.GL_UNSIGNED_BYTE,
+        pixels,
+    );
+
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+
+    const icon = Icon{
+        .tex = tex,
+        .w = @intCast(w),
+        .h = @intCast(h),
+    };
+
+    icon_cache.put(path, icon) catch {};
+    return icon;
+}
+
 pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
     const Match = struct {
         cmd: *BeaconCommand,
@@ -561,7 +730,7 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
 
         // TODO: add score based on how many times the user has launched the app in the recent times
 
-        if (score <= 4) {
+        if (score <= 2) {
             try matches.append(allocator, .{ .cmd = @constCast(command), .score = score });
         }
     }
@@ -601,6 +770,9 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     else
         0.0;
     beacon_suggestion_state = lerp(beacon_suggestion_state, beacon_suggestion_state_target, dt * 20.0);
+
+    const beacon_line_state_target: f32 = if (beacon_state_target > 0.1) 1 else 0;
+    beacon_line_state = lerp(beacon_line_state, beacon_line_state_target, dt * 20.0);
 
     // setup
     if (output.gl_vbo == 0)
@@ -649,7 +821,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     drawQuad(output, W / 2 - 800, H / 2 - 600, 1600, 1200, W, H, output.beacon_background.?.pos_loc);
 
-    // text pass
+    // beacon overlay pass
     const x: f32 = W / 2 - 370;
     const y: f32 = H / 2 - 10 + beacon_suggestion_state * 50;
 
@@ -662,12 +834,54 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
         // draw suggestions
         if (beacon_suggestion_state_target > 0.1) {
+            // draw dividing line
+            gl.glUseProgram(output.fill.?.prog);
+
+            gl.glUniform4f(
+                output.fill.?.color_loc,
+                1.0,
+                1.0,
+                1.0,
+                beacon_line_state * 0.2,
+            );
+
+            const line_w: f32 = 740;
+            const line_h: f32 = 2;
+
+            const line_x: f32 = x;
+            const line_y: f32 = y - 24;
+
+            drawQuad(
+                output,
+                line_x,
+                line_y,
+                line_w,
+                line_h,
+                W,
+                H,
+                output.fill.?.pos_loc,
+            );
+
+            // draw text
             for (0..beacon_suggestions.len) |i| {
                 if (i > 2) break;
 
                 const suggestion = beacon_suggestions[i].name;
                 drawGlassSentence(output, &glass_font, suggestion, x, suggestion_y, W, H, 0.0);
                 suggestion_y -= suggestion_offset;
+
+                // draw icons
+                if (beacon_suggestions[i].icon) |beacon_icon| {
+                    if (getIcon(server.allocator, beacon_icon)) |icon| {
+                        gl.glUseProgram(output.image.?.prog);
+
+                        gl.glActiveTexture(gl.GL_TEXTURE0);
+                        gl.glBindTexture(gl.GL_TEXTURE_2D, icon.tex);
+                        gl.glUniform1i(output.image.?.image_loc, 0);
+
+                        drawQuad(output, x, y, 32, 32, W, H, output.image.?.pos_loc);
+                    }
+                }
             }
 
             if (beacon_suggestions.len == 0) {
