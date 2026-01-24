@@ -258,7 +258,20 @@ fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f
     const x1 = ndc_x(x + w, screen_w);
     const y1 = ndc_y(y + h, screen_h);
 
-    const verts = [_]f32{ x0, y0, x1, y0, x0, y1, x1, y0, x1, y1, x0, y1 };
+    const verts = [_]f32{
+        x0,
+        y0,
+        x1,
+        y0,
+        x0,
+        y1,
+        x1,
+        y0,
+        x1,
+        y1,
+        x0,
+        y1,
+    };
 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
     gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
@@ -269,6 +282,40 @@ fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f
     gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
 
     gl.glDisableVertexAttribArray(@intCast(gl_pos_loc));
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+}
+
+fn drawQuadWithUv(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, gl_pos_loc: c_int, gl_uv_loc: c_int) void {
+    const x0 = ndc_x(x, screen_w);
+    const y0 = ndc_y(y, screen_h);
+    const x1 = ndc_x(x + w, screen_w);
+    const y1 = ndc_y(y + h, screen_h);
+
+    const verts = [_]f32{
+        x0, y0, 0, 1,
+        x1, y0, 1, 1,
+        x0, y1, 0, 0,
+        x1, y0, 1, 1,
+        x1, y1, 1, 0,
+        x0, y1, 0, 0,
+    };
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
+    gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
+
+    const stride = 4 * @sizeOf(f32);
+
+    gl.glEnableVertexAttribArray(@intCast(gl_pos_loc));
+    gl.glVertexAttribPointer(@intCast(gl_pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(0));
+
+    gl.glEnableVertexAttribArray(@intCast(gl_uv_loc));
+    gl.glVertexAttribPointer(@intCast(gl_uv_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(2 * @sizeOf(f32)));
+
+    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
+
+    gl.glDisableVertexAttribArray(@intCast(gl_pos_loc));
+    gl.glDisableVertexAttribArray(@intCast(gl_uv_loc));
+
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
@@ -292,16 +339,6 @@ fn drawGlassChar(
     gl.glUniform1i(output.glass_text.?.atlas_loc, 0);
     gl.glUniform1f(output.glass_text.?.px_range_loc, font.px_range);
     gl.glUniform1f(output.glass_text.?.thickness_loc, thickness);
-
-    {
-        const x0 = ndc_x(x, screen_w);
-        const y0 = ndc_y(y, screen_h);
-        const x1 = ndc_x(x + screen_w, screen_w);
-        const y1 = ndc_y(y + screen_h, screen_h);
-
-        const verts = [_]f32{ x0, y0, x1, y0, x0, y1, x1, y0, x1, y1, x0, y1 };
-        _ = verts;
-    }
 
     const scale: f32 = 32.0;
 
@@ -628,9 +665,6 @@ fn getIcon(allocator: std.mem.Allocator, icon_name: []const u8) ?Icon {
     const path = (resolveIconPath(allocator, icon_name) catch return null) orelse return null;
     defer allocator.free(path);
 
-    std.debug.print("cache: {any}\n", .{icon_cache});
-
-    std.debug.print("path: {s}\n", .{path});
     if (icon_cache.get(path)) |cached| return cached;
 
     const file = std.fs.openFileAbsolute(path, .{}) catch return null;
@@ -678,7 +712,10 @@ fn getIcon(allocator: std.mem.Allocator, icon_name: []const u8) ?Icon {
         .h = @intCast(h),
     };
 
-    icon_cache.put(path, icon) catch {};
+    // TODO: fix this
+    const key = allocator.dupe(u8, path) catch return icon;
+
+    icon_cache.put(key, icon) catch {};
     return icon;
 }
 
@@ -726,8 +763,8 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
 
         // penalize short names and add prefix / substring bonus
         if (std.mem.startsWith(u8, a, b)) score -= 5 else if (std.mem.indexOf(u8, a, b) != null) score -= 3;
-        score += @intCast(a.len / 10);
 
+        score += @intCast(a.len / 10);
         // TODO: add score based on how many times the user has launched the app in the recent times
 
         if (score <= 2) {
@@ -867,8 +904,16 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                 if (i > 2) break;
 
                 const suggestion = beacon_suggestions[i].name;
-                drawGlassSentence(output, &glass_font, suggestion, x, suggestion_y, W, H, 0.0);
-                suggestion_y -= suggestion_offset;
+                drawGlassSentence(
+                    output,
+                    &glass_font,
+                    suggestion,
+                    x + 58,
+                    suggestion_y,
+                    W,
+                    H,
+                    0.0,
+                );
 
                 // draw icons
                 if (beacon_suggestions[i].icon) |beacon_icon| {
@@ -879,9 +924,21 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                         gl.glBindTexture(gl.GL_TEXTURE_2D, icon.tex);
                         gl.glUniform1i(output.image.?.image_loc, 0);
 
-                        drawQuad(output, x, y, 32, 32, W, H, output.image.?.pos_loc);
+                        drawQuadWithUv(
+                            output,
+                            x,
+                            suggestion_y - 9,
+                            42,
+                            42,
+                            W,
+                            H,
+                            output.image.?.pos_loc,
+                            output.image.?.uv_loc,
+                        );
                     }
                 }
+
+                suggestion_y -= suggestion_offset;
             }
 
             if (beacon_suggestions.len == 0) {

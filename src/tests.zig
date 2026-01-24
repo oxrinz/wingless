@@ -4,25 +4,32 @@ const main = @import("main.zig");
 
 const WinglessServer = main.WinglessServer;
 
-pub fn testPump(server: *WinglessServer, client: *c.wl_display) void {
+pub fn pump(server: *WinglessServer, client: *c.wl_display) void {
     _ = c.wl_display_flush(client);
-
     _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
-
     _ = c.wl_display_flush_clients(server.display);
-
     if (c.wl_display_prepare_read(client) == 0) {
         _ = c.wl_display_read_events(client);
     }
-
     _ = c.wl_display_dispatch_pending(client);
 }
 
-pub const TestContext = struct {
+pub const Context = struct {
     compositor: *c.wl_compositor,
     wm_base: *c.xdg_wm_base,
     seat: *c.wl_seat,
     shm: *c.wl_shm,
+};
+
+pub const Toplevel = struct {
+    surface: ?*c.wl_surface,
+    xdg_surface: ?*c.xdg_surface,
+    toplevel: *c.xdg_toplevel,
+
+    shm_pool: ?*c.wl_shm_pool,
+    buffer: ?*c.wl_buffer,
+
+    state: XdgSurfaceState,
 };
 
 fn cb(
@@ -33,7 +40,7 @@ fn cb(
     version: u32,
 ) callconv(.c) void {
     _ = version;
-    const ctx_ptr: **TestContext = @ptrCast(@alignCast(data.?));
+    const ctx_ptr: **Context = @ptrCast(@alignCast(data.?));
 
     const iface_name = std.mem.span(iface);
 
@@ -53,13 +60,13 @@ pub const registry_listener = c.wl_registry_listener{
     .global_remove = null,
 };
 
-pub fn getTestContext(allocator: std.mem.Allocator, client: *c.wl_display, server: *WinglessServer) !*TestContext {
+pub fn getTestContext(allocator: std.mem.Allocator, client: *c.wl_display, server: *WinglessServer) !*Context {
     const registry = c.wl_display_get_registry(client);
 
-    var ctx: *TestContext = try allocator.create(TestContext);
+    var ctx = try allocator.create(Context);
 
     _ = c.wl_registry_add_listener(registry, &registry_listener, @ptrCast(&ctx));
-    testPump(server, client);
+    pump(server, client);
 
     return ctx;
 }
@@ -82,20 +89,28 @@ pub const xdg_surface_listener = c.xdg_surface_listener{
     .configure = xdg_surface_configure,
 };
 
-pub fn createSurface(server: *WinglessServer, ctx: *TestContext, client: *c.wl_display) !void {
-    const surface = c.wl_compositor_create_surface(ctx.compositor);
-    const xdg_surface = c.xdg_wm_base_get_xdg_surface(ctx.wm_base, surface);
-    _ = c.xdg_surface_get_toplevel(xdg_surface);
+pub fn createToplevel(
+    server: *WinglessServer,
+    ctx: *Context,
+    client: *c.wl_display,
+) !*Toplevel {
+    const allocator = server.allocator;
+    const t = try allocator.create(Toplevel);
 
-    var state = XdgSurfaceState{};
-    _ = c.xdg_surface_add_listener(xdg_surface, &xdg_surface_listener, &state);
+    t.surface = c.wl_compositor_create_surface(ctx.compositor);
+    t.xdg_surface = c.xdg_wm_base_get_xdg_surface(ctx.wm_base, t.surface).?;
+    t.toplevel = c.xdg_surface_get_toplevel(t.xdg_surface.?).?;
+    t.state = .{};
 
-    c.wl_surface_commit(surface);
-    testPump(server, client);
+    _ = c.xdg_surface_add_listener(t.xdg_surface, &xdg_surface_listener, &t.state);
 
-    c.xdg_surface_ack_configure(xdg_surface, state.configure_serial);
+    // trigger configure
+    c.wl_surface_commit(t.surface);
+    pump(server, client);
 
-    // buffer attatchment
+    c.xdg_surface_ack_configure(t.xdg_surface, t.state.configure_serial);
+
+    // create buffer and attach
     const width = 1;
     const height = 1;
     const stride = width * 4;
@@ -106,12 +121,11 @@ pub fn createSurface(server: *WinglessServer, ctx: *TestContext, client: *c.wl_d
         .{ .read = true, .truncate = true },
     );
     defer file.close();
-
     try file.setEndPos(size);
 
-    const pool = c.wl_shm_create_pool(ctx.shm, file.handle, size);
-    const buffer = c.wl_shm_pool_create_buffer(
-        pool,
+    t.shm_pool = c.wl_shm_create_pool(ctx.shm, file.handle, size).?;
+    t.buffer = c.wl_shm_pool_create_buffer(
+        t.shm_pool,
         0,
         width,
         height,
@@ -119,10 +133,10 @@ pub fn createSurface(server: *WinglessServer, ctx: *TestContext, client: *c.wl_d
         c.WL_SHM_FORMAT_XRGB8888,
     );
 
-    c.wl_surface_attach(surface, buffer, 0, 0);
-    c.wl_surface_damage_buffer(surface, 0, 0, width, height);
+    c.wl_surface_attach(t.surface, t.buffer, 0, 0);
+    c.wl_surface_damage_buffer(t.surface, 0, 0, width, height);
+    c.wl_surface_commit(t.surface);
+    pump(server, client);
 
-    c.wl_surface_commit(surface);
-
-    testPump(server, client);
+    return t;
 }

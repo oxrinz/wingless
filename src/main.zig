@@ -218,17 +218,18 @@ pub const WinglessOutput = struct {
 };
 
 const WinglessToplevel = struct {
-    prev: *WinglessToplevel,
-    next: *WinglessToplevel,
+    prev: ?*WinglessToplevel,
+    next: ?*WinglessToplevel,
 
     server: *WinglessServer,
-    xdg_toplevel: *c.wlr_xdg_toplevel,
+    xdg_toplevel: ?*c.wlr_xdg_toplevel,
     scene_tree: *c.wlr_scene_tree,
 
     map: c.wl_listener,
     unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
+    surface_destroy: c.wl_listener,
 
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
@@ -242,18 +243,23 @@ const WinglessToplevel = struct {
             .scene_tree = c.wlr_scene_xdg_surface_create(&server.scene.tree, xdg_toplevel.base),
 
             .map = .{ .link = undefined, .notify = xdg_toplevel_map },
-            .unmap = undefined,
+
+            .unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap },
             .commit = .{ .link = undefined, .notify = xdg_toplevel_commit },
             .destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy },
+            .surface_destroy = .{ .link = undefined, .notify = xdg_toplevel_surface_destroy },
         };
 
         {
-            const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+            const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
             const surface: *c.wlr_surface = @ptrCast(xdg_surface.surface);
 
             c.wl_signal_add(&surface.events.map, &toplevel.map);
+            c.wl_signal_add(&surface.events.unmap, &toplevel.unmap);
             c.wl_signal_add(&surface.events.commit, &toplevel.commit);
-            c.wl_signal_add(&surface.events.destroy, &toplevel.destroy);
+            // toplevel's lifetime can be shorter than the surface's, so we separate the destroys into 2 to let commit listeners know the toplevel doesn't exist
+            c.wl_signal_add(&surface.events.destroy, &toplevel.surface_destroy);
+            c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -265,7 +271,7 @@ const WinglessToplevel = struct {
 
     pub fn insert(self: *WinglessToplevel) void {
         if (self.server.focused_toplevel) |f| {
-            f.prev.next = self;
+            f.prev.?.next = self;
             self.prev = f.prev;
             self.next = f;
             f.prev = self;
@@ -276,8 +282,8 @@ const WinglessToplevel = struct {
         const server = self.server;
 
         if (self.next == self) server.focused_toplevel = null else {
-            self.prev.next = self.next;
-            self.next.prev = self.prev;
+            self.prev.?.next = self.next;
+            self.next.?.prev = self.prev;
         }
 
         self.next = self;
@@ -285,16 +291,17 @@ const WinglessToplevel = struct {
     }
 
     pub fn deinit(self: *WinglessToplevel) void {
-        if (self.server.focused_toplevel.? == self) {
-            self.server.focused_toplevel = self.next;
-            focus_toplevel(self.server.focused_toplevel.?);
+        if (self.next != null or self.prev != null) {
+            if (self.server.focused_toplevel.? == self) {
+                self.server.focused_toplevel = self.next;
+                focus_toplevel(self.server.focused_toplevel.?);
+            }
+            self.remove();
         }
-
-        self.remove();
         c.wl_list_remove(&self.map.link);
-        // c.wl_list_remove(&self.unmap.link);
+        c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
-        c.wl_list_remove(&self.destroy.link);
+        c.wl_list_remove(&self.surface_destroy.link);
     }
 };
 
@@ -338,7 +345,7 @@ fn close_focused_toplevel(server: *WinglessServer) void {
 fn tab_next(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
 
-    const toplevel = server.focused_toplevel.?.next;
+    const toplevel = server.focused_toplevel.?.next.?;
 
     focus_toplevel(toplevel);
 }
@@ -346,7 +353,7 @@ fn tab_next(server: *WinglessServer) void {
 fn tab_prev(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
 
-    const toplevel = server.focused_toplevel.?.prev;
+    const toplevel = server.focused_toplevel.?.prev.?;
 
     focus_toplevel(toplevel);
 }
@@ -370,7 +377,7 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
     if (c.wlr_seat_get_keyboard(seat)) |kbd| {
         const wlr_kbd: *c.wlr_keyboard = kbd;
 
-        const surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
+        const surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
         c.wlr_seat_keyboard_notify_enter(seat, surface.surface, @ptrCast(&wlr_kbd.keycodes), wlr_kbd.num_keycodes, &wlr_kbd.modifiers);
     }
 }
@@ -379,44 +386,63 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
-
     toplevel.insert();
-
     focus_toplevel(toplevel);
+}
+
+fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+    toplevel.remove();
 }
 
 fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
+    std.debug.print("toplevel commited\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("commit", listener)));
 
-    const xdg_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
-    if (xdg_surface.initial_commit) {
-        const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.base;
-        const surface: *c.wlr_surface = wlr_surface.surface;
-        const sx = surface.current.dx;
-        const sy = surface.current.dy;
-        const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(sx), @floatFromInt(sy)) orelse @panic("nope");
+    if (toplevel.xdg_toplevel) |xdg_toplevel| {
+        const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base;
+        if (xdg_surface.initial_commit) {
+            const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
+            const surface: *c.wlr_surface = wlr_surface.surface;
+            const sx = surface.current.dx;
+            const sy = surface.current.dy;
+            const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(sx), @floatFromInt(sy)) orelse @panic("nope");
 
-        var w: c_int = 0;
-        var h: c_int = 0;
+            var w: c_int = 0;
+            var h: c_int = 0;
 
-        c.wlr_output_effective_resolution(o, &w, &h);
+            c.wlr_output_effective_resolution(o, &w, &h);
 
-        if (toplevel.xdg_toplevel.parent == null) {
-            _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
-            _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
-        } else {
-            _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+            if (toplevel.xdg_toplevel.?.parent == null) {
+                _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
+                _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
+            } else {
+                _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
+            }
         }
     }
+}
+
+fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    std.debug.print("destroying toplevel surface\n", .{});
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
+
+    toplevel.deinit();
+    std.debug.print("destroyed toplevel surface\n", .{});
 }
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
+    toplevel.xdg_toplevel = null;
+    c.wl_list_remove(&toplevel.destroy.link);
 
-    toplevel.deinit();
+    std.debug.print("destroyed toplevel\n", .{});
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -434,6 +460,8 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 
 fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+
+    std.debug.print("destroyed popup\n", .{});
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
 
     popup.deinit();
@@ -441,6 +469,8 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
 fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    std.debug.print("popup commited\n", .{});
+
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
 
     const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
