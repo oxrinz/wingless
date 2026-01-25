@@ -108,7 +108,16 @@ pub fn createToplevel(
     c.wl_surface_commit(t.surface);
     pump(server, client);
 
+    var spins: usize = 0;
+    while (t.state.configure_serial == 0 and spins < 1000) : (spins += 1) {
+        pump(server, client);
+    }
+
+    std.debug.assert(t.state.configure_serial != 0);
+
     c.xdg_surface_ack_configure(t.xdg_surface, t.state.configure_serial);
+
+    pump(server, client);
 
     // create buffer and attach
     const width = 1;

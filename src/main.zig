@@ -292,9 +292,12 @@ const WinglessToplevel = struct {
 
     pub fn deinit(self: *WinglessToplevel) void {
         if (self.next != null or self.prev != null) {
-            if (self.server.focused_toplevel.? == self) {
-                self.server.focused_toplevel = self.next;
-                focus_toplevel(self.server.focused_toplevel.?);
+            // since this toplevel is destroyed, focus the next one on the list
+            if (self.server.focused_toplevel) |focused_toplevel| {
+                if (focused_toplevel == self) {
+                    self.server.focused_toplevel = self.next;
+                    focus_toplevel(self.server.focused_toplevel.?);
+                }
             }
             self.remove();
         }
@@ -393,14 +396,13 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("unmap", listener)));
     toplevel.remove();
 }
 
 fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    std.debug.print("toplevel commited\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("commit", listener)));
 
     if (toplevel.xdg_toplevel) |xdg_toplevel| {
@@ -429,11 +431,8 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
 fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("destroying toplevel surface\n", .{});
-    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
-
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("surface_destroy", listener)));
     toplevel.deinit();
-    std.debug.print("destroyed toplevel surface\n", .{});
 }
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -441,8 +440,6 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
     toplevel.xdg_toplevel = null;
     c.wl_list_remove(&toplevel.destroy.link);
-
-    std.debug.print("destroyed toplevel\n", .{});
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -935,18 +932,25 @@ test "client open and close" {
     server.deinit();
 }
 
-test "tab switching between two toplevels" {
+test "toplevel destroy before surface destroy" {
     const server = try testSetup();
     defer server.deinit();
 
     const client = c.wl_display_connect(null).?;
     defer c.wl_display_disconnect(client);
 
-    tests.testPump(server, client);
+    tests.pump(server, client);
 
     const ctx = try tests.getTestContext(std.testing.allocator, client, server);
 
-    try tests.createSurface(server, ctx, client);
+    const toplevel = try tests.createToplevel(server, ctx, client);
 
-    tab_prev(server);
+    std.debug.print("fuck\n", .{});
+    c.xdg_toplevel_destroy(toplevel.toplevel);
+    c.wl_surface_commit(toplevel.surface);
+    tests.pump(server, client);
+    c.wl_surface_destroy(toplevel.surface);
+    tests.pump(server, client);
+
+    c.wl_display_disconnect(client);
 }
