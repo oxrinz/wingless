@@ -10,6 +10,7 @@ TODO:
 - Beacon suggestions should be fuzzy - done
 - Desktop app launching from beacon with icons - done
 - Popup / toplevel destruction tests. Eliminate all panics and crashes
+- XWayland
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - UI scaling, support different resolutions
 - Configuration

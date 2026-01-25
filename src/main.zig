@@ -12,6 +12,7 @@ pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
     renderer: *c.wlr_renderer = undefined,
+    compositor: *c.wlr_compositor = undefined,
     wlr_allocator: *c.wlr_allocator = undefined,
 
     scene: *c.wlr_scene = undefined,
@@ -41,6 +42,9 @@ pub const WinglessServer = struct {
     new_input: c.wl_listener = undefined,
     seat: *c.wlr_seat = undefined,
 
+    xwayland: *c.wlr_xwayland = undefined,
+    new_xwayland_surface: c.wl_listener = undefined,
+
     wingless_config: config.WinglessConfig = undefined,
 
     allocator: std.mem.Allocator = undefined,
@@ -57,7 +61,7 @@ pub const WinglessServer = struct {
 
         _ = c.wlr_renderer_init_wl_display(server.renderer, server.display);
 
-        _ = c.wlr_compositor_create(server.display, 5, server.renderer);
+        server.compositor = c.wlr_compositor_create(server.display, 5, server.renderer);
         _ = c.wlr_subcompositor_create(server.display);
         _ = c.wlr_data_device_manager_create(server.display);
 
@@ -105,6 +109,16 @@ pub const WinglessServer = struct {
         server.new_input = .{ .link = undefined, .notify = server_new_input };
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
+
+        server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, true) orelse @panic("XWayland failed");
+        server.new_xwayland_surface = .{
+            .link = undefined,
+            .notify = server_new_xwayland_surface,
+        };
+        c.wl_signal_add(
+            &server.xwayland.events.new_surface,
+            &server.new_xwayland_surface,
+        );
 
         server.wingless_config = conf;
 
@@ -440,6 +454,22 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
     toplevel.xdg_toplevel = null;
     c.wl_list_remove(&toplevel.destroy.link);
+}
+
+fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("new xwayland surface\n", .{});
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
+    const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
+
+    const surface = xsurface.surface;
+
+    const tree = c.wlr_scene_tree_create(&server.scene.tree);
+
+    _ = c.wlr_scene_surface_create(tree, surface);
+
+    if (!xsurface.override_redirect) {
+        c.wlr_xwayland_surface_activate(xsurface, true);
+    }
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -880,6 +910,8 @@ pub fn main() !void {
 
     var server = try WinglessServer.init(conf);
 
+    _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
+
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
@@ -947,10 +979,9 @@ test "toplevel destroy before surface destroy" {
 
     std.debug.print("fuck\n", .{});
     c.xdg_toplevel_destroy(toplevel.toplevel);
+    c.wl_surface_attach(toplevel.surface, null, 0, 0);
     c.wl_surface_commit(toplevel.surface);
     tests.pump(server, client);
     c.wl_surface_destroy(toplevel.surface);
     tests.pump(server, client);
-
-    c.wl_display_disconnect(client);
 }
