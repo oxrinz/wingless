@@ -9,6 +9,7 @@ const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
 
 pub const WinglessServer = struct {
+    socket: [*c]const u8,
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
     renderer: *c.wlr_renderer = undefined,
@@ -53,7 +54,6 @@ pub const WinglessServer = struct {
         var allocator = std.heap.page_allocator;
 
         var server = try allocator.create(WinglessServer);
-        server.* = .{};
         server.display = c.wl_display_create() orelse return error.DispayCreationFailed;
         server.backend = c.wlr_backend_autocreate(c.wl_display_get_event_loop(server.display), null);
         server.renderer = c.wlr_renderer_autocreate(server.backend);
@@ -110,6 +110,9 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
+        // socket creation must happen before xwayland init
+        server.socket = c.wl_display_add_socket_auto(server.display);
+
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, true) orelse @panic("XWayland failed");
         server.new_xwayland_surface = .{
             .link = undefined,
@@ -119,6 +122,7 @@ pub const WinglessServer = struct {
             &server.xwayland.events.new_surface,
             &server.new_xwayland_surface,
         );
+        _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
 
         server.wingless_config = conf;
 
@@ -910,11 +914,8 @@ pub fn main() !void {
 
     var server = try WinglessServer.init(conf);
 
-    _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
-
-    const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
-    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+    _ = c.setenv("WAYLAND_DISPLAY", server.socket, 1);
 
     c.wl_display_run(server.display);
 
@@ -934,9 +935,8 @@ fn testSetup() !*WinglessServer {
 
     const server = try WinglessServer.init(conf);
 
-    const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
-    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+    _ = c.setenv("WAYLAND_DISPLAY", server.socket, 1);
 
     return server;
 }
