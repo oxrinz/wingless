@@ -9,7 +9,6 @@ const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
 
 pub const WinglessServer = struct {
-    socket: [*c]const u8,
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
     renderer: *c.wlr_renderer = undefined,
@@ -54,6 +53,7 @@ pub const WinglessServer = struct {
         var allocator = std.heap.page_allocator;
 
         var server = try allocator.create(WinglessServer);
+        server.* = .{};
         server.display = c.wl_display_create() orelse return error.DispayCreationFailed;
         server.backend = c.wlr_backend_autocreate(c.wl_display_get_event_loop(server.display), null);
         server.renderer = c.wlr_renderer_autocreate(server.backend);
@@ -110,19 +110,17 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
-        // socket creation must happen before xwayland init
-        server.socket = c.wl_display_add_socket_auto(server.display);
+        // server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
 
-        server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, true) orelse @panic("XWayland failed");
-        server.new_xwayland_surface = .{
-            .link = undefined,
-            .notify = server_new_xwayland_surface,
-        };
-        c.wl_signal_add(
-            &server.xwayland.events.new_surface,
-            &server.new_xwayland_surface,
-        );
-        _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
+        // server.new_xwayland_surface = .{ .notify = server_new_xwayland_surface, .link = undefined };
+        //         server.xwayland_surface_map = .{ .notify = server_xwayland_surface_map, .link = undefined };
+        //         server.xwayland_surface_unmap = .{ .notify = server_xwayland_surface_unmap, .link = undefined };
+        //         server.xwayland_surface_destroy = .{ .notify = server_xwayland_surface_destroy, .link = undefined };
+
+        // xsurface map, unmap, destroy are added in new_xwayland_surface
+        // c.wl_signal_add(&server.xwayland.events.new_surface, &server.new_xwayland_surface);
+
+        // _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
 
         server.wingless_config = conf;
 
@@ -236,6 +234,7 @@ pub const WinglessOutput = struct {
 };
 
 const WinglessToplevel = struct {
+    // these exist only if the toplevel if mapped, use as an indicator if the toplevel if mapped
     prev: ?*WinglessToplevel,
     next: ?*WinglessToplevel,
 
@@ -297,26 +296,25 @@ const WinglessToplevel = struct {
     }
 
     pub fn remove(self: *WinglessToplevel) void {
+        if (self.next == null and self.prev == null) return;
+        if (self.next == null or self.prev == null) @panic("one of topleve's prev or next is null and the other one isn't, this should never happen");
+
         const server = self.server;
 
-        if (self.next == self) server.focused_toplevel = null else {
+        if (server.focused_toplevel) |focused_toplevel| {
+            if (focused_toplevel == self) {
+                if (self.prev != self) {
+                    server.focused_toplevel = self.prev;
+                } else server.focused_toplevel = null;
+            }
+
             self.prev.?.next = self.next;
             self.next.?.prev = self.prev;
         }
-
-        self.next = self;
-        self.prev = self;
     }
 
     pub fn deinit(self: *WinglessToplevel) void {
         if (self.next != null or self.prev != null) {
-            // since this toplevel is destroyed, focus the next one on the list
-            if (self.server.focused_toplevel) |focused_toplevel| {
-                if (focused_toplevel == self) {
-                    self.server.focused_toplevel = self.next;
-                    focus_toplevel(self.server.focused_toplevel.?);
-                }
-            }
             self.remove();
         }
         c.wl_list_remove(&self.map.link);
@@ -404,6 +402,7 @@ fn focus_toplevel(toplevel: *WinglessToplevel) void {
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("mapped\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
@@ -412,6 +411,7 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 }
 
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("unmapped\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("unmap", listener)));
@@ -460,21 +460,17 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     c.wl_list_remove(&toplevel.destroy.link);
 }
 
+// TODO: finish xwayland
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("new xwayland surface\n", .{});
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
     const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
 
-    const surface = xsurface.surface;
-
-    const tree = c.wlr_scene_tree_create(&server.scene.tree);
-
-    _ = c.wlr_scene_surface_create(tree, surface);
-
-    if (!xsurface.override_redirect) {
-        c.wlr_xwayland_surface_activate(xsurface, true);
-    }
+    xsurface.data = server;
 }
+
+// fn server_xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
+// fn server_xwayland_surface_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
+// fn server_xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
@@ -618,6 +614,8 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                 &[_][]const u8{name.*},
                 std.heap.page_allocator,
             );
+
+            child.env_map = @constCast(&(std.process.getEnvMap(std.heap.page_allocator) catch @panic("env")));
 
             std.debug.print("launching: {s}\n", .{name.*});
 
@@ -914,8 +912,9 @@ pub fn main() !void {
 
     var server = try WinglessServer.init(conf);
 
+    const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
-    _ = c.setenv("WAYLAND_DISPLAY", server.socket, 1);
+    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
 
     c.wl_display_run(server.display);
 
@@ -935,8 +934,9 @@ fn testSetup() !*WinglessServer {
 
     const server = try WinglessServer.init(conf);
 
+    const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
-    _ = c.setenv("WAYLAND_DISPLAY", server.socket, 1);
+    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
 
     return server;
 }
@@ -964,7 +964,7 @@ test "client open and close" {
     server.deinit();
 }
 
-test "toplevel destroy before surface destroy" {
+test "map map unmap change focus" {
     const server = try testSetup();
     defer server.deinit();
 
@@ -977,11 +977,19 @@ test "toplevel destroy before surface destroy" {
 
     const toplevel = try tests.createToplevel(server, ctx, client);
 
-    std.debug.print("fuck\n", .{});
-    c.xdg_toplevel_destroy(toplevel.toplevel);
+    const client_surface_id = c.wl_proxy_get_id(@ptrCast(toplevel.surface.?));
+    const server_surface: *c.wlr_xdg_surface = @ptrCast(server.focused_toplevel.?.xdg_toplevel.?.base.?);
+    const wlr_surface: *c.wlr_surface = @ptrCast(server_surface.surface.?);
+    const boo = c.wl_resource_get_id(wlr_surface.resource);
+
+    try std.testing.expect(client_surface_id == boo);
+
     c.wl_surface_attach(toplevel.surface, null, 0, 0);
     c.wl_surface_commit(toplevel.surface);
     tests.pump(server, client);
-    c.wl_surface_destroy(toplevel.surface);
-    tests.pump(server, client);
+
+    try std.testing.expect(server.focused_toplevel == null);
+
+    ctx.deinit();
+    std.testing.allocator.destroy(ctx);
 }

@@ -19,6 +19,13 @@ pub const Context = struct {
     wm_base: *c.xdg_wm_base,
     seat: *c.wl_seat,
     shm: *c.wl_shm,
+
+    pub fn deinit(self: *Context) void {
+        c.wl_seat_destroy(self.seat);
+        c.xdg_wm_base_destroy(self.wm_base);
+        c.wl_compositor_destroy(self.compositor);
+        c.wl_shm_destroy(self.shm);
+    }
 };
 
 pub const Toplevel = struct {

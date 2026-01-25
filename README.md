@@ -2,18 +2,24 @@
 
 Minimal Wayland compositor without sacrificing beauty
 
-TODO:
+todo before mvp:
 - Window switching - done
 - Get zen browser working - done
 - Commands - done
 - Filter commads launchable from beacon - done
 - Beacon suggestions should be fuzzy - done
 - Desktop app launching from beacon with icons - done
-- Popup / toplevel destruction tests. Eliminate all panics and crashes
+- Test surface focus - done
+- Popup / toplevel destruction tests. Eliminate all known panics and crashes - done
 - XWayland
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - UI scaling, support different resolutions
 - Configuration
 - Support multiple monitors
 - Change volume with keyboard sliders
+
+todo after mvp:
 - Beacon search using .desktop keywords
+- List open tabs when switching with a popup / beacon
+- Volume, time, etc in beacon
+- Volume changing popup
