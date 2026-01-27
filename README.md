@@ -2,7 +2,7 @@
 
 Minimal Wayland compositor without sacrificing beauty
 
-todo before mvp:
+## todo before mvp:
 - Window switching - done
 - Get zen browser working - done
 - Commands - done
@@ -17,8 +17,9 @@ todo before mvp:
 - Configuration
 - Support multiple monitors
 - Change volume with keyboard sliders
+- Make popups pop in the middle (steam, kicad)
 
-todo after mvp:
+## todo after mvp:
 - Beacon search using .desktop keywords
 - List open tabs when switching with a popup / beacon
 - Volume, time, etc in beacon

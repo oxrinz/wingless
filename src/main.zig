@@ -8,6 +8,11 @@ const ui = @import("ui.zig");
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
 
+const Focusable = union(enum) {
+    xdg: *WinglessToplevel,
+    xwayland: *WinglessXwayland,
+};
+
 pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
@@ -110,17 +115,14 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
-        // server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
+        server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
 
-        // server.new_xwayland_surface = .{ .notify = server_new_xwayland_surface, .link = undefined };
-        //         server.xwayland_surface_map = .{ .notify = server_xwayland_surface_map, .link = undefined };
-        //         server.xwayland_surface_unmap = .{ .notify = server_xwayland_surface_unmap, .link = undefined };
-        //         server.xwayland_surface_destroy = .{ .notify = server_xwayland_surface_destroy, .link = undefined };
+        server.new_xwayland_surface = .{ .notify = server_new_xwayland_surface, .link = undefined };
 
         // xsurface map, unmap, destroy are added in new_xwayland_surface
-        // c.wl_signal_add(&server.xwayland.events.new_surface, &server.new_xwayland_surface);
+        c.wl_signal_add(&server.xwayland.events.new_surface, &server.new_xwayland_surface);
 
-        // _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
+        _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
 
         server.wingless_config = conf;
 
@@ -233,6 +235,34 @@ pub const WinglessOutput = struct {
     }
 };
 
+const WinglessXwayland = struct {
+    prev: ?*WinglessToplevel,
+    next: ?*WinglessToplevel,
+
+    server: *WinglessServer,
+    xsurface: *c.wlr_xwayland_surface,
+    scene_tree: *c.wlr_scene_tree,
+
+    map: c.wl_listener,
+    unmap: c.wl_listener,
+    commit: c.wl_listener,
+    destroy: c.wl_listener,
+
+    pub fn init(server: *WinglessServer, xsurface: *c.wlr_xwayland_surface) !*WinglessXwayland {
+        const toplevel = try server.allocator.create(WinglessXwayland);
+
+        toplevel.server = server;
+        toplevel.xsurface = xsurface;
+
+        toplevel.map = .{ .link = undefined, .notify = xdg_toplevel_map };
+        toplevel.unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap };
+        toplevel.commit = .{ .link = undefined, .notify = xdg_toplevel_commit };
+        toplevel.destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy };
+
+        return toplevel;
+    }
+};
+
 const WinglessToplevel = struct {
     // these exist only if the toplevel if mapped, use as an indicator if the toplevel if mapped
     prev: ?*WinglessToplevel,
@@ -260,7 +290,6 @@ const WinglessToplevel = struct {
             .scene_tree = c.wlr_scene_xdg_surface_create(&server.scene.tree, xdg_toplevel.base),
 
             .map = .{ .link = undefined, .notify = xdg_toplevel_map },
-
             .unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap },
             .commit = .{ .link = undefined, .notify = xdg_toplevel_commit },
             .destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy },
@@ -305,6 +334,7 @@ const WinglessToplevel = struct {
             if (focused_toplevel == self) {
                 if (self.prev != self) {
                     server.focused_toplevel = self.prev;
+                    focus_toplevel(server.focused_toplevel.?);
                 } else server.focused_toplevel = null;
             }
 
@@ -460,17 +490,34 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     c.wl_list_remove(&toplevel.destroy.link);
 }
 
-// TODO: finish xwayland
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
     const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
 
     xsurface.data = server;
+
+    _ = WinglessXwayland.init(server, xsurface) catch @panic("out of memory");
 }
 
-// fn server_xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
-// fn server_xwayland_surface_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
-// fn server_xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {}
+fn server_xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("xwayland_surface_map", listener)));
+    _ = server;
+    _ = data;
+}
+
+fn server_xwayland_surface_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("xwayland_surface_unmap", listener)));
+
+    _ = data;
+    _ = server;
+}
+
+fn server_xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("xwayland_surface_destroy", listener)));
+
+    _ = data;
+    _ = server;
+}
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
