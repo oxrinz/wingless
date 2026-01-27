@@ -14,14 +14,14 @@ const Focusable = union(enum) {
     xdg: *WinglessToplevel,
     xwayland: *WinglessXwayland,
 
-    fn next(self: *Focusable) *Focusable {
+    fn next(self: *Focusable) **Focusable {
         switch (self.*) {
             .xdg => |xdg| return &xdg.next.?,
             .xwayland => |xwl| return &xwl.next.?,
         }
     }
 
-    fn prev(self: *Focusable) *Focusable {
+    fn prev(self: *Focusable) **Focusable {
         switch (self.*) {
             .xdg => |xdg| return &xdg.prev.?,
             .xwayland => |xwl| return &xwl.prev.?,
@@ -85,7 +85,7 @@ pub const WinglessServer = struct {
     new_xdg_surface: c.wl_listener = undefined,
     new_xdg_toplevel: c.wl_listener = undefined,
     new_xdg_popup: c.wl_listener = undefined,
-    focused_toplevel: ?Focusable = null,
+    focused_toplevel: ?*Focusable = null,
 
     cursor: *c.wlr_cursor = undefined,
     cursor_mgr: *c.wlr_xcursor_manager = undefined,
@@ -290,8 +290,8 @@ pub const WinglessOutput = struct {
 };
 
 const WinglessXwayland = struct {
-    prev: ?Focusable = null,
-    next: ?Focusable = null,
+    prev: ?*Focusable = null,
+    next: ?*Focusable = null,
 
     server: *WinglessServer,
     xsurface: *c.wlr_xwayland_surface,
@@ -331,18 +331,18 @@ const WinglessXwayland = struct {
     // TODO: merge with WinglessToplevel
     pub fn insert(self: *WinglessXwayland) void {
         if (self.server.focused_toplevel) |f| {
-            switch (f) {
+            switch (f.*) {
                 .xdg => |xdg| {
-                    xdg.prev.?.next().* = .{ .xwayland = self };
+                    xdg.prev.?.next().*.* = .{ .xwayland = self };
                     self.prev = xdg.prev;
-                    self.next = .{ .xdg = xdg };
-                    xdg.prev = .{ .xwayland = self };
+                    self.next.?.* = .{ .xdg = xdg };
+                    xdg.prev.?.* = .{ .xwayland = self };
                 },
                 .xwayland => |xwl| {
-                    xwl.prev.?.next().* = .{ .xwayland = self };
+                    xwl.prev.?.next().*.* = .{ .xwayland = self };
                     self.prev = xwl.prev;
-                    self.next = .{ .xwayland = xwl };
-                    xwl.prev = .{ .xwayland = self };
+                    self.next.?.* = .{ .xwayland = xwl };
+                    xwl.prev.?.* = .{ .xwayland = self };
                 },
             }
         }
@@ -358,7 +358,7 @@ const WinglessXwayland = struct {
             if (focused_toplevel.cmpXwl(self)) {
                 if (self.prev.?.cmpXwl(self)) {
                     server.focused_toplevel = self.prev;
-                    focus_toplevel(&server.focused_toplevel.?);
+                    focus_toplevel(server.focused_toplevel.?);
                 } else server.focused_toplevel = null;
             }
 
@@ -386,8 +386,8 @@ const WinglessXwayland = struct {
 
 const WinglessToplevel = struct {
     // these exist only if the toplevel if mapped, use as an indicator if the toplevel if mapped
-    prev: ?Focusable,
-    next: ?Focusable,
+    prev: ?*Focusable,
+    next: ?*Focusable,
 
     server: *WinglessServer,
     xdg_toplevel: ?*c.wlr_xdg_toplevel,
@@ -402,9 +402,15 @@ const WinglessToplevel = struct {
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
 
+        const prev = try server.allocator.create(Focusable);
+        prev.* = .{ .xdg = toplevel };
+
+        const next = try server.allocator.create(Focusable);
+        next.* = .{ .xdg = toplevel };
+
         toplevel.* = .{
-            .prev = .{ .xdg = toplevel },
-            .next = .{ .xdg = toplevel },
+            .prev = prev,
+            .next = next,
 
             .server = server,
             .xdg_toplevel = xdg_toplevel,
@@ -438,18 +444,18 @@ const WinglessToplevel = struct {
 
     pub fn insert(self: *WinglessToplevel) void {
         if (self.server.focused_toplevel) |f| {
-            switch (f) {
+            switch (f.*) {
                 .xdg => |xdg| {
-                    xdg.prev.?.next().* = .{ .xdg = self };
+                    xdg.prev.?.next().*.* = .{ .xdg = self };
                     self.prev = xdg.prev;
-                    self.next = .{ .xdg = xdg };
-                    xdg.prev = .{ .xdg = self };
+                    self.next.?.* = .{ .xdg = xdg };
+                    xdg.prev.?.* = .{ .xdg = self };
                 },
                 .xwayland => |xwl| {
-                    xwl.prev.?.next().* = .{ .xdg = self };
+                    xwl.prev.?.next().*.* = .{ .xdg = self };
                     self.prev = xwl.prev;
-                    self.next = .{ .xwayland = xwl };
-                    xwl.prev = .{ .xdg = self };
+                    self.next.?.* = .{ .xwayland = xwl };
+                    xwl.prev.?.* = .{ .xdg = self };
                 },
             }
         }
@@ -465,7 +471,7 @@ const WinglessToplevel = struct {
             if (focused_toplevel.cmpXdg(self)) {
                 if (self.prev.?.cmpXdg(self)) {
                     server.focused_toplevel = self.prev;
-                    focus_toplevel(&server.focused_toplevel.?);
+                    focus_toplevel(server.focused_toplevel.?);
                 } else server.focused_toplevel = null;
             }
 
@@ -519,7 +525,7 @@ fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 }
 
 fn close_focused_toplevel(server: *WinglessServer) void {
-    switch (server.focused_toplevel.?) {
+    switch (server.focused_toplevel.?.*) {
         .xdg => |xdg| c.wlr_xdg_toplevel_send_close(xdg.xdg_toplevel),
         .xwayland => |xwl| c.wlr_xwayland_surface_close(xwl.xsurface),
     }
@@ -530,7 +536,7 @@ fn tab_next(server: *WinglessServer) void {
 
     const toplevel = server.focused_toplevel.?.next();
 
-    focus_toplevel(toplevel);
+    focus_toplevel(toplevel.*);
 }
 
 fn tab_prev(server: *WinglessServer) void {
@@ -538,16 +544,16 @@ fn tab_prev(server: *WinglessServer) void {
 
     const toplevel = server.focused_toplevel.?.prev();
 
-    focus_toplevel(toplevel);
+    focus_toplevel(toplevel.*);
 }
 
-fn focus_toplevel(focusable: *const Focusable) void {
+fn focus_toplevel(focusable: *Focusable) void {
     const server = focusable.server();
 
     const seat = server.seat;
 
     if (server.focused_toplevel != null and server.focused_toplevel.?.cmp(focusable)) return;
-    server.focused_toplevel = focusable.*;
+    server.focused_toplevel = focusable;
 
     if (seat.keyboard_state.focused_surface != null) {
         const prev = c.wlr_xdg_toplevel_try_from_wlr_surface(seat.keyboard_state.focused_surface);
@@ -586,7 +592,10 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
     xwl.insert();
-    focus_toplevel(&.{ .xwayland = xwl });
+
+    const focusable = xwl.server.allocator.create(Focusable) catch @panic("out of memory");
+    focusable.* = .{ .xwayland = xwl };
+    focus_toplevel(focusable);
     std.debug.print("map!\n", .{});
 }
 
@@ -595,7 +604,9 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
     toplevel.insert();
-    focus_toplevel(&.{ .xdg = toplevel });
+    const focusable = toplevel.server.allocator.create(Focusable) catch @panic("out of memory");
+    focusable.* = .{ .xdg = toplevel };
+    focus_toplevel(focusable);
 }
 
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
