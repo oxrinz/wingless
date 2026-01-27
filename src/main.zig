@@ -29,7 +29,7 @@ const Focusable = union(enum) {
     }
 
     fn cmp(self: *const Focusable, other: *const Focusable) bool {
-        if (activeTag(self.*) == .xdg and activeTag(other.*) == .xwayland or activeTag(self.*) == .xwayland and activeTag(other.*) == .xwayland) return false;
+        if (activeTag(self.*) != activeTag(other.*)) return false;
         return switch (self.*) {
             .xdg => self.xdg == other.xdg,
             .xwayland => self.xwayland == other.xwayland,
@@ -168,6 +168,7 @@ pub const WinglessServer = struct {
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
+        c.wlr_xwayland_set_seat(server.xwayland, server.seat);
 
         server.new_xwayland_surface = .{ .notify = server_new_xwayland_surface, .link = undefined };
 
@@ -290,6 +291,7 @@ pub const WinglessOutput = struct {
 };
 
 const WinglessXwayland = struct {
+    focusable: Focusable,
     prev: ?*Focusable = null,
     next: ?*Focusable = null,
 
@@ -307,6 +309,8 @@ const WinglessXwayland = struct {
         const toplevel = try server.allocator.create(WinglessXwayland);
 
         //const surface: *c.wlr_surface = @ptrCast(xsurface.surface);
+
+        toplevel.focusable = .{ .xwayland = toplevel };
 
         toplevel.server = server;
         toplevel.xsurface = xsurface;
@@ -386,6 +390,7 @@ const WinglessXwayland = struct {
 
 const WinglessToplevel = struct {
     // these exist only if the toplevel if mapped, use as an indicator if the toplevel if mapped
+    focusable: Focusable,
     prev: ?*Focusable,
     next: ?*Focusable,
 
@@ -402,15 +407,10 @@ const WinglessToplevel = struct {
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
 
-        const prev = try server.allocator.create(Focusable);
-        prev.* = .{ .xdg = toplevel };
-
-        const next = try server.allocator.create(Focusable);
-        next.* = .{ .xdg = toplevel };
-
         toplevel.* = .{
-            .prev = prev,
-            .next = next,
+            .focusable = .{ .xdg = toplevel },
+            .prev = &toplevel.focusable,
+            .next = &toplevel.focusable,
 
             .server = server,
             .xdg_toplevel = xdg_toplevel,
@@ -557,7 +557,7 @@ fn focus_toplevel(focusable: *Focusable) void {
 
     if (seat.keyboard_state.focused_surface != null) {
         const prev = c.wlr_xdg_toplevel_try_from_wlr_surface(seat.keyboard_state.focused_surface);
-        _ = if (prev != null) c.wlr_xdg_toplevel_set_activated(prev, true);
+        _ = if (prev != null) c.wlr_xdg_toplevel_set_activated(prev, false);
     }
 
     c.wlr_scene_node_raise_to_top(&focusable.sceneTree().node);
@@ -593,9 +593,7 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
     xwl.insert();
 
-    const focusable = xwl.server.allocator.create(Focusable) catch @panic("out of memory");
-    focusable.* = .{ .xwayland = xwl };
-    focus_toplevel(focusable);
+    focus_toplevel(&xwl.focusable);
     std.debug.print("map!\n", .{});
 }
 
@@ -604,9 +602,7 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
     toplevel.insert();
-    const focusable = toplevel.server.allocator.create(Focusable) catch @panic("out of memory");
-    focusable.* = .{ .xdg = toplevel };
-    focus_toplevel(focusable);
+    focus_toplevel(&toplevel.focusable);
 }
 
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -678,8 +674,8 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     const surface: *c.wlr_surface = @ptrCast(xwl.xsurface.surface);
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
-    c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
-    c.wl_signal_add(&surface.events.commit, &xwl.commit);
+    //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
+    //c.wl_signal_add(&surface.events.commit, &xwl.commit);
     c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
 }
 
