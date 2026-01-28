@@ -378,7 +378,6 @@ const WinglessXwayland = struct {
         if (self.next != null or self.prev != null) {
             self.remove();
         } else return;
-        std.debug.print("destryoing..\n", .{});
 
         // these are only linked when the surface is map, therefore they are below the if above
         c.wl_list_remove(&self.map.link);
@@ -482,12 +481,14 @@ const WinglessToplevel = struct {
     }
 
     pub fn deinit(self: *WinglessToplevel) void {
+        std.debug.print("deiniting but wayland not xwayland\n", .{});
         if (self.next != null or self.prev != null) {
             self.remove();
         }
         c.wl_list_remove(&self.map.link);
         c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
+        c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.surface_destroy.link);
     }
 };
@@ -549,6 +550,7 @@ fn tab_prev(server: *WinglessServer) void {
 }
 
 fn focus_toplevel(focusable: *Focusable) void {
+    std.debug.print("FOCUSING!\n", .{});
     const server = focusable.server();
 
     const seat = server.seat;
@@ -587,6 +589,7 @@ fn focus_toplevel(focusable: *Focusable) void {
 fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
+    std.debug.print("map!\n", .{});
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("map", listener)));
 
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
@@ -595,7 +598,6 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     xwl.insert();
 
     focus_toplevel(&xwl.focusable);
-    std.debug.print("map!\n", .{});
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -679,7 +681,7 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     c.wl_signal_add(&surface.events.map, &xwl.map);
     //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
     //c.wl_signal_add(&surface.events.commit, &xwl.commit);
-    c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
+    //c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
 }
 
 fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -687,9 +689,8 @@ fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) call
 
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("destroy", listener)));
 
-    std.debug.print("destroy!\n", .{});
-
     xwl.deinit();
+    std.debug.print("destroy!\n", .{});
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
