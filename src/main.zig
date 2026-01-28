@@ -378,11 +378,12 @@ const WinglessXwayland = struct {
         if (self.next != null or self.prev != null) {
             self.remove();
         } else return;
+        std.debug.print("destryoing..\n", .{});
 
         // these are only linked when the surface is map, therefore they are below the if above
         c.wl_list_remove(&self.map.link);
-        c.wl_list_remove(&self.unmap.link);
-        c.wl_list_remove(&self.commit.link);
+        //c.wl_list_remove(&self.unmap.link);
+        //c.wl_list_remove(&self.commit.link);
 
         std.debug.print("deiniting\n", .{});
     }
@@ -672,6 +673,8 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("associate", listener)));
 
     const surface: *c.wlr_surface = @ptrCast(xwl.xsurface.surface);
+    xwl.prev = &xwl.focusable;
+    xwl.next = &xwl.focusable;
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
     //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
