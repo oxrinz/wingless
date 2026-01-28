@@ -305,6 +305,8 @@ const WinglessXwayland = struct {
     commit: c.wl_listener,
     destroy: c.wl_listener,
 
+    mapped: bool = false,
+
     pub fn init(server: *WinglessServer, xsurface: *c.wlr_xwayland_surface) !*WinglessXwayland {
         const toplevel = try server.allocator.create(WinglessXwayland);
 
@@ -375,7 +377,7 @@ const WinglessXwayland = struct {
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.associate.link);
 
-        if (self.next != null or self.prev != null) {
+        if (self.mapped == true) {
             self.remove();
         } else return;
 
@@ -679,6 +681,7 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     xwl.next = &xwl.focusable;
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
+    xwl.mapped = true;
     //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
     //c.wl_signal_add(&surface.events.commit, &xwl.commit);
     //c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
