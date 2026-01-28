@@ -304,6 +304,7 @@ const WinglessXwayland = struct {
     unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
+    surface_destroy: c.wl_listener,
 
     mapped: bool = false,
 
@@ -323,7 +324,8 @@ const WinglessXwayland = struct {
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
         toplevel.unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap };
         toplevel.commit = .{ .link = undefined, .notify = xdg_toplevel_commit };
-        toplevel.destroy = .{ .link = undefined, .notify = xwayland_surface_destroy };
+        toplevel.destroy = .{ .link = undefined, .notify = xwayland_destroy };
+        toplevel.surface_destroy = .{ .link = undefined, .notify = xwayland_surface_destroy };
 
         toplevel.prev = null;
         toplevel.next = null;
@@ -382,7 +384,7 @@ const WinglessXwayland = struct {
         } else return;
 
         // these are only linked when the surface is map, therefore they are below the if above
-        c.wl_list_remove(&self.map.link);
+        //c.wl_list_remove(&self.map.link);
         //c.wl_list_remove(&self.unmap.link);
         //c.wl_list_remove(&self.commit.link);
 
@@ -681,19 +683,29 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     xwl.next = &xwl.focusable;
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
+    c.wl_signal_add(&surface.events.destroy, &xwl.surface_destroy);
     xwl.mapped = true;
     //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
     //c.wl_signal_add(&surface.events.commit, &xwl.commit);
     //c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
 }
 
-fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+fn xwayland_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("destroy", listener)));
 
     xwl.deinit();
     std.debug.print("destroy!\n", .{});
+}
+
+fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("surface_destroy", listener)));
+
+    c.wl_list_remove(&xwl.map.link);
+    c.wl_list_remove(&xwl.surface_destroy.link);
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
