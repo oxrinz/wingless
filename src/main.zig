@@ -553,7 +553,6 @@ fn tab_prev(server: *WinglessServer) void {
 }
 
 fn focus_toplevel(focusable: *Focusable) void {
-    std.debug.print("FOCUSING!\n", .{});
     const server = focusable.server();
 
     const seat = server.seat;
@@ -597,7 +596,7 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
-    if (!xwl.xsurface.override_redirect and false) {
+    if (!xwl.xsurface.override_redirect) {
         const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
         var w: c_int = 0;
@@ -608,6 +607,8 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
         c.wlr_xwayland_surface_set_fullscreen(xwl.xsurface, true);
     }
+
+    c.wlr_scene_node_set_position(&xwl.scene_tree.?.node, xwl.xsurface.x, xwl.xsurface.y);
 
     xwl.mapped = true;
     xwl.insert();
@@ -673,7 +674,6 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 }
 
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("new! \n", .{});
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
     const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
 
@@ -685,8 +685,6 @@ fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) c
 fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    std.debug.print("associate! \n", .{});
-
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("associate", listener)));
 
     const surface: *c.wlr_surface = @ptrCast(xwl.xsurface.surface);
@@ -695,9 +693,6 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
     c.wl_signal_add(&surface.events.destroy, &xwl.surface_destroy);
-    //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
-    //c.wl_signal_add(&surface.events.commit, &xwl.commit);
-    //c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
 }
 
 fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -706,7 +701,7 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
 
     const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
-    if (!xwl.xsurface.override_redirect and false) {
+    if (!xwl.xsurface.override_redirect) {
         var w: c_int = 0;
         var h: c_int = 0;
         c.wlr_output_effective_resolution(o, &w, &h);
