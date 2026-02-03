@@ -14,6 +14,11 @@ pub fn pump(server: *WinglessServer, client: *c.wl_display) void {
     _ = c.wl_display_dispatch_pending(client);
 }
 
+pub fn pumpServer(server: *WinglessServer) void {
+    _ = c.wl_event_loop_dispatch(c.wl_display_get_event_loop(server.display), 0);
+    _ = c.wl_display_flush_clients(server.display);
+}
+
 pub const Context = struct {
     compositor: *c.wl_compositor,
     wm_base: *c.xdg_wm_base,
@@ -155,4 +160,10 @@ pub fn createToplevel(
     pump(server, client);
 
     return t;
+}
+
+pub fn getServerFocusedSurfaceId(server: *WinglessServer) u32 {
+    const server_surface: *c.wlr_xdg_surface = @ptrCast(server.focused_toplevel.?.xdg.xdg_toplevel.?.base.?);
+    const wlr_surface: *c.wlr_surface = @ptrCast(server_surface.surface.?);
+    return c.wl_resource_get_id(wlr_surface.resource);
 }

@@ -300,12 +300,14 @@ const WinglessXwayland = struct {
     scene_tree: ?*c.wlr_scene_tree,
 
     associate: c.wl_listener,
+    request_configure: c.wl_listener,
     map: c.wl_listener,
     unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
     surface_destroy: c.wl_listener,
 
+    // TODO: fix this, mapped bug. it's not where it should be it's not accurately mapped and things that check it aren't checking the right thing. bitch. yeah you lil bitchboy you better fix this bug cunt. ooooh yeaaaaa keep fixing it just like that bitch waaaah. check this struct's remove function
     mapped: bool = false,
 
     pub fn init(server: *WinglessServer, xsurface: *c.wlr_xwayland_surface) !*WinglessXwayland {
@@ -320,6 +322,7 @@ const WinglessXwayland = struct {
         toplevel.scene_tree = null;
 
         toplevel.associate = .{ .link = undefined, .notify = xwayland_surface_associate };
+        toplevel.request_configure = .{ .link = undefined, .notify = xwayland_request_configure };
 
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
         toplevel.unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap };
@@ -331,6 +334,7 @@ const WinglessXwayland = struct {
         toplevel.next = null;
 
         c.wl_signal_add(&xsurface.events.associate, &toplevel.associate);
+        c.wl_signal_add(&xsurface.events.request_configure, &toplevel.request_configure);
         c.wl_signal_add(&xsurface.events.destroy, &toplevel.destroy);
 
         return toplevel;
@@ -357,6 +361,7 @@ const WinglessXwayland = struct {
     }
 
     pub fn remove(self: *WinglessXwayland) void {
+        self.mapped = false;
         if (self.next == null and self.prev == null) return;
         if (self.next == null or self.prev == null) @panic("one of topleve's prev or next is null and the other one isn't, this should never happen");
 
@@ -364,7 +369,7 @@ const WinglessXwayland = struct {
 
         if (server.focused_toplevel) |focused_toplevel| {
             if (focused_toplevel.cmpXwl(self)) {
-                if (self.prev.?.cmpXwl(self)) {
+                if (!self.prev.?.cmpXwl(self)) {
                     server.focused_toplevel = self.prev;
                     focus_toplevel(server.focused_toplevel.?);
                 } else server.focused_toplevel = null;
@@ -378,15 +383,9 @@ const WinglessXwayland = struct {
     pub fn deinit(self: *WinglessXwayland) void {
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.associate.link);
+        c.wl_list_remove(&self.request_configure.link);
 
-        if (self.mapped == true) {
-            self.remove();
-        } else return;
-
-        // these are only linked when the surface is map, therefore they are below the if above
-        //c.wl_list_remove(&self.map.link);
-        //c.wl_list_remove(&self.unmap.link);
-        //c.wl_list_remove(&self.commit.link);
+        self.remove();
 
         std.debug.print("deiniting\n", .{});
     }
@@ -473,7 +472,7 @@ const WinglessToplevel = struct {
 
         if (server.focused_toplevel) |focused_toplevel| {
             if (focused_toplevel.cmpXdg(self)) {
-                if (self.prev.?.cmpXdg(self)) {
+                if (!self.prev.?.cmpXdg(self)) {
                     server.focused_toplevel = self.prev;
                     focus_toplevel(server.focused_toplevel.?);
                 } else server.focused_toplevel = null;
@@ -593,18 +592,30 @@ fn focus_toplevel(focusable: *Focusable) void {
 fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    std.debug.print("map!\n", .{});
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("map", listener)));
 
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
-    xwl.insert();
+    if (!xwl.xsurface.override_redirect and false) {
+        const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
+        var w: c_int = 0;
+        var h: c_int = 0;
+        c.wlr_output_effective_resolution(o, &w, &h);
+
+        c.wlr_xwayland_surface_configure(xwl.xsurface, 0, 0, @intCast(w), @intCast(h));
+
+        c.wlr_xwayland_surface_set_fullscreen(xwl.xsurface, true);
+    }
+
+    xwl.mapped = true;
+    xwl.insert();
     focus_toplevel(&xwl.focusable);
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    std.debug.print("map!\n", .{});
     _ = data;
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
@@ -684,10 +695,30 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
     c.wl_signal_add(&surface.events.destroy, &xwl.surface_destroy);
-    xwl.mapped = true;
     //c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
     //c.wl_signal_add(&surface.events.commit, &xwl.commit);
     //c.wl_signal_add(&surface.events.destroy, &xwl.destroy);
+}
+
+fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_configure", listener)));
+    const ev: *c.wlr_xwayland_surface_configure_event = @ptrCast(@alignCast(data.?));
+
+    const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
+
+    if (!xwl.xsurface.override_redirect and false) {
+        var w: c_int = 0;
+        var h: c_int = 0;
+        c.wlr_output_effective_resolution(o, &w, &h);
+
+        c.wlr_xwayland_surface_configure(xwl.xsurface, 0, 0, @intCast(w), @intCast(h));
+    } else {}
+
+    c.wlr_xwayland_surface_configure(xwl.xsurface, ev.x, ev.y, ev.width, ev.height);
+
+    if (xwl.scene_tree) |tree| {
+        c.wlr_scene_node_set_position(&tree.node, ev.x, ev.y);
+    }
 }
 
 fn xwayland_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -706,6 +737,8 @@ fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) call
 
     c.wl_list_remove(&xwl.map.link);
     c.wl_list_remove(&xwl.surface_destroy.link);
+
+    xwl.remove();
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -1214,11 +1247,9 @@ test "map map unmap change focus" {
     const toplevel = try tests.createToplevel(server, ctx, client);
 
     const client_surface_id = c.wl_proxy_get_id(@ptrCast(toplevel.surface.?));
-    const server_surface: *c.wlr_xdg_surface = @ptrCast(server.focused_toplevel.?.xdg_toplevel.?.base.?);
-    const wlr_surface: *c.wlr_surface = @ptrCast(server_surface.surface.?);
-    const boo = c.wl_resource_get_id(wlr_surface.resource);
+    const focused_id = tests.getServerFocusedSurfaceId(server);
 
-    try std.testing.expect(client_surface_id == boo);
+    try std.testing.expect(client_surface_id == focused_id);
 
     c.wl_surface_attach(toplevel.surface, null, 0, 0);
     c.wl_surface_commit(toplevel.surface);
@@ -1228,4 +1259,49 @@ test "map map unmap change focus" {
 
     ctx.deinit();
     std.testing.allocator.destroy(ctx);
+}
+
+test "globals" {
+    const server = try testSetup();
+    defer server.deinit();
+
+    const client = c.wl_display_connect(null).?;
+    _ = client;
+}
+
+test "xwayland positioning" {
+    const server = try testSetup();
+    defer server.deinit();
+
+    const conn = c.xcb_connect(null, null);
+    if (true) return;
+    defer c.xcb_disconnect(conn);
+
+    const setup = c.xcb_get_setup(conn);
+    const iter = c.xcb_setup_roots_iterator(setup);
+    const screen: *c.xcb_screen_t = iter.data;
+
+    const win = c.xcb_generate_id(conn);
+    _ = c.xcb_create_window(
+        conn,
+        c.XCB_COPY_FROM_PARENT,
+        win,
+        screen.root,
+        100,
+        200,
+        300,
+        200,
+        0,
+        c.XCB_WINDOW_CLASS_INPUT_OUTPUT,
+        screen.root_visual,
+        0,
+        null,
+    );
+
+    _ = c.xcb_map_window(conn, win);
+    _ = c.xcb_flush(conn);
+
+    tests.pumpServer(server);
+
+    try std.testing.expect(server.focused_toplevel != null);
 }
