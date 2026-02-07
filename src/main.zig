@@ -463,6 +463,8 @@ const WinglessToplevel = struct {
             // toplevel's lifetime can be shorter than the surface's, so we separate the destroys into 2 to let commit listeners know the toplevel doesn't exist
             c.wl_signal_add(&surface.events.destroy, &toplevel.surface_destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
+
+            std.debug.print("initing bithcv\n", .{});
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -521,7 +523,7 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.map.link);
         c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
-        c.wl_list_remove(&self.surface_destroy.link);
+        c.wl_list_remove(&self.destroy.link);
     }
 };
 
@@ -701,20 +703,22 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     }
 }
 
+// the wl surface must be destroyed after its role, this is defined by the protocol
 fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("bruh destroying\n", .{});
+    std.debug.print("bruh destroying surface\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("surface_destroy", listener)));
 
-    toplevel.xdg_toplevel = null;
-    toplevel.destroyToplevelSurface();
+    c.wl_list_remove(&toplevel.surface_destroy.link);
+    toplevel.server.allocator.destroy(toplevel);
 }
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    std.debug.print("bruh destroying just destroying\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
-    c.wl_list_remove(&toplevel.destroy.link);
-    toplevel.server.allocator.destroy(toplevel);
+    toplevel.xdg_toplevel = null;
+    toplevel.destroyToplevelSurface();
 }
 
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -1332,6 +1336,9 @@ test "destroy focus" {
 
     const client_surface_id = c.wl_proxy_get_id(@ptrCast(toplevel.surface.?));
     const focused_id = tests.getServerFocusedSurfaceId(server);
+
+    tests.pump(server, client);
+    tests.pump(server, client);
 
     try std.testing.expect(client_surface_id == focused_id);
 
