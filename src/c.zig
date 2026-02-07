@@ -5,6 +5,7 @@ pub const c = @cImport({
     @cInclude("xdg-shell-client-protocol.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/backend.h");
+    @cInclude("wlr/backend/libinput.h");
     @cInclude("wlr/backend/wayland.h");
     @cInclude("wlr/backend/x11.h");
     @cInclude("wlr/interfaces/wlr_keyboard.h");
@@ -30,6 +31,7 @@ pub const c = @cImport({
     @cInclude("drm/drm_fourcc.h");
     @cInclude("stb/stb_image.h");
     @cInclude("xcb/xcb.h");
+    @cInclude("libinput.h");
 });
 
 pub const gl = @cImport({

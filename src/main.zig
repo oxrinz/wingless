@@ -65,6 +65,11 @@ const Focusable = union(enum) {
     }
 };
 
+pub const WinglessPointer = struct {
+    device: *c.wlr_input_device,
+    libinput: *c.libinput_device,
+};
+
 pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
@@ -95,6 +100,7 @@ pub const WinglessServer = struct {
     cursor_axis: c.wl_listener = undefined,
     cursor_frame: c.wl_listener = undefined,
 
+    pointers: std.ArrayList(*WinglessPointer) = .empty,
     keyboards: c.wl_list = undefined,
     new_input: c.wl_listener = undefined,
     seat: *c.wlr_seat = undefined,
@@ -103,6 +109,8 @@ pub const WinglessServer = struct {
     new_xwayland_surface: c.wl_listener = undefined,
 
     wingless_config: config.WinglessConfig = undefined,
+
+    env: std.process.EnvMap = undefined,
 
     allocator: std.mem.Allocator = undefined,
 
@@ -176,8 +184,13 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.xwayland.events.new_surface, &server.new_xwayland_surface);
 
         _ = c.setenv("DISPLAY", server.xwayland.display_name, 1);
+        _ = c.setenv("XDG_CURRENT_DESKTOP", "wingless", 1);
+        _ = c.setenv("XDG_SESSION_TYPE", "wayland", 1);
+        _ = c.setenv("XDG_SESSION_DESKTOP", "wingless", 1);
 
         server.wingless_config = conf;
+
+        server.env = std.process.getEnvMap(allocator) catch @panic("no env");
 
         server.allocator = allocator;
 
@@ -301,6 +314,7 @@ const WinglessXwayland = struct {
 
     associate: c.wl_listener,
     request_configure: c.wl_listener,
+    request_activate: c.wl_listener,
     map: c.wl_listener,
     unmap: c.wl_listener,
     commit: c.wl_listener,
@@ -323,6 +337,7 @@ const WinglessXwayland = struct {
 
         toplevel.associate = .{ .link = undefined, .notify = xwayland_surface_associate };
         toplevel.request_configure = .{ .link = undefined, .notify = xwayland_request_configure };
+        toplevel.request_activate = .{ .link = undefined, .notify = xwayland_request_activate };
 
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
         toplevel.unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap };
@@ -335,6 +350,7 @@ const WinglessXwayland = struct {
 
         c.wl_signal_add(&xsurface.events.associate, &toplevel.associate);
         c.wl_signal_add(&xsurface.events.request_configure, &toplevel.request_configure);
+        c.wl_signal_add(&xsurface.events.request_activate, &toplevel.request_activate);
         c.wl_signal_add(&xsurface.events.destroy, &toplevel.destroy);
 
         return toplevel;
@@ -384,6 +400,7 @@ const WinglessXwayland = struct {
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.associate.link);
         c.wl_list_remove(&self.request_configure.link);
+        c.wl_list_remove(&self.request_activate.link);
 
         self.remove();
 
@@ -716,13 +733,18 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     }
 }
 
+fn xwayland_request_activate(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_configure", listener)));
+    _ = xwl;
+}
+
 fn xwayland_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("destroy", listener)));
 
     xwl.deinit();
-    std.debug.print("destroy!\n", .{});
 }
 
 fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -734,6 +756,7 @@ fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) call
     c.wl_list_remove(&xwl.surface_destroy.link);
 
     xwl.remove();
+    c.wlr_seat_keyboard_clear_focus(xwl.server.seat);
 }
 
 fn server_new_xdg_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -879,9 +902,7 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                 std.heap.page_allocator,
             );
 
-            child.env_map = @constCast(&(std.process.getEnvMap(std.heap.page_allocator) catch @panic("env")));
-
-            std.debug.print("launching: {s}\n", .{name.*});
+            child.env_map = &server.env;
 
             child.spawn() catch @panic("App launch failed");
         },
@@ -898,6 +919,10 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         },
     }
 }
+
+//fn set_pointer_speed(server: *WinglessServer, speed: f64) void {
+//var it = server.
+////}
 
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
@@ -1014,6 +1039,13 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
         },
         c.WLR_INPUT_DEVICE_POINTER => {
             c.wlr_cursor_attach_input_device(server.cursor, device);
+
+            const pointer = server.allocator.create(WinglessPointer) catch @panic("out of memory");
+            pointer.* = .{
+                .device = device,
+                .libinput = c.wlr_libinput_get_device_handle(device) orelse return,
+            };
+            server.pointers.append(server.allocator, pointer) catch @panic("out of memory");
         },
         else => std.debug.print("unrecognized new input\n", .{}),
     }

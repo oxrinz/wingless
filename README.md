@@ -11,13 +11,13 @@ Minimal Wayland compositor without sacrificing beauty
 - Desktop app launching from beacon with icons - done
 - Test surface focus - done
 - Popup / toplevel destruction tests. Eliminate all known panics and crashes - done
-- XWayland
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - UI scaling, support different resolutions
 - Configuration
 - Support multiple monitors
 - Change volume with keyboard sliders
 - Make popups pop in the middle (steam, kicad)
+- Finish XWayland, no bugs, no crashes, no issues
 
 ## todo after mvp:
 - Beacon search using .desktop keywords
