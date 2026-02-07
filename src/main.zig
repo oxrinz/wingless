@@ -853,14 +853,12 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     const seat = server.seat;
 
     if (seat.pointer_state.button_count > 0) {
-        if (seat.pointer_state.focused_surface != null) {
-            c.wlr_seat_pointer_notify_motion(
-                seat,
-                time,
-                seat.pointer_state.sx,
-                seat.pointer_state.sy,
-            );
-        }
+        c.wlr_seat_pointer_notify_motion(
+            seat,
+            time,
+            seat.pointer_state.sx,
+            seat.pointer_state.sy,
+        );
         return;
     }
 
@@ -1309,6 +1307,34 @@ test "map map unmap change focus" {
 
     c.wl_surface_attach(toplevel.surface, null, 0, 0);
     c.wl_surface_commit(toplevel.surface);
+    tests.pump(server, client);
+
+    try std.testing.expect(server.focused_toplevel == null);
+
+    ctx.deinit();
+    std.testing.allocator.destroy(ctx);
+}
+
+test "destroy focus" {
+    const server = try testSetup();
+    defer server.deinit();
+
+    const client = c.wl_display_connect(null).?;
+    defer c.wl_display_disconnect(client);
+
+    tests.pump(server, client);
+
+    const ctx = try tests.getTestContext(std.testing.allocator, client, server);
+
+    const toplevel = try tests.createToplevel(server, ctx, client);
+
+    const client_surface_id = c.wl_proxy_get_id(@ptrCast(toplevel.surface.?));
+    const focused_id = tests.getServerFocusedSurfaceId(server);
+
+    try std.testing.expect(client_surface_id == focused_id);
+
+    c.wl_surface_destroy(toplevel.surface);
+
     tests.pump(server, client);
 
     try std.testing.expect(server.focused_toplevel == null);
