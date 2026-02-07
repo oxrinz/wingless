@@ -897,14 +897,17 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         },
         .launch_app => {
             const name: *[]const u8 = @ptrCast(@alignCast(args.?[0]));
-            var child = std.process.Child.init(
+            const child = std.process.Child.init(
                 &[_][]const u8{name.*},
                 std.heap.page_allocator,
             );
+            _ = child;
 
-            child.env_map = &server.env;
+            //child.env_map = &server.env;
 
-            child.spawn() catch @panic("App launch failed");
+            //child.spawn() catch @panic("App launch failed");
+
+            spawnCmd(&[_][]const u8{ "sh", "-lc", name.* });
         },
 
         .volume_down => spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" }),

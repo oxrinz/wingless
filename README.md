@@ -11,7 +11,7 @@ Minimal Wayland compositor without sacrificing beauty
 - Desktop app launching from beacon with icons - done
 - Test surface focus - done
 - Popup / toplevel destruction tests. Eliminate all known panics and crashes - done
-- Compositor icons (question mark or unknown icons, search icon, command icons)
+- Spotify working - done
 - UI scaling, support different resolutions
 - Configuration
 - Support multiple monitors
@@ -20,6 +20,7 @@ Minimal Wayland compositor without sacrificing beauty
 - Finish XWayland, no bugs, no crashes, no issues
 
 ## todo after mvp:
+- Compositor icons (question mark or unknown icons, search icon, command icons)
 - Beacon search using .desktop keywords
 - List open tabs when switching with a popup / beacon
 - Volume, time, etc in beacon
