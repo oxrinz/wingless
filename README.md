@@ -13,12 +13,13 @@ Minimal Wayland compositor without sacrificing beauty
 - Popup / toplevel destruction tests. Eliminate all known panics and crashes - done
 - Spotify working - done
 - Finish XWayland, no bugs, no crashes, no issues - done
+- Make popups pop in the middle (steam, kicad) - done
 - Configuration
 - UI scaling, support different resolutions
 - Show a popup that shows next / prev window
 - Support multiple monitors
 - Change volume with keyboard sliders
-- Make popups pop in the middle (steam, kicad)
+- Mouse dragging
 
 ## todo after mvp:
 - Compositor icons (question mark or unknown icons, search icon, command icons)

@@ -326,7 +326,6 @@ const WinglessXwayland = struct {
     request_configure: c.wl_listener,
     request_activate: c.wl_listener,
     map: c.wl_listener,
-    unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
     surface_destroy: c.wl_listener,
@@ -347,7 +346,6 @@ const WinglessXwayland = struct {
         toplevel.request_activate = .{ .link = undefined, .notify = xwayland_request_activate };
 
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
-        toplevel.unmap = .{ .link = undefined, .notify = xdg_toplevel_unmap };
         toplevel.commit = .{ .link = undefined, .notify = xdg_toplevel_commit };
         toplevel.destroy = .{ .link = undefined, .notify = xwayland_destroy };
         toplevel.surface_destroy = .{ .link = undefined, .notify = xwayland_surface_destroy };
@@ -654,6 +652,7 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
     c.wlr_scene_node_set_position(&xwl.scene_tree.?.node, xwl.xsurface.x, xwl.xsurface.y);
 
+    if (xwl.xsurface.override_redirect) return;
     xwl.insert();
     focus_toplevel(&xwl.focusable);
 }
@@ -748,9 +747,9 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
         c.wlr_output_effective_resolution(o, &w, &h);
 
         c.wlr_xwayland_surface_configure(xwl.xsurface, 0, 0, @intCast(w), @intCast(h));
-    } else {}
-
-    c.wlr_xwayland_surface_configure(xwl.xsurface, ev.x, ev.y, ev.width, ev.height);
+    } else {
+        c.wlr_xwayland_surface_configure(xwl.xsurface, ev.x, ev.y, ev.width, ev.height);
+    }
 
     if (xwl.scene_tree) |tree| {
         c.wlr_scene_node_set_position(&tree.node, ev.x, ev.y);
@@ -851,9 +850,22 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
 }
 
 fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
+    const seat = server.seat;
+
+    if (seat.pointer_state.button_count > 0) {
+        if (seat.pointer_state.focused_surface != null) {
+            c.wlr_seat_pointer_notify_motion(
+                seat,
+                time,
+                seat.pointer_state.sx,
+                seat.pointer_state.sy,
+            );
+        }
+        return;
+    }
+
     var sx: f64 = undefined;
     var sy: f64 = undefined;
-    const seat = server.seat;
     var surface: [*c]c.wlr_surface = null;
     const toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
