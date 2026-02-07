@@ -513,7 +513,7 @@ const WinglessToplevel = struct {
         next.setPrev(prev);
     }
 
-    pub fn deinit(self: *WinglessToplevel) void {
+    pub fn destroyToplevelSurface(self: *WinglessToplevel) void {
         std.debug.print("deiniting but wayland not xwayland\n", .{});
         if (self.next != null or self.prev != null) {
             self.remove();
@@ -521,7 +521,6 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.map.link);
         c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
-        c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.surface_destroy.link);
     }
 };
@@ -704,15 +703,18 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
 fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    std.debug.print("bruh destroying\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("surface_destroy", listener)));
-    toplevel.deinit();
+
+    toplevel.xdg_toplevel = null;
+    toplevel.destroyToplevelSurface();
 }
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
-    toplevel.xdg_toplevel = null;
     c.wl_list_remove(&toplevel.destroy.link);
+    toplevel.server.allocator.destroy(toplevel);
 }
 
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
