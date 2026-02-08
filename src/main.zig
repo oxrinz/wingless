@@ -464,8 +464,6 @@ const WinglessToplevel = struct {
             // toplevel's lifetime can be shorter than the surface's, so we separate the destroys into 2 to let commit listeners know the toplevel doesn't exist
             c.wl_signal_add(&surface.events.destroy, &toplevel.surface_destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
-
-            std.debug.print("initing bithcv\n", .{});
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -473,6 +471,12 @@ const WinglessToplevel = struct {
         surface.data = toplevel.scene_tree;
 
         return toplevel;
+    }
+
+    pub fn getSurfceId(self: *WinglessToplevel) u32 {
+        const server_surface: *c.wlr_xdg_surface = @ptrCast(self.xdg_toplevel.?.base.?);
+        const wlr_surface: *c.wlr_surface = @ptrCast(server_surface.surface.?);
+        return c.wl_resource_get_id(wlr_surface.resource);
     }
 
     pub fn insert(self: *WinglessToplevel) void {
@@ -496,6 +500,9 @@ const WinglessToplevel = struct {
         if (self.next == null and self.prev == null) return;
         if (self.next == null or self.prev == null) @panic("one of topleve's prev or next is null and the other one isn't, this should never happen");
 
+        std.debug.print("ooo yea im in\n", .{});
+        std.debug.print("ooo yea im in this bitch specifically: {any}\n", .{self});
+
         const server = self.server;
         const me = &self.focusable;
         const prev = self.prev.?;
@@ -503,6 +510,7 @@ const WinglessToplevel = struct {
 
         if (server.focused_toplevel) |f| {
             if (f.cmp(me)) {
+                std.debug.print("bruh inside yeah {any}\n", .{prev.xdg.getSurfceId()});
                 if (!prev.cmp(me)) {
                     server.focused_toplevel = prev;
                     focus_toplevel(prev);
@@ -514,13 +522,14 @@ const WinglessToplevel = struct {
 
         prev.setNext(next);
         next.setPrev(prev);
+
+        self.prev = null;
+        self.next = null;
     }
 
     pub fn destroyToplevelSurface(self: *WinglessToplevel) void {
-        std.debug.print("deiniting but wayland not xwayland\n", .{});
-        if (self.next != null or self.prev != null) {
-            self.remove();
-        }
+        if (self.next != null or self.prev != null) self.remove();
+
         c.wl_list_remove(&self.map.link);
         c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
@@ -585,6 +594,7 @@ fn tab_prev(server: *WinglessServer) void {
 }
 
 fn focus_toplevel(focusable: *Focusable) void {
+    std.debug.print("focusing\n", .{});
     const server = focusable.server();
 
     const seat = server.seat;
@@ -660,8 +670,9 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 }
 
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    std.debug.print("map!\n", .{});
     _ = data;
+
+    std.debug.print("mapping\n", .{});
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
     toplevel.insert();
@@ -670,6 +681,7 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    std.debug.print("unmapping\n", .{});
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("unmap", listener)));
     toplevel.remove();
@@ -707,7 +719,6 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 // the wl surface must be destroyed after its role, this is defined by the protocol
 fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("bruh destroying surface\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("surface_destroy", listener)));
 
     c.wl_list_remove(&toplevel.surface_destroy.link);
@@ -716,7 +727,7 @@ fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) 
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("bruh destroying just destroying\n", .{});
+    std.debug.print("yea bitch dstroying\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
     toplevel.xdg_toplevel = null;
     toplevel.destroyToplevelSurface();
@@ -1353,7 +1364,6 @@ test "destroy focus" {
     const focused_id = tests.getServerFocusedSurfaceId(server);
 
     tests.pump(server, client);
-    tests.pump(server, client);
 
     try std.testing.expect(client_surface_id == focused_id);
 
@@ -1367,10 +1377,56 @@ test "destroy focus" {
     std.testing.allocator.destroy(ctx);
 }
 
-test "globals" {
+test "keyboard focus" {
     const server = try testSetup();
     defer server.deinit();
 
-    const client = c.wl_display_connect(null).?;
-    _ = client;
+    const client1 = c.wl_display_connect(null).?;
+    const client2 = c.wl_display_connect(null).?;
+    defer c.wl_display_disconnect(client1);
+    defer c.wl_display_disconnect(client2);
+
+    tests.pump(server, client1);
+    tests.pump(server, client2);
+
+    const ctx1 = try tests.getTestContext(std.testing.allocator, client1, server);
+    const ctx2 = try tests.getTestContext(std.testing.allocator, client2, server);
+    defer ctx1.deinit();
+    defer ctx2.deinit();
+
+    const tl1 = try tests.createToplevel(server, ctx1, client1);
+    _ = tl1;
+    tests.pump(server, client1);
+    //const wtl1 = server.focused_toplevel.?.xdg;
+
+    std.debug.print("tl1 {any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
+
+    const tl2 = try tests.createToplevel(server, ctx2, client2);
+    //_ = tl2;
+    tests.pump(server, client2);
+    //const wtl2 = server.focused_toplevel.?.xdg;
+
+    std.debug.print("tl2 {any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
+
+    c.wl_surface_destroy(tl2.surface);
+    tests.pump(server, client2);
+    tests.pump(server, client2);
+    tests.pump(server, client2);
+    tests.pump(server, client2);
+
+    std.debug.print("{any}\n", .{server.focused_toplevel});
+    std.debug.print("{any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
+
+    const wlr_surface: ?*c.wlr_surface = server.seat.keyboard_state.focused_surface;
+    const xdg_surface: *c.wlr_xdg_surface = server.focused_toplevel.?.xdg.xdg_toplevel.?.base.?;
+
+    // const keyboard_id = c.wl_resource_get_id(wlr_surface.resource);
+    // const focused_id = c.wl_resource_get_id(wlr_surface.resource);
+
+    std.debug.print("{any} - {any}\n", .{ wlr_surface, xdg_surface.surface });
+
+    try std.testing.expect(xdg_surface.surface == wlr_surface);
+
+    std.testing.allocator.destroy(ctx1);
+    std.testing.allocator.destroy(ctx2);
 }

@@ -58,6 +58,7 @@ pub fn build(b: *std.Build) void {
 
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
+        .filters = b.args orelse &.{},
     });
 
     const run_exe_tests = b.addRunArtifact(exe_tests);
