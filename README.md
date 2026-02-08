@@ -14,7 +14,7 @@ Minimal Wayland compositor without sacrificing beauty
 - Spotify working - done
 - Finish XWayland, no bugs, no crashes, no issues - done
 - Make popups pop in the middle (steam, kicad) - done
-- Configuration
+- Configuration - done
 - UI scaling, support different resolutions
 - Show a popup that shows next / prev window
 - Support multiple monitors
@@ -27,3 +27,5 @@ Minimal Wayland compositor without sacrificing beauty
 - List open tabs when switching with a popup / beacon
 - Volume, time, etc in beacon
 - Volume changing popup
+- Don't render windows that are behind one another
+- Tab chooser on super key

@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const config = @import("config.zig");
+const WinglessConfig = config.WinglessConfig;
 const utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const ui = @import("ui.zig");
@@ -925,6 +926,14 @@ fn spawnCmd(argv: []const []const u8) void {
     child.spawn() catch {};
 }
 
+fn applyConfig(server: *WinglessServer, conf: *const WinglessConfig) !void {
+    std.debug.print("applying config\n", .{});
+    for (server.pointers.items) |pointer| {
+        std.debug.print("SETTING SENSITIVITY: {any}\n", .{conf.pointer_sensitivity});
+        _ = c.libinput_device_config_accel_set_speed(pointer.libinput, conf.pointer_sensitivity);
+    }
+}
+
 fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server: *WinglessServer) void {
     switch (function) {
         .tab_next => tab_next(server),
@@ -971,6 +980,8 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
         const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
+
+        // handle keybind
         if (0 < (modifiers & c.WLR_MODIFIER_LOGO)) {
             for (0..@intCast(nsyms)) |i| {
                 const sym = syms[i];
@@ -985,6 +996,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             }
         }
 
+        // handle beacon input
         if (ui.beacon_open == true and handled == false) {
             for (0..@intCast(nsyms)) |i| {
                 const sym = syms[i];
@@ -1079,6 +1091,7 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
                 .libinput = c.wlr_libinput_get_device_handle(device) orelse return,
             };
             server.pointers.append(server.allocator, pointer) catch @panic("out of memory");
+            std.debug.print("added a pointer!\n", .{});
         },
         else => std.debug.print("unrecognized new input\n", .{}),
     }
@@ -1244,6 +1257,8 @@ pub fn main() !void {
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+
+    try applyConfig(server, &conf);
 
     c.wl_display_run(server.display);
 

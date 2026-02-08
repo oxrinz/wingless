@@ -19,6 +19,7 @@ pub const Keybind = struct {
 };
 
 pub const WinglessConfig = struct {
+    pointer_sensitivity: f64 = 1,
     keybinds: []Keybind,
 };
 
@@ -57,9 +58,40 @@ fn readNextToken(allocator: std.mem.Allocator, line: []const u8) !struct { token
     };
 }
 
-// fn readLine(line: []const u8) !Keybind {}
-
 pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
+
+    // read config file
+    const cwd = std.fs.cwd();
+    //const file = try cwd.openFile("~/.config/wingless/config", .{});
+    const home = try std.process.getEnvVarOwned(allocator, "HOME");
+    const path = try std.fmt.allocPrint(allocator, "{s}/.wingless", .{home});
+    const file = try cwd.openFile(path, .{});
+    const data = try file.readToEndAlloc(allocator, 16 * 1024);
+    file.close();
+
+    var config = try allocator.create(WinglessConfig);
+
+    // parse config
+    var it = std.mem.splitScalar(u8, data, '\n');
+    while (it.next()) |line_raw| {
+        const line = std.mem.trim(u8, line_raw, " \t\r");
+        if (line.len == 0) continue;
+
+        if (std.mem.startsWith(u8, line, "POINTER_SENSITIVITY")) {
+            const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
+            const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+
+            const value_str = std.mem.trim(
+                u8,
+                line[eq + 1 .. semi],
+                " \t",
+            );
+
+            config.pointer_sensitivity = try std.fmt.parseFloat(f64, value_str);
+        }
+    }
+
+    // keybinds
     var keybinds = try allocator.alloc(Keybind, 6);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
@@ -67,7 +99,10 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
     keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up };
     keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down };
-    return .{ .keybinds = keybinds };
+
+    config.keybinds = keybinds;
+
+    return config.*;
 }
 
 test "one line lexer" {

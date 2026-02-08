@@ -24,6 +24,7 @@ pub fn build(b: *std.Build) void {
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/xdg-shell-protocol.c" } });
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "src/stb_impl.c" } });
+    exe.linkSystemLibrary("libinput");
     exe.linkSystemLibrary("xcb");
     exe.linkSystemLibrary("GLESv2");
     exe.linkSystemLibrary("EGL");
