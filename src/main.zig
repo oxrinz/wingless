@@ -120,8 +120,10 @@ pub const WinglessServer = struct {
     new_input: c.wl_listener = undefined,
     seat: *c.wlr_seat = undefined,
 
-    request_start_drag: *c.wl_listener,
-    request_set_selection: *c.wl_listener,
+    request_start_drag: c.wl_listener = undefined,
+
+    active_drag: ?*c.wlr_drag = null,
+    drag_destroy: c.wl_listener = undefined,
 
     xwayland: *c.wlr_xwayland = undefined,
     new_xwayland_surface: c.wl_listener = undefined,
@@ -192,10 +194,9 @@ pub const WinglessServer = struct {
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
         server.request_start_drag = .{ .link = undefined, .notify = seat_request_start_drag };
-        server.request_set_selection = .{ .link = undefined, .notify = seat_request_set_selection };
+        server.drag_destroy = .{ .link = undefined, .notify = drag_destroy };
 
         c.wl_signal_add(&server.seat.events.request_start_drag, &server.request_start_drag);
-        c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
 
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
         c.wlr_xwayland_set_seat(server.xwayland, server.seat);
@@ -232,7 +233,6 @@ pub const WinglessServer = struct {
         c.wl_list_remove(&self.new_output.link);
 
         c.wl_list_remove(&self.request_start_drag.link);
-        c.wl_list_remove(&self.request_set_selection.link);
 
         c.wl_list_remove(&self.new_xwayland_surface.link);
 
@@ -585,6 +585,30 @@ fn close_focused_toplevel(server: *WinglessServer) void {
         .xdg => |xdg| c.wlr_xdg_toplevel_send_close(xdg.xdg_toplevel),
         .xwayland => |xwl| c.wlr_xwayland_surface_close(xwl.xsurface),
     }
+}
+
+fn drag_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("drag_destroy", listener)));
+
+    server.active_drag = null;
+}
+
+fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_start_drag", listener)));
+
+    const event: *c.wlr_seat_request_start_drag_event = @ptrCast(@alignCast(data.?));
+
+    if (!c.wlr_seat_validate_pointer_grab_serial(server.seat, event.origin, event.serial)) {
+        return;
+    }
+
+    c.wlr_seat_start_drag(server.seat, event.drag, event.serial);
+
+    server.active_drag = event.drag;
+
+    const drag: *c.wlr_drag = @ptrCast(event.drag);
+    c.wl_signal_add(&drag.events.destroy, &server.drag_destroy);
 }
 
 fn tab_next(server: *WinglessServer) void {
