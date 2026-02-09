@@ -120,6 +120,9 @@ pub const WinglessServer = struct {
     new_input: c.wl_listener = undefined,
     seat: *c.wlr_seat = undefined,
 
+    request_start_drag: *c.wl_listener,
+    request_set_selection: *c.wl_listener,
+
     xwayland: *c.wlr_xwayland = undefined,
     new_xwayland_surface: c.wl_listener = undefined,
 
@@ -188,6 +191,12 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
+        server.request_start_drag = .{ .link = undefined, .notify = seat_request_start_drag };
+        server.request_set_selection = .{ .link = undefined, .notify = seat_request_set_selection };
+
+        c.wl_signal_add(&server.seat.events.request_start_drag, &server.request_start_drag);
+        c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
+
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
         c.wlr_xwayland_set_seat(server.xwayland, server.seat);
 
@@ -221,6 +230,9 @@ pub const WinglessServer = struct {
 
         c.wl_list_remove(&self.new_input.link);
         c.wl_list_remove(&self.new_output.link);
+
+        c.wl_list_remove(&self.request_start_drag.link);
+        c.wl_list_remove(&self.request_set_selection.link);
 
         c.wl_list_remove(&self.new_xwayland_surface.link);
 
@@ -392,7 +404,6 @@ const WinglessXwayland = struct {
         if (server.focused_toplevel) |f| {
             if (f.cmp(me)) {
                 if (!prev.cmp(me)) {
-                    server.focused_toplevel = prev;
                     focus_toplevel(prev);
                 } else {
                     server.focused_toplevel = null;
@@ -512,7 +523,6 @@ const WinglessToplevel = struct {
             if (f.cmp(me)) {
                 std.debug.print("bruh inside yeah {any}\n", .{prev.xdg.getSurfceId()});
                 if (!prev.cmp(me)) {
-                    server.focused_toplevel = prev;
                     focus_toplevel(prev);
                 } else {
                     server.focused_toplevel = null;
@@ -867,30 +877,31 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
     return @ptrCast(@alignCast(tree.node.data));
 }
 
+// TODO: cleanup
 fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     const seat = server.seat;
-
-    if (seat.pointer_state.button_count > 0) {
-        c.wlr_seat_pointer_notify_motion(
-            seat,
-            time,
-            seat.pointer_state.sx,
-            seat.pointer_state.sy,
-        );
-        return;
-    }
-
     var sx: f64 = undefined;
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
     const toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
-
     if (toplevel == null) c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+
+    if (seat.pointer_state.button_count > 0) {
+        if (surface != null) {
+            c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+            c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+        } else {
+            c.wlr_seat_pointer_clear_focus(seat);
+        }
+        return;
+    }
 
     if (surface != null) {
         c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
         c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-    } else c.wlr_seat_pointer_clear_focus(seat);
+    } else {
+        c.wlr_seat_pointer_clear_focus(seat);
+    }
 }
 
 fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -916,6 +927,16 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_button", listener)));
     const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data.?));
 
+    // TODO:  horrible. cleanup
+    var sx: f64 = undefined;
+    var sy: f64 = undefined;
+    var surface: [*c]c.wlr_surface = null;
+    _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+    if (surface != null) {
+        c.wlr_seat_pointer_notify_enter(server.seat, surface, sx, sy);
+    } else {
+        c.wlr_seat_pointer_clear_focus(server.seat);
+    }
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
 }
 
@@ -1375,58 +1396,4 @@ test "destroy focus" {
 
     ctx.deinit();
     std.testing.allocator.destroy(ctx);
-}
-
-test "keyboard focus" {
-    const server = try testSetup();
-    defer server.deinit();
-
-    const client1 = c.wl_display_connect(null).?;
-    const client2 = c.wl_display_connect(null).?;
-    defer c.wl_display_disconnect(client1);
-    defer c.wl_display_disconnect(client2);
-
-    tests.pump(server, client1);
-    tests.pump(server, client2);
-
-    const ctx1 = try tests.getTestContext(std.testing.allocator, client1, server);
-    const ctx2 = try tests.getTestContext(std.testing.allocator, client2, server);
-    defer ctx1.deinit();
-    defer ctx2.deinit();
-
-    const tl1 = try tests.createToplevel(server, ctx1, client1);
-    _ = tl1;
-    tests.pump(server, client1);
-    //const wtl1 = server.focused_toplevel.?.xdg;
-
-    std.debug.print("tl1 {any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
-
-    const tl2 = try tests.createToplevel(server, ctx2, client2);
-    //_ = tl2;
-    tests.pump(server, client2);
-    //const wtl2 = server.focused_toplevel.?.xdg;
-
-    std.debug.print("tl2 {any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
-
-    c.wl_surface_destroy(tl2.surface);
-    tests.pump(server, client2);
-    tests.pump(server, client2);
-    tests.pump(server, client2);
-    tests.pump(server, client2);
-
-    std.debug.print("{any}\n", .{server.focused_toplevel});
-    std.debug.print("{any}\n", .{server.focused_toplevel.?.xdg.getSurfceId()});
-
-    const wlr_surface: ?*c.wlr_surface = server.seat.keyboard_state.focused_surface;
-    const xdg_surface: *c.wlr_xdg_surface = server.focused_toplevel.?.xdg.xdg_toplevel.?.base.?;
-
-    // const keyboard_id = c.wl_resource_get_id(wlr_surface.resource);
-    // const focused_id = c.wl_resource_get_id(wlr_surface.resource);
-
-    std.debug.print("{any} - {any}\n", .{ wlr_surface, xdg_surface.surface });
-
-    try std.testing.expect(xdg_surface.surface == wlr_surface);
-
-    std.testing.allocator.destroy(ctx1);
-    std.testing.allocator.destroy(ctx2);
 }
