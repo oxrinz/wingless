@@ -592,6 +592,7 @@ fn drag_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("drag_destroy", listener)));
 
     server.active_drag = null;
+    c.wl_list_remove(&server.drag_destroy.link);
 }
 
 fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -599,16 +600,16 @@ fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     const event: *c.wlr_seat_request_start_drag_event = @ptrCast(@alignCast(data.?));
 
     const drag: *c.wlr_drag = @ptrCast(event.drag);
-    _ = c.wlr_scene_drag_icon_create(&server.scene.tree, drag.icon);
+    const icon: *c.wlr_scene_tree = c.wlr_scene_drag_icon_create(&server.scene.tree, drag.icon);
+    c.wlr_scene_node_set_position(&icon.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
 
     if (!c.wlr_seat_validate_pointer_grab_serial(server.seat, event.origin, event.serial)) {
-        return;
+        //return;
     }
 
-    c.wlr_seat_start_drag(server.seat, event.drag, event.serial);
-
+    c.wlr_seat_start_pointer_drag(server.seat, event.drag, event.serial);
+    //c.wlr_seat_start_drag(server.seat, event.drag, event.serial);
     server.active_drag = event.drag;
-
     c.wl_signal_add(&drag.events.destroy, &server.drag_destroy);
 }
 
@@ -912,19 +913,15 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
     if (server.active_drag != null) {
+        c.wlr_seat_pointer_notify_motion(seat, time, server.cursor.x, server.cursor.y);
+        return;
+    } else {
         if (surface != null) {
             c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+            c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+        } else if (server.active_drag == null) {
+            c.wlr_seat_pointer_clear_focus(seat);
         }
-
-        c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-        return;
-    }
-
-    if (surface != null) {
-        c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-        c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-    } else {
-        c.wlr_seat_pointer_clear_focus(seat);
     }
 }
 
