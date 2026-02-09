@@ -596,8 +596,10 @@ fn drag_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
 fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_start_drag", listener)));
-
     const event: *c.wlr_seat_request_start_drag_event = @ptrCast(@alignCast(data.?));
+
+    const drag: *c.wlr_drag = @ptrCast(event.drag);
+    _ = c.wlr_scene_drag_icon_create(&server.scene.tree, drag.icon);
 
     if (!c.wlr_seat_validate_pointer_grab_serial(server.seat, event.origin, event.serial)) {
         return;
@@ -607,7 +609,6 @@ fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 
     server.active_drag = event.drag;
 
-    const drag: *c.wlr_drag = @ptrCast(event.drag);
     c.wl_signal_add(&drag.events.destroy, &server.drag_destroy);
 }
 
@@ -907,16 +908,15 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var sx: f64 = undefined;
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
-    const toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
-    if (toplevel == null) c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
 
-    if (seat.pointer_state.button_count > 0) {
+    _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+
+    if (server.active_drag != null) {
         if (surface != null) {
             c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-            c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
-        } else {
-            c.wlr_seat_pointer_clear_focus(seat);
         }
+
+        c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
         return;
     }
 
@@ -950,6 +950,11 @@ fn server_cursor_motion_absolute(listener: [*c]c.wl_listener, data: ?*anyopaque)
 fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_button", listener)));
     const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data.?));
+
+    if (server.active_drag != null) {
+        _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+        return;
+    }
 
     // TODO:  horrible. cleanup
     var sx: f64 = undefined;
