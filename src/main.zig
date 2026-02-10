@@ -105,6 +105,7 @@ pub const WinglessServer = struct {
     new_xdg_surface: c.wl_listener = undefined,
     new_xdg_toplevel: c.wl_listener = undefined,
     new_xdg_popup: c.wl_listener = undefined,
+    xdg_popup_reposition: c.wl_listener = undefined,
     focused_toplevel: ?*Focusable = null,
 
     cursor: *c.wlr_cursor = undefined,
@@ -162,6 +163,7 @@ pub const WinglessServer = struct {
 
         server.new_xdg_toplevel = .{ .link = undefined, .notify = server_new_xdg_toplevel };
         server.new_xdg_popup = .{ .link = undefined, .notify = server_new_xdg_popup };
+        server.xdg_popup_reposition = .{ .link = undefined, .notify = xdg_popup_reposition };
         server.new_xdg_surface = .{ .link = undefined, .notify = server_new_xdg_surface };
         c.wl_signal_add(&server.xdg_shell.events.new_surface, &server.new_xdg_surface);
         c.wl_signal_add(&server.xdg_shell.events.new_toplevel, &server.new_xdg_toplevel);
@@ -545,14 +547,16 @@ const WinglessToplevel = struct {
 };
 
 const WinglessPopup = struct {
+    server: *WinglessServer,
     xdg_popup: *c.wlr_xdg_popup,
     commit: c.wl_listener,
     destroy: c.wl_listener,
 
-    pub fn init(allocator: std.mem.Allocator, xdg_popup: *c.wlr_xdg_popup) !*WinglessPopup {
+    pub fn init(allocator: std.mem.Allocator, xdg_popup: *c.wlr_xdg_popup, server: *WinglessServer) !*WinglessPopup {
         const popup = try allocator.create(WinglessPopup);
 
         popup.* = .{
+            .server = server,
             .xdg_popup = xdg_popup,
             .commit = .{ .link = undefined, .notify = xdg_popup_commit },
             .destroy = .{ .link = undefined, .notify = xdg_popup_destroy },
@@ -850,7 +854,15 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
 
+    c.wl_list_remove(&popup.server.xdg_popup_reposition.link);
     popup.deinit();
+}
+
+fn xdg_popup_reposition(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
+
+    _ = c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
 }
 
 fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -866,16 +878,28 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_popup", listener)));
 
     const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data));
-    const popup = WinglessPopup.init(server.allocator, xdg_popup) catch @panic("Out of memory");
+    const popup = WinglessPopup.init(server.allocator, xdg_popup, server) catch @panic("Out of memory");
 
     const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
     const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
     const base: *c.wlr_xdg_surface = xdg_popup.base.?;
+    _ = base;
     const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
-    base.data = tree;
+
+    const box = c.wlr_box{
+        .x = 0,
+        .y = 0,
+        .width = 1,
+        .height = 1,
+    };
+
+    c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
     _ = c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
 
     c.wlr_scene_node_raise_to_top(&tree.node);
+    c.wlr_scene_node_set_enabled(&tree.node, true);
+
+    c.wl_signal_add(&xdg_popup.events.reposition, &server.xdg_popup_reposition);
 }
 
 fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *[*c]c.wlr_surface, sx: *f64, sy: *f64) ?*WinglessToplevel {
@@ -896,7 +920,8 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
 
     const wlr_tree = node.parent;
     var tree: *c.wlr_scene_tree = wlr_tree;
-    while (wlr_tree != null and tree.node.data != null) {
+    while (wlr_tree != null) {
+        if (tree.node.data != null) break;
         tree = tree.node.parent;
     }
     return @ptrCast(@alignCast(tree.node.data));
