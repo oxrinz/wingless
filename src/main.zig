@@ -123,6 +123,7 @@ pub const WinglessServer = struct {
     request_start_drag: c.wl_listener = undefined,
 
     active_drag: ?*c.wlr_drag = null,
+    drag_icon: ?*c.wlr_scene_tree = null,
     drag_destroy: c.wl_listener = undefined,
 
     xwayland: *c.wlr_xwayland = undefined,
@@ -511,9 +512,6 @@ const WinglessToplevel = struct {
         if (self.next == null and self.prev == null) return;
         if (self.next == null or self.prev == null) @panic("one of topleve's prev or next is null and the other one isn't, this should never happen");
 
-        std.debug.print("ooo yea im in\n", .{});
-        std.debug.print("ooo yea im in this bitch specifically: {any}\n", .{self});
-
         const server = self.server;
         const me = &self.focusable;
         const prev = self.prev.?;
@@ -521,7 +519,6 @@ const WinglessToplevel = struct {
 
         if (server.focused_toplevel) |f| {
             if (f.cmp(me)) {
-                std.debug.print("bruh inside yeah {any}\n", .{prev.xdg.getSurfceId()});
                 if (!prev.cmp(me)) {
                     focus_toplevel(prev);
                 } else {
@@ -600,8 +597,8 @@ fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     const event: *c.wlr_seat_request_start_drag_event = @ptrCast(@alignCast(data.?));
 
     const drag: *c.wlr_drag = @ptrCast(event.drag);
-    const icon: *c.wlr_scene_tree = c.wlr_scene_drag_icon_create(&server.scene.tree, drag.icon);
-    c.wlr_scene_node_set_position(&icon.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
+    server.drag_icon = c.wlr_scene_drag_icon_create(&server.scene.tree, drag.icon);
+    c.wlr_scene_node_set_position(&server.drag_icon.?.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
 
     if (!c.wlr_seat_validate_pointer_grab_serial(server.seat, event.origin, event.serial)) {
         //return;
@@ -913,7 +910,11 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
     if (server.active_drag != null) {
-        c.wlr_seat_pointer_notify_motion(seat, time, server.cursor.x, server.cursor.y);
+        if (server.drag_icon) |icon| {
+            c.wlr_scene_node_set_position(&icon.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
+        }
+        c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+        c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
         return;
     } else {
         if (surface != null) {

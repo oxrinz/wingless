@@ -16,7 +16,7 @@ Minimal Wayland compositor without sacrificing beauty
 - Make popups pop in the middle (steam, kicad) - done
 - Configuration - done
 - Mouse dragging - done
-- Drag and drop
+- Drag and drop - done
 - UI scaling, support different resolutions
 - Show a popup that shows next / prev window
 - Support multiple monitors
