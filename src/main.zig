@@ -848,7 +848,6 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
 fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    std.debug.print("destroyed popup\n", .{});
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
 
     popup.deinit();
@@ -856,24 +855,27 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
 fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("popup commited\n", .{});
 
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
+    _ = popup;
 
-    const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
-    _ = if (base.initial_commit) c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
+    //const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
 }
 
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xdg_popup", listener)));
 
     const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data));
-    _ = WinglessPopup.init(server.allocator, xdg_popup) catch @panic("Out of memory");
+    const popup = WinglessPopup.init(server.allocator, xdg_popup) catch @panic("Out of memory");
 
     const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
     const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
     const base: *c.wlr_xdg_surface = xdg_popup.base.?;
-    base.data = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
+    const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
+    base.data = tree;
+    _ = c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
+
+    c.wlr_scene_node_raise_to_top(&tree.node);
 }
 
 fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *[*c]c.wlr_surface, sx: *f64, sy: *f64) ?*WinglessToplevel {

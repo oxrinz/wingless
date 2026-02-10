@@ -18,11 +18,12 @@ Minimal Wayland compositor without sacrificing beauty
 - Mouse dragging - done
 - Drag and drop - done
 - UI scaling, support different resolutions
-- Show a popup that shows next / prev window
 - Support multiple monitors
 - Change volume with keyboard sliders
 
 ## todo after mvp:
+- Screenshotting
+- Show a popup that shows next / prev window
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - Beacon search using .desktop keywords
 - List open tabs when switching with a popup / beacon
