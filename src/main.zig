@@ -869,10 +869,12 @@ fn xdg_popup_reposition(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("reposition", listener)));
 
     if (popup.scene_tree) |tree| {
-        c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
+        _ = tree;
+        //c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
     }
 
-    _ = c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
+    const base: *c.wlr_xdg_surface = popup.xdg_popup.base orelse return;
+    if (!base.initialized) return;
 }
 
 fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -881,7 +883,8 @@ fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
 
     if (popup.scene_tree) |tree| {
-        c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
+        _ = tree;
+        //c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
     }
 
     //const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
@@ -900,15 +903,19 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
     popup.scene_tree = tree;
 
+    const o = c.wlr_output_layout_get_center_output(server.output_layout);
+    var w: c_int = 0;
+    var h: c_int = 0;
+    c.wlr_output_effective_resolution(o, &w, &h);
+
     const box = c.wlr_box{
         .x = 0,
         .y = 0,
-        .width = 1,
-        .height = 1,
+        .width = w,
+        .height = h,
     };
 
     c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
-    _ = c.wlr_xdg_surface_schedule_configure(popup.xdg_popup.base);
 
     c.wlr_scene_node_raise_to_top(&tree.node);
     c.wlr_scene_node_set_enabled(&tree.node, true);
@@ -1206,6 +1213,8 @@ const SceneRenderCtx = struct {
     pass: *c.wlr_render_pass,
 };
 
+var g_draw_idx: u32 = 0;
+
 fn render_scene_buffer_iter(
     scene_buf: [*c]c.wlr_scene_buffer,
     sx: c_int,
@@ -1215,7 +1224,20 @@ fn render_scene_buffer_iter(
     const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
     const fixed_scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf.?));
 
-    const tex = c.wlr_texture_from_buffer(ctx.renderer, fixed_scene_buf.buffer) orelse return;
+    std.debug.print("render_iter[{}]: pos=({}, {}) size={}x{} opacity={d:.2} transform={} buf={}\n", .{
+        g_draw_idx,
+        sx,
+        sy,
+        fixed_scene_buf.dst_width,
+        fixed_scene_buf.dst_height,
+        fixed_scene_buf.opacity,
+        fixed_scene_buf.transform,
+        @intFromPtr(fixed_scene_buf.buffer),
+    });
+
+    const tex: *c.wlr_texture = c.wlr_texture_from_buffer(ctx.renderer, fixed_scene_buf.buffer) orelse return;
+
+    std.debug.print("  tex: {}x{}\n", .{ tex.width, tex.height });
 
     const dst = c.wlr_box{
         .x = sx,
@@ -1236,10 +1258,13 @@ fn render_scene_buffer_iter(
 
     c.wlr_render_pass_add_texture(ctx.pass, &opts);
     c.wlr_texture_destroy(tex);
+
+    g_draw_idx += 1;
 }
 
 fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
+    g_draw_idx = 0;
     const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("frame", listener)));
     const server = output.server;
     const scene = output.server.scene;
@@ -1265,38 +1290,46 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         output.scene_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.ui_gl_fmt));
     }
 
-    // render scene onto scene buffer
-    const scene_pass = c.wlr_renderer_begin_buffer_pass(
-        server.renderer,
-        output.scene_buffer.?,
-        null,
-    ) orelse return;
+    if (state.buffer) |buf| {
+        if (c.wlr_texture_from_buffer(server.renderer, buf)) |tex| {
+            if (c.wlr_renderer_begin_buffer_pass(server.renderer, output.scene_buffer.?, null)) |pass| {
+                c.wlr_render_pass_add_texture(pass, &.{
+                    .texture = tex,
+                    .dst_box = .{ .x = 0, .y = 0, .width = w, .height = h },
+                    .src_box = .{},
+                    .alpha = null,
+                    .transform = c.WL_OUTPUT_TRANSFORM_NORMAL,
+                    .filter_mode = c.WLR_SCALE_FILTER_BILINEAR,
+                    .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
+                });
+                _ = c.wlr_render_pass_submit(pass);
+            }
+            c.wlr_texture_destroy(tex);
+        }
+    }
 
-    var ctx = SceneRenderCtx{
-        .renderer = server.renderer,
-        .pass = scene_pass,
-    };
-
-    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
-
-    _ = c.wlr_render_pass_submit(scene_pass);
-
-    // start output pass
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
-    // render scene to output
-    // TODO: reuse existing scene buffer
-    var out_ctx = SceneRenderCtx{
-        .renderer = server.renderer,
-        .pass = out_pass,
-    };
+    if (c.wlr_texture_from_buffer(server.renderer, output.scene_buffer.?)) |tex| {
+        c.wlr_render_pass_add_texture(out_pass, &.{
+            .texture = tex,
+            .dst_box = .{ .x = 0, .y = 0, .width = w, .height = h },
+            .src_box = .{},
+            .alpha = null,
+            .transform = c.WL_OUTPUT_TRANSFORM_NORMAL,
+            .filter_mode = c.WLR_SCALE_FILTER_BILINEAR,
+            .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
+        });
 
-    c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &out_ctx);
+        ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
 
-    // render ui
-    ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
+        _ = c.wlr_render_pass_submit(out_pass);
+        c.wlr_texture_destroy(tex);
+    } else {
+        ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
+        _ = c.wlr_render_pass_submit(out_pass);
+    }
 
-    _ = c.wlr_render_pass_submit(out_pass);
     _ = c.wlr_output_commit_state(output.output, &state);
 
     var now: c.timespec = undefined;
