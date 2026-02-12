@@ -574,7 +574,6 @@ const WinglessPopup = struct {
 
     pub fn deinit(self: *WinglessPopup) void {
         c.wl_list_remove(&self.commit.link);
-        c.wl_list_remove(&self.reposition.link);
         c.wl_list_remove(&self.destroy.link);
     }
 };
@@ -858,7 +857,8 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
 
     if (popup.scene_tree) |tree| {
-        c.wlr_scene_node_destroy(&tree.node);
+        _ = tree;
+        //c.wlr_scene_node_destroy(&tree.node);
     }
 
     popup.deinit();
@@ -903,24 +903,8 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
     popup.scene_tree = tree;
 
-    const o = c.wlr_output_layout_get_center_output(server.output_layout);
-    var w: c_int = 0;
-    var h: c_int = 0;
-    c.wlr_output_effective_resolution(o, &w, &h);
-
-    const box = c.wlr_box{
-        .x = 0,
-        .y = 0,
-        .width = w,
-        .height = h,
-    };
-
-    c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
-
     c.wlr_scene_node_raise_to_top(&tree.node);
     c.wlr_scene_node_set_enabled(&tree.node, true);
-
-    c.wl_signal_add(&xdg_popup.events.reposition, &popup.reposition);
 }
 
 fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *[*c]c.wlr_surface, sx: *f64, sy: *f64) ?*WinglessToplevel {
