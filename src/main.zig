@@ -1195,10 +1195,13 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 const SceneRenderCtx = struct {
     renderer: *c.wlr_renderer,
     pass: *c.wlr_render_pass,
+    tex_to_destroy: std.ArrayList(*c.wlr_texture),
+    allocator: std.mem.Allocator,
 };
 
 var g_draw_idx: u32 = 0;
 
+// IMPORTANT: this system is because popups aren't rendered otherwise
 fn render_scene_buffer_iter(
     scene_buf: [*c]c.wlr_scene_buffer,
     sx: c_int,
@@ -1241,7 +1244,7 @@ fn render_scene_buffer_iter(
     };
 
     c.wlr_render_pass_add_texture(ctx.pass, &opts);
-    c.wlr_texture_destroy(tex);
+    ctx.tex_to_destroy.append(ctx.allocator, tex) catch @panic("out of memory");
 
     g_draw_idx += 1;
 }
@@ -1253,12 +1256,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const server = output.server;
     const scene = output.server.scene;
     const scene_output = c.wlr_scene_get_scene_output(scene, output.output);
-
-    var state: c.wlr_output_state = undefined;
-    c.wlr_output_state_init(&state);
-    defer c.wlr_output_state_finish(&state);
-
-    _ = c.wlr_scene_output_build_state(scene_output, &state, null);
 
     var w: c_int = 0;
     var h: c_int = 0;
@@ -1274,23 +1271,27 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         output.scene_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.ui_gl_fmt));
     }
 
-    if (state.buffer) |buf| {
-        if (c.wlr_texture_from_buffer(server.renderer, buf)) |tex| {
-            if (c.wlr_renderer_begin_buffer_pass(server.renderer, output.scene_buffer.?, null)) |pass| {
-                c.wlr_render_pass_add_texture(pass, &.{
-                    .texture = tex,
-                    .dst_box = .{ .x = 0, .y = 0, .width = w, .height = h },
-                    .src_box = .{},
-                    .alpha = null,
-                    .transform = c.WL_OUTPUT_TRANSFORM_NORMAL,
-                    .filter_mode = c.WLR_SCALE_FILTER_BILINEAR,
-                    .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
-                });
-                _ = c.wlr_render_pass_submit(pass);
-            }
+    // render offscreen buffer
+    if (c.wlr_renderer_begin_buffer_pass(server.renderer, output.scene_buffer.?, null)) |pass| {
+        var ctx = SceneRenderCtx{
+            .renderer = server.renderer,
+            .pass = pass,
+            .allocator = server.allocator,
+            .tex_to_destroy = .empty,
+        };
+
+        c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
+
+        _ = c.wlr_render_pass_submit(pass);
+
+        for (ctx.tex_to_destroy.items) |tex| {
             c.wlr_texture_destroy(tex);
         }
     }
+
+    var state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(&state);
+    defer c.wlr_output_state_finish(&state);
 
     const out_pass = c.wlr_output_begin_render_pass(output.output, &state, null) orelse return;
 
@@ -1309,9 +1310,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
         _ = c.wlr_render_pass_submit(out_pass);
         c.wlr_texture_destroy(tex);
-    } else {
-        ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
-        _ = c.wlr_render_pass_submit(out_pass);
     }
 
     _ = c.wlr_output_commit_state(output.output, &state);
