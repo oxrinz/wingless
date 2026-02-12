@@ -887,7 +887,8 @@ fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
         //c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
     }
 
-    //const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
+    const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
+    _ = if (base.initial_commit) c.wlr_xdg_surface_schedule_configure(base);
 }
 
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -902,6 +903,8 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     _ = base;
     const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
     popup.scene_tree = tree;
+
+    xdg_popup.base.*.data = tree;
 
     c.wlr_scene_node_raise_to_top(&tree.node);
     c.wlr_scene_node_set_enabled(&tree.node, true);
@@ -1195,56 +1198,56 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 const SceneRenderCtx = struct {
     renderer: *c.wlr_renderer,
     pass: *c.wlr_render_pass,
-    tex_to_destroy: std.ArrayList(*c.wlr_texture),
-    allocator: std.mem.Allocator,
 };
 
 var g_draw_idx: u32 = 0;
 
 // IMPORTANT: this system is because popups aren't rendered otherwise
 fn render_scene_buffer_iter(
-    scene_buf: [*c]c.wlr_scene_buffer,
+    scene_buf_bad: [*c]c.wlr_scene_buffer,
     sx: c_int,
     sy: c_int,
     data: ?*anyopaque,
 ) callconv(.c) void {
     const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
-    const fixed_scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf.?));
+    const scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf_bad.?));
 
     std.debug.print("render_iter[{}]: pos=({}, {}) size={}x{} opacity={d:.2} transform={} buf={}\n", .{
         g_draw_idx,
         sx,
         sy,
-        fixed_scene_buf.dst_width,
-        fixed_scene_buf.dst_height,
-        fixed_scene_buf.opacity,
-        fixed_scene_buf.transform,
-        @intFromPtr(fixed_scene_buf.buffer),
+        scene_buf.dst_width,
+        scene_buf.dst_height,
+        scene_buf.opacity,
+        scene_buf.transform,
+        @intFromPtr(scene_buf.buffer),
     });
 
-    const tex: *c.wlr_texture = c.wlr_texture_from_buffer(ctx.renderer, fixed_scene_buf.buffer) orelse return;
+    const ss: *c.wlr_scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
+    const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.surface) orelse @panic("nope");
+
+    //const tex: *c.wlr_texture = c.wlr_texture_from_buffer(ctx.renderer, scene_buf.buffer) orelse @panic("bruh");
 
     std.debug.print("  tex: {}x{}\n", .{ tex.width, tex.height });
 
     const dst = c.wlr_box{
         .x = sx,
         .y = sy,
-        .width = fixed_scene_buf.dst_width,
-        .height = fixed_scene_buf.dst_height,
+        .width = scene_buf.dst_width,
+        .height = scene_buf.dst_height,
     };
 
     var opts = c.wlr_render_texture_options{
         .texture = tex,
-        .src_box = fixed_scene_buf.src_box,
+        .src_box = scene_buf.src_box,
         .dst_box = dst,
-        .alpha = if (fixed_scene_buf.opacity < 1.0) @ptrCast(&fixed_scene_buf.opacity) else null,
-        .transform = fixed_scene_buf.transform,
-        .filter_mode = fixed_scene_buf.filter_mode,
+        .alpha = if (scene_buf.opacity < 1.0) @ptrCast(&scene_buf.opacity) else null,
+        .transform = scene_buf.transform,
+        .filter_mode = scene_buf.filter_mode,
         .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
     };
 
     c.wlr_render_pass_add_texture(ctx.pass, &opts);
-    ctx.tex_to_destroy.append(ctx.allocator, tex) catch @panic("out of memory");
 
     g_draw_idx += 1;
 }
@@ -1276,17 +1279,11 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         var ctx = SceneRenderCtx{
             .renderer = server.renderer,
             .pass = pass,
-            .allocator = server.allocator,
-            .tex_to_destroy = .empty,
         };
 
         c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
 
         _ = c.wlr_render_pass_submit(pass);
-
-        for (ctx.tex_to_destroy.items) |tex| {
-            c.wlr_texture_destroy(tex);
-        }
     }
 
     var state: c.wlr_output_state = undefined;

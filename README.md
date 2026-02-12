@@ -17,7 +17,7 @@ Minimal Wayland compositor without sacrificing beauty
 - Configuration - done
 - Mouse dragging - done
 - Drag and drop - done
-- Fix right clicks zen browser
+- Fix right clicks zen browser - done
 - UI scaling, support different resolutions
 - Support multiple monitors
 - Change volume with keyboard sliders
