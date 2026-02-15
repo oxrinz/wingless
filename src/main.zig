@@ -194,6 +194,8 @@ pub const WinglessServer = struct {
         c.wl_signal_add(&server.backend.*.events.new_input, &server.new_input);
         server.seat = c.wlr_seat_create(server.display, "seat0");
 
+        c.wlr_seat_set_capabilities(server.seat, c.WL_SEAT_CAPABILITY_POINTER);
+
         server.request_start_drag = .{ .link = undefined, .notify = seat_request_start_drag };
         server.drag_destroy = .{ .link = undefined, .notify = drag_destroy };
 
@@ -607,7 +609,7 @@ fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     c.wlr_scene_node_set_position(&server.drag_icon.?.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
 
     if (!c.wlr_seat_validate_pointer_grab_serial(server.seat, event.origin, event.serial)) {
-        //return;
+        return;
     }
 
     c.wlr_seat_start_pointer_drag(server.seat, event.drag, event.serial);
@@ -815,7 +817,7 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
 
 fn xwayland_request_activate(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_configure", listener)));
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_activate", listener)));
     _ = xwl;
 }
 
@@ -855,12 +857,6 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
     _ = data;
 
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("destroy", listener)));
-
-    if (popup.scene_tree) |tree| {
-        _ = tree;
-        //c.wlr_scene_node_destroy(&tree.node);
-    }
-
     popup.deinit();
 }
 
@@ -930,7 +926,7 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
     var tree: *c.wlr_scene_tree = wlr_tree;
     while (wlr_tree != null) {
         if (tree.node.data != null) break;
-        tree = tree.node.parent;
+        tree = tree.node.parent.?;
     }
     return @ptrCast(@alignCast(tree.node.data));
 }
@@ -994,10 +990,11 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+
     if (surface != null) {
         c.wlr_seat_pointer_notify_enter(server.seat, surface, sx, sy);
     } else {
-        c.wlr_seat_pointer_clear_focus(server.seat);
+        //c.wlr_seat_pointer_clear_focus(server.seat);
     }
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
 }
@@ -1212,23 +1209,8 @@ fn render_scene_buffer_iter(
     const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
     const scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf_bad.?));
 
-    std.debug.print("render_iter[{}]: pos=({}, {}) size={}x{} opacity={d:.2} transform={} buf={}\n", .{
-        g_draw_idx,
-        sx,
-        sy,
-        scene_buf.dst_width,
-        scene_buf.dst_height,
-        scene_buf.opacity,
-        scene_buf.transform,
-        @intFromPtr(scene_buf.buffer),
-    });
-
     const ss: *c.wlr_scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
     const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.surface) orelse @panic("nope");
-
-    //const tex: *c.wlr_texture = c.wlr_texture_from_buffer(ctx.renderer, scene_buf.buffer) orelse @panic("bruh");
-
-    std.debug.print("  tex: {}x{}\n", .{ tex.width, tex.height });
 
     const dst = c.wlr_box{
         .x = sx,
