@@ -284,7 +284,7 @@ pub const WinglessOutput = struct {
 
     image: ?ui.ImageProgram = null,
     fill: ?ui.FillProgram = null,
-    beacon_background: ?ui.BeaconBackgroundProgram = null,
+    glass_background: ?ui.GlassBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
 
     gl_vao: c_uint = 0,

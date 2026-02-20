@@ -37,14 +37,15 @@ const Icon = struct {
     h: u32,
 };
 
-pub const BeaconBackgroundProgram = struct {
+pub const GlassBackgroundProgram = struct {
     prog: c_uint,
 
     pos_loc: c_int,
+    uv_loc: c_int,
 
     scene_loc: c_int,
-    state_loc: c_int,
-    suggestion_state_loc: c_int,
+    size_loc: c_int,
+    shadow_intensity_loc: c_int,
 };
 
 pub const GlassTextProgram = struct {
@@ -186,23 +187,24 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
 }
 
 fn ensurePrograms(out: *WinglessOutput) void {
-    if (out.beacon_background != null) return;
-    // beacon_background
+    if (out.glass_background != null) return;
+    // glass_background
     {
         const vs = glCompileShader(gl.GL_VERTEX_SHADER, ui_vert_src);
         const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, ui_frag_src);
 
         const prog = glLinkProgram(vs, fs);
 
-        out.beacon_background = .{
+        out.glass_background = .{
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .uv_loc = gl.glGetAttribLocation(prog, "uv"),
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
-            .state_loc = gl.glGetUniformLocation(prog, "state"),
-            .suggestion_state_loc = gl.glGetUniformLocation(prog, "suggestionState"),
+            .size_loc = gl.glGetUniformLocation(prog, "size"),
+            .shadow_intensity_loc = gl.glGetUniformLocation(prog, "shadowIntensity"),
         };
 
-        if (out.beacon_background.?.pos_loc < 0) @panic("pos not found");
+        if (out.glass_background.?.pos_loc < 0) @panic("pos not found");
     }
 
     // glass_text
@@ -250,6 +252,41 @@ fn ensurePrograms(out: *WinglessOutput) void {
             .image_loc = gl.glGetUniformLocation(prog, "image"),
         };
     }
+}
+
+/// Render a glass quad. Self explanatory. The position and size parameters are for the box itself, not the rendered surface.
+fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture) void {
+    var attribs: c.wlr_gles2_texture_attribs = undefined;
+    c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
+
+    gl.glUseProgram(output.glass_background.?.prog);
+
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(attribs.target, attribs.tex);
+
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+
+    gl.glUniform1i(output.glass_background.?.scene_loc, 0);
+    gl.glUniform2f(output.glass_background.?.size_loc, w, h);
+    gl.glUniform1f(output.glass_background.?.shadow_intensity_loc, 0.5);
+
+    const W = screen_w;
+    const H = screen_h;
+
+    drawQuadWithUv(
+        output,
+        x - 150,
+        y - 150,
+        w + 300,
+        h + 300,
+        W,
+        H,
+        output.glass_background.?.pos_loc,
+        output.glass_background.?.uv_loc,
+    );
 }
 
 fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, gl_pos_loc: c_int) void {
@@ -836,27 +873,18 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     if (scene_tex == null) @panic("no tex");
     defer c.wlr_texture_destroy(scene_tex);
 
-    var attribs: c.wlr_gles2_texture_attribs = undefined;
-    c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
-
-    gl.glUseProgram(output.beacon_background.?.prog);
-
-    gl.glActiveTexture(gl.GL_TEXTURE0);
-    gl.glBindTexture(attribs.target, attribs.tex);
-
-    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
-    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
-    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
-    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
-
-    gl.glUniform1i(output.beacon_background.?.scene_loc, 0);
-    gl.glUniform1f(output.beacon_background.?.state_loc, beacon_state);
-    gl.glUniform1f(output.beacon_background.?.suggestion_state_loc, beacon_suggestion_state);
-
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
 
-    drawQuad(output, W / 2 - 800, H / 2 - 600, 1600, 1200, W, H, output.beacon_background.?.pos_loc);
+    {
+        const width = 800 * beacon_state;
+        const height = 80 + 200 * beacon_suggestion_state;
+
+        const x = W / 2 - width / 2;
+        const y = H / 2 - height / 2 + 175 * beacon_suggestion_state;
+
+        drawGlassQuad(output, x, y, width, height, W, H, scene_tex);
+    }
 
     // beacon overlay pass
     const x: f32 = W / 2 - 370;
