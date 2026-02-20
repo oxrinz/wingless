@@ -41,9 +41,9 @@ pub const GlassBackgroundProgram = struct {
     prog: c_uint,
 
     pos_loc: c_int,
-    uv_loc: c_int,
 
     scene_loc: c_int,
+    quad_pos_loc: c_int,
     size_loc: c_int,
     shadow_intensity_loc: c_int,
 };
@@ -198,8 +198,8 @@ fn ensurePrograms(out: *WinglessOutput) void {
         out.glass_background = .{
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
-            .uv_loc = gl.glGetAttribLocation(prog, "uv"),
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
+            .quad_pos_loc = gl.glGetUniformLocation(prog, "quadPos"),
             .size_loc = gl.glGetUniformLocation(prog, "size"),
             .shadow_intensity_loc = gl.glGetUniformLocation(prog, "shadowIntensity"),
         };
@@ -270,13 +270,14 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
 
     gl.glUniform1i(output.glass_background.?.scene_loc, 0);
+    gl.glUniform2f(output.glass_background.?.quad_pos_loc, x, y);
     gl.glUniform2f(output.glass_background.?.size_loc, w, h);
     gl.glUniform1f(output.glass_background.?.shadow_intensity_loc, 0.5);
 
     const W = screen_w;
     const H = screen_h;
 
-    drawQuadWithUv(
+    drawQuad(
         output,
         x - 150,
         y - 150,
@@ -285,7 +286,6 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
         W,
         H,
         output.glass_background.?.pos_loc,
-        output.glass_background.?.uv_loc,
     );
 }
 
@@ -876,12 +876,13 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const W: f32 = @floatFromInt(w);
     const H: f32 = @floatFromInt(h);
 
+    // draw beacon background
     {
         const width = 800 * beacon_state;
         const height = 80 + 200 * beacon_suggestion_state;
 
         const x = W / 2 - width / 2;
-        const y = H / 2 - height / 2 + 175 * beacon_suggestion_state;
+        const y = H / 2 - height / 2 + 50 * beacon_suggestion_state;
 
         drawGlassQuad(output, x, y, width, height, W, H, scene_tex);
     }

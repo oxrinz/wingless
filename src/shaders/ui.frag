@@ -3,9 +3,9 @@
 precision highp float;
 uniform sampler2D scene;
 uniform vec2 size;
+uniform vec2 quadPos;
 uniform float shadowIntensity;
-uniform vec2 v_uv;
-varying vec2 g_uv;
+varying vec2 v_uv;
 
 vec2 resolution = vec2(2540, 1440);
 
@@ -37,13 +37,13 @@ vec3 getBlurredColor(vec2 coord, float blurRadius) {
 
 void main() {
   float ratio = resolution.x / resolution.y;
-  vec2 fragCoord = g_uv * resolution;
+  vec2 fragCoord = v_uv * resolution;
 
   float roundness = 75.;
 
   // opening / closing animation
-  vec2 paneCenter = vec2(resolution.x / 2., resolution.y / 2.);
-
+  vec2 paneCenter = quadPos + size * 0.5;
+  // paneCenter = resolution / 2.;
   vec2 glassCoord = fragCoord - paneCenter;
 
   // glass refractions
@@ -91,7 +91,7 @@ void main() {
     float hlDistFromCenter = 0.05 - inversedSDF;
     float intersection = clamp(min(hlDistFromEdge, hlDistFromCenter), 0., 1.);
 
-    vec2 scaledUv = (g_uv * 2. - 1.);
+    vec2 scaledUv = (v_uv * 2. - 1.);
     scaledUv.y -= 0.1;
     scaledUv.x -= 0.5;
     float mask = min(-scaledUv.x, -scaledUv.y) * 5.;
