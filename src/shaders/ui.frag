@@ -87,15 +87,37 @@ void main() {
     glassColor *= 0.9;
 
     // highlight
-    float hlDistFromEdge = inversedSDF + .1;
-    float hlDistFromCenter = 0.05 - inversedSDF;
-    float intersection = clamp(min(hlDistFromEdge, hlDistFromCenter), 0., 1.);
+    float sd = shadowSDF;
+    float d = max(-sd, 0.0);
+    float aaH = max(fwidth(sd), 1e-4);
 
-    vec2 scaledUv = (v_uv * 2. - 1.);
-    scaledUv.y -= 0.1;
-    scaledUv.x -= 0.5;
-    float mask = min(-scaledUv.x, -scaledUv.y) * 5.;
-    glassColor += clamp(vec3(intersection * mask) * 10., 0., 1.);
+    float insetPx = aaH * 1.5;
+
+    float rimPx = 5.;
+
+    float rimBand =
+        smoothstep(insetPx, insetPx = aaH, d) *
+        (1. - smoothstep(insetPx + rimPx - aa, insetPx + rimPx + aa, d));
+
+    float falloffPx = 2.;
+    float falloff = exp(-d / falloffPx);
+
+    vec2 n = vec2(dFdx(sd), dFdy(sd));
+
+    vec2 lightDir = normalize(vec2(-0.35, -0.45));
+
+    float ndlTL = max(dot(n, lightDir), 0.0);
+    float ndlBR = max(dot(n, -lightDir), 0.0);
+
+    float hlTL = rimBand * falloff * pow(ndlTL, 2.0);
+    float hlBR = rimBand * falloff * pow(ndlBR, 2.0);
+
+    float gate = edge * (1.0 - clamp(shadow, 0.0, 1.0));
+
+    vec3 colTL = vec3(1., 1., 1.);
+    vec3 colBR = vec3(1., 1., 1.);
+
+    glassColor += gate * (hlTL * colTL + hlBR * colBR) * 1.5;
 
     // bright
     glassColor += vec3(0.05);

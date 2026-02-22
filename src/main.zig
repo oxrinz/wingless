@@ -11,39 +11,39 @@ const gl = @import("c.zig").gl;
 
 const activeTag = std.meta.activeTag;
 
-const Focusable = union(enum) {
+pub const Focusable = union(enum) {
     xdg: *WinglessToplevel,
     xwayland: *WinglessXwayland,
 
-    fn getNext(self: *Focusable) *Focusable {
+    pub fn getNext(self: *Focusable) *Focusable {
         switch (self.*) {
             .xdg => |xdg| return xdg.next.?,
             .xwayland => |xwl| return xwl.next.?,
         }
     }
 
-    fn getPrev(self: *Focusable) *Focusable {
+    pub fn getPrev(self: *Focusable) *Focusable {
         switch (self.*) {
             .xdg => |xdg| return xdg.prev.?,
             .xwayland => |xwl| return xwl.prev.?,
         }
     }
 
-    fn setNext(self: *Focusable, next: *Focusable) void {
+    pub fn setNext(self: *Focusable, next: *Focusable) void {
         switch (self.*) {
             .xdg => |xdg| xdg.next = next,
             .xwayland => |xwl| xwl.next = next,
         }
     }
 
-    fn setPrev(self: *Focusable, prev: *Focusable) void {
+    pub fn setPrev(self: *Focusable, prev: *Focusable) void {
         switch (self.*) {
             .xdg => |xdg| xdg.prev = prev,
             .xwayland => |xwl| xwl.prev = prev,
         }
     }
 
-    fn cmp(self: *const Focusable, other: *const Focusable) bool {
+    pub fn cmp(self: *const Focusable, other: *const Focusable) bool {
         if (activeTag(self.*) != activeTag(other.*)) return false;
         return switch (self.*) {
             .xdg => self.xdg == other.xdg,
@@ -51,31 +51,42 @@ const Focusable = union(enum) {
         };
     }
 
-    fn cmpXdg(self: *const Focusable, xdg: *WinglessToplevel) bool {
+    pub fn cmpXdg(self: *const Focusable, xdg: *WinglessToplevel) bool {
         switch (self.*) {
             .xdg => return xdg == self.xdg,
             .xwayland => return false,
         }
     }
 
-    fn cmpXwl(self: *const Focusable, xwl: *WinglessXwayland) bool {
+    pub fn cmpXwl(self: *const Focusable, xwl: *WinglessXwayland) bool {
         switch (self.*) {
             .xdg => return false,
             .xwayland => return xwl == self.xwayland,
         }
     }
 
-    fn server(self: *const Focusable) *WinglessServer {
+    pub fn server(self: *const Focusable) *WinglessServer {
         return switch (self.*) {
             .xdg => |xdg| xdg.server,
             .xwayland => |xwl| xwl.server,
         };
     }
 
-    fn sceneTree(self: *const Focusable) *c.wlr_scene_tree {
+    pub fn sceneTree(self: *const Focusable) *c.wlr_scene_tree {
         return switch (self.*) {
             .xdg => |xdg| xdg.scene_tree,
             .xwayland => |xwl| xwl.scene_tree.?,
+        };
+    }
+
+    pub fn surface(self: *const Focusable) *c.wlr_surface {
+        return switch (self.*) {
+            .xdg => |xdg| {
+                const xdg_toplevel: *c.wlr_xdg_toplevel = xdg.xdg_toplevel.?;
+                const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base.?;
+                return xdg_surface.surface;
+            },
+            .xwayland => |xwl| xwl.xsurface.surface,
         };
     }
 };
@@ -1018,9 +1029,7 @@ fn spawnCmd(argv: []const []const u8) void {
 }
 
 fn applyConfig(server: *WinglessServer, conf: *const WinglessConfig) !void {
-    std.debug.print("applying config\n", .{});
     for (server.pointers.items) |pointer| {
-        std.debug.print("SETTING SENSITIVITY: {any}\n", .{conf.pointer_sensitivity});
         _ = c.libinput_device_config_accel_set_speed(pointer.libinput, conf.pointer_sensitivity);
     }
 }
@@ -1053,21 +1062,18 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
     }
 }
 
-//fn set_pointer_speed(server: *WinglessServer, speed: f64) void {
-//var it = server.
-////}
-
+var super_handled = false;
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
     const seat = server.seat;
 
+    var handled = false;
+
     const keycode = event.keycode + 8;
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
-
-    var handled = false;
 
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
         const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
@@ -1081,6 +1087,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 for (server.wingless_config.keybinds) |keybind| {
                     if (keybind.key == sym) {
                         launchCommand(keybind.function, null, server);
+                        super_handled = true;
                         handled = true;
                     }
                 }
@@ -1121,6 +1128,21 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 ui.updateBeaconSuggestions(server.allocator) catch @panic("oops");
 
                 handled = true;
+            }
+        }
+    }
+
+    if (event.state == c.WL_KEYBOARD_KEY_STATE_RELEASED) {
+        for (0..@intCast(nsyms)) |i| {
+            const sym = syms[i];
+            const superkey = sym == c.XKB_KEY_Super_L or sym == c.XKB_KEY_Super_R or sym == c.XKB_KEY_Meta_L or sym == c.XKB_KEY_Meta_R;
+
+            if (superkey) {
+                if (super_handled)
+                    super_handled = false
+                else {
+                    ui.menu_open = !ui.menu_open;
+                }
             }
         }
     }
@@ -1182,7 +1204,6 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
                 .libinput = c.wlr_libinput_get_device_handle(device) orelse return,
             };
             server.pointers.append(server.allocator, pointer) catch @panic("out of memory");
-            std.debug.print("added a pointer!\n", .{});
         },
         else => std.debug.print("unrecognized new input\n", .{}),
     }

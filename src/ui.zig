@@ -19,10 +19,13 @@ pub const AnimState = struct { elapsed: u64 };
 var last_ns: i128 = 0;
 
 pub var beacon_open = false;
+pub var menu_open = false;
 
 var beacon_state: f32 = 0;
 var beacon_suggestion_state: f32 = 0;
 var beacon_line_state: f32 = 0;
+
+var menu_state: f32 = 0;
 
 pub var beacon_buffer: std.ArrayList(u8) = .empty;
 pub var beacon_suggestions: []*BeaconCommand = &.{};
@@ -272,17 +275,17 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glUniform1i(output.glass_background.?.scene_loc, 0);
     gl.glUniform2f(output.glass_background.?.quad_pos_loc, x, y);
     gl.glUniform2f(output.glass_background.?.size_loc, w, h);
-    gl.glUniform1f(output.glass_background.?.shadow_intensity_loc, 0.5);
+    gl.glUniform1f(output.glass_background.?.shadow_intensity_loc, 0.01 * @min(0.5 * 100, @min(w, h)));
 
     const W = screen_w;
     const H = screen_h;
 
     drawQuad(
         output,
-        x - 150,
-        y - 150,
-        w + 300,
-        h + 300,
+        x - 300,
+        y - 300,
+        w + 600,
+        h + 600,
         W,
         H,
         output.glass_background.?.pos_loc,
@@ -835,6 +838,9 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const beacon_state_target: f32 = if (beacon_open) 1.0 else 0.0;
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
 
+    const menu_state_target: f32 = if (menu_open) 1.0 else 0.0;
+    menu_state = lerp(beacon_state, menu_state_target, dt * 20.0);
+
     const beacon_suggestion_state_target: f32 = if (beacon_buffer.items.len >= 2)
         switch (beacon_suggestions.len) {
             0, 1 => 0.4,
@@ -879,7 +885,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     // draw beacon background
     {
         const width = 800 * beacon_state;
-        const height = 80 + 200 * beacon_suggestion_state;
+        var height = 80 + 200 * beacon_suggestion_state;
+        if (width < 80) height = width;
 
         const x = W / 2 - width / 2;
         const y = H / 2 - height / 2 + 50 * beacon_suggestion_state;
@@ -887,15 +894,15 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         drawGlassQuad(output, x, y, width, height, W, H, scene_tex);
     }
 
-    // beacon overlay pass
-    const x: f32 = W / 2 - 370;
-    const y: f32 = H / 2 - 10 + beacon_suggestion_state * 50;
-
-    const suggestion_offset: f32 = 60;
-    var suggestion_y = y - 80;
-    const empty_suggestion_text = "Unknown command !";
-
+    // beacon overlay
     if (beacon_open) {
+        const x: f32 = W / 2 - 370;
+        const y: f32 = H / 2 - 10 + beacon_suggestion_state * 50;
+
+        const suggestion_offset: f32 = 60;
+        var suggestion_y = y - 80;
+        const empty_suggestion_text = "Unknown command !";
+
         drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, W, H, 0.2);
 
         // draw suggestions
@@ -972,6 +979,59 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
             if (beacon_suggestions.len == 0) {
                 drawGlassSentence(output, &glass_font, empty_suggestion_text, x, suggestion_y, W, H, 0.0);
+            }
+        }
+    }
+
+    // menu
+    {
+        // collect surface textures
+        if (server.focused_toplevel != null) {
+            var current_iter: *main.Focusable = server.focused_toplevel.?;
+            var surface_textures: std.ArrayList(*c.wlr_texture) = .empty;
+            while (current_iter != server.focused_toplevel.?) {
+                try surface_textures.append(server.allocator, c.wlr_surface_get_texture(current_iter.surface()));
+                current_iter = current_iter.getNext();
+            }
+            try surface_textures.append(server.allocator, c.wlr_surface_get_texture(server.focused_toplevel.?.surface()));
+
+            // iterate over surface textures and render them
+            for (surface_textures.items) |tex| {
+                var attribs: c.wlr_gles2_texture_attribs = undefined;
+                c.wlr_gles2_texture_get_attribs(tex, &attribs);
+
+                gl.glUseProgram(output.image.?.prog);
+
+                gl.glActiveTexture(gl.GL_TEXTURE0);
+                gl.glBindTexture(attribs.target, attribs.tex);
+
+                gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+                gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+                gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+                gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+
+                gl.glUniform1i(output.image.?.image_loc, 0);
+
+                const width: f32 = 800;
+                var height: f32 = 1000;
+                if (width < 80) height = width;
+
+                const x = W / 2;
+                const y = H / 2;
+
+                std.debug.print("rendering: {any}\n", .{menu_state});
+
+                drawQuadWithUv(
+                    output,
+                    x,
+                    y,
+                    width,
+                    height,
+                    W,
+                    H,
+                    output.image.?.pos_loc,
+                    output.image.?.uv_loc,
+                );
             }
         }
     }
