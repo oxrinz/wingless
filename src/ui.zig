@@ -839,7 +839,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
 
     const menu_state_target: f32 = if (menu_open) 1.0 else 0.0;
-    menu_state = lerp(beacon_state, menu_state_target, dt * 20.0);
+    menu_state = lerp(menu_state, menu_state_target, dt * 20.0);
 
     const beacon_suggestion_state_target: f32 = if (beacon_buffer.items.len >= 2)
         switch (beacon_suggestions.len) {
@@ -983,19 +983,46 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         }
     }
 
+    if (true) return;
+
     // menu
     {
-        // collect surface textures
         if (server.focused_toplevel != null) {
-            var current_iter: *main.Focusable = server.focused_toplevel.?;
+            // collect surface textures
+            const focusables = try server.focused_toplevel.?.linkedToList(server.allocator);
             var surface_textures: std.ArrayList(*c.wlr_texture) = .empty;
-            while (current_iter != server.focused_toplevel.?) {
-                try surface_textures.append(server.allocator, c.wlr_surface_get_texture(current_iter.surface()));
-                current_iter = current_iter.getNext();
+            const IteratorData = struct {
+                tex_list: *std.ArrayList(*c.wlr_texture),
+                server: *WinglessServer,
+                largest_surface: *c.wlr_surface,
+            };
+            for (focusables) |focusable| {
+                const iterator = struct {
+                    pub fn iterator(surface: [*c]c.wlr_surface, _: c_int, _: c_int, data: ?*anyopaque) callconv(.c) void {
+                        var idata: *IteratorData = @ptrCast(@alignCast(data.?));
+                        if (c.wlr_surface_get_texture(surface)) |t| {
+                            const tex: *c.wlr_texture = @ptrCast(t);
+                            if (tex.width + tex.height > 2)
+                                idata.tex_list.append(idata.server.allocator, t) catch @panic("out of memory");
+                        } else @panic("fuck no texture");
+                    }
+                }.iterator;
+
+                const iter_data = IteratorData{
+                    .tex_list = &surface_textures,
+                    .server = server,
+                    .largest_surface = undefined,
+                };
+
+                c.wlr_surface_for_each_surface(
+                    focusable.surface(),
+                    iterator,
+                    @ptrCast(@alignCast(@constCast(&iter_data))),
+                );
             }
-            try surface_textures.append(server.allocator, c.wlr_surface_get_texture(server.focused_toplevel.?.surface()));
 
             // iterate over surface textures and render them
+            var x: f32 = 0;
             for (surface_textures.items) |tex| {
                 var attribs: c.wlr_gles2_texture_attribs = undefined;
                 c.wlr_gles2_texture_get_attribs(tex, &attribs);
@@ -1012,14 +1039,11 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
                 gl.glUniform1i(output.image.?.image_loc, 0);
 
-                const width: f32 = 800;
-                var height: f32 = 1000;
+                const width: f32 = @as(f32, @floatFromInt(tex.width)) / 5;
+                var height: f32 = @as(f32, @floatFromInt(tex.height)) / 5;
                 if (width < 80) height = width;
 
-                const x = W / 2;
                 const y = H / 2;
-
-                std.debug.print("rendering: {any}\n", .{menu_state});
 
                 drawQuadWithUv(
                     output,
@@ -1032,6 +1056,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                     output.image.?.pos_loc,
                     output.image.?.uv_loc,
                 );
+                x += 400;
             }
         }
     }
