@@ -1059,7 +1059,7 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         .tab_prev => tab_prev(server),
         .close_focused => close_focused_toplevel(server),
         .toggle_menu => {
-            ui.beacon_open = !ui.beacon_open;
+            ui.menu_open = !ui.menu_open;
         },
         .toggle_beacon => {
             if (ui.beacon_open == true) ui.beacon_buffer.clearRetainingCapacity();

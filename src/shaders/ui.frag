@@ -7,7 +7,7 @@ uniform vec2 quadPos;
 uniform float shadowIntensity;
 varying vec2 v_uv;
 
-vec2 resolution = vec2(2540, 1440);
+vec2 resolution = vec2(2560, 1440);
 
 vec3 getTextureColorAt(vec2 coord) {
   return texture2D(scene, coord / resolution).rgb;
@@ -77,8 +77,10 @@ void main() {
     // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
     // the middle that is present when the rectable is long and thin they can,
     // and SHOULD be removed if the size of the rectangle is somewhat balanced
-    vec2 normalizedGlassCoord = clamp(normalize(glassCoord) / 5., -.1, .1);
-    vec2 offset = distortion * normalizedGlassCoord * size * 0.5;
+    vec2 paneUV = glassCoord / max(size * .5, vec2(1.));
+    vec2 normalizedGlassCoord = normalize(paneUV);
+    vec2 offset =
+        distortion * normalizedGlassCoord * min(size.x, size.y) * 0.12;
     vec2 glassColorCoord = fragCoord - offset;
 
     float blurIntensity = 1.2;
@@ -96,13 +98,13 @@ void main() {
     float rimPx = 5.;
 
     float rimBand =
-        smoothstep(insetPx, insetPx = aaH, d) *
+        smoothstep(insetPx, insetPx + aaH, d) *
         (1. - smoothstep(insetPx + rimPx - aa, insetPx + rimPx + aa, d));
 
     float falloffPx = 2.;
     float falloff = exp(-d / falloffPx);
 
-    vec2 n = vec2(dFdx(sd), dFdy(sd));
+    vec2 n = normalize(vec2(dFdx(sd), dFdy(sd)));
 
     vec2 lightDir = normalize(vec2(-0.35, -0.45));
 
