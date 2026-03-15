@@ -36,3 +36,5 @@ Minimal Wayland compositor without sacrificing beauty
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - Beacon search using .desktop keywords
 - Don't render windows that are behind one another
+- ILP menu layout
+- Port to vulkan

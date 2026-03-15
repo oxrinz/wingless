@@ -1058,6 +1058,9 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         .tab_next => tab_next(server),
         .tab_prev => tab_prev(server),
         .close_focused => close_focused_toplevel(server),
+        .toggle_menu => {
+            ui.beacon_open = !ui.beacon_open;
+        },
         .toggle_beacon => {
             if (ui.beacon_open == true) ui.beacon_buffer.clearRetainingCapacity();
             ui.beacon_open = !ui.beacon_open;
@@ -1158,10 +1161,7 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
             if (superkey) {
                 if (super_handled)
-                    super_handled = false
-                else {
-                    ui.menu_open = !ui.menu_open;
-                }
+                    super_handled = false;
             }
         }
     }
@@ -1199,12 +1199,19 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
             const keyboard = WinglessKeyboard.init(server, device) catch @panic("Failed to create keyboard");
 
             const context = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS);
-            const keymap = c.xkb_keymap_new_from_names(context, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
+            const names = c.xkb_rule_names{
+                .rules = "evdev",
+                .model = "applealu_iso",
+                .layout = "fi",
+                .variant = "mac",
+                .options = "lv3:ralt_switch",
+            };
+            const keymap = c.xkb_keymap_new_from_names(context, &names, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
 
             _ = c.wlr_keyboard_set_keymap(keyboard.wlr_keyboard, keymap);
             c.xkb_keymap_unref(keymap);
             c.xkb_context_unref(context);
-            c.wlr_keyboard_set_repeat_info(keyboard.wlr_keyboard, 25, 600);
+            c.wlr_keyboard_set_repeat_info(keyboard.wlr_keyboard, 60, 200);
 
             c.wl_signal_add(&keyboard.wlr_keyboard.events.modifiers, &keyboard.modifiers);
             c.wl_signal_add(&keyboard.wlr_keyboard.events.key, &keyboard.key);

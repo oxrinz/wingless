@@ -5,6 +5,7 @@ pub const WinglessFunction = enum {
     tab_next,
     tab_prev,
     close_focused,
+    toggle_menu,
     toggle_beacon,
     launch_app,
 
@@ -92,13 +93,14 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     }
 
     // keybinds
-    var keybinds = try allocator.alloc(Keybind, 6);
+    var keybinds = try allocator.alloc(Keybind, 7);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
     keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
     keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
     keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up };
     keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down };
+    keybinds[6] = .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu };
 
     config.keybinds = keybinds;
 

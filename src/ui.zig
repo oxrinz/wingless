@@ -826,7 +826,143 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
     beacon_suggestions = results;
 }
 
+const UIElement = struct {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+
+    // TODO: better names at some point pls
+    origin: enum { left, right, top, bottom, center }, // origin is the point from which x and y are calculated
+    anchor: enum { left, right, top, bottom, center }, // anchor is the point from which the element is drawn
+    //
+    transform_modifier: ?*const fn (self: *UIElement, w: *f32, h: *f32, x: *f32, y: *f32) void = null,
+
+    sub_element: union(enum) {
+        glass: UIGlass,
+        text: UIText,
+    },
+
+    children: []const *UIElement,
+};
+
+const UIGlass = struct {
+    const hoverable = 0b00000001;
+    const clickable = 0b00000010;
+    const open_animation = 0b00000100;
+
+    open_condition: *bool,
+    open_state: f32 = 0,
+
+    flags: i8 = 0,
+
+    fn updateOpenState(self: *UIGlass, dt: f32) !void {
+        const state_target: f32 = if (self.open_condition.*) 1.0 else 0.0;
+        self.open_state = lerp(self.open_state, state_target, dt * 20.0);
+    }
+};
+
+const UIText = struct {
+    buffer: std.ArrayList(u8) = .empty,
+    size: f32,
+};
+
+fn beaconTransformModifier(self: *UIElement, w: *f32, h: *f32, x: *f32, y: *f32) void {
+    _ = self;
+    _ = w;
+    _ = x;
+    y.* -= 25 * beacon_suggestion_state;
+    h.* += 100 * beacon_suggestion_state;
+}
+
+var beacon = UIElement{
+    .x = 0,
+    .y = 0,
+    .w = 800,
+    .h = 80,
+    .anchor = .center,
+    .origin = .center,
+
+    .transform_modifier = beaconTransformModifier,
+
+    .sub_element = .{
+        .glass = .{
+            .open_condition = &beacon_open,
+            .flags = UIGlass.open_animation,
+        },
+    },
+
+    .children = &.{},
+};
+
+var beacon_text = UIElement{
+    .x = 0,
+    .y = 0,
+    .w = 800,
+    .h = 80,
+    .anchor = .center,
+    .origin = .center,
+
+    .sub_element = .{
+        .text = .{
+            .size = 26,
+        },
+    },
+
+    .children = &.{},
+};
+
+const ui_elements = [_]*UIElement{
+    &beacon,
+    &beacon_text,
+};
+
+fn renderUIElem(elem: *UIElement, screen_width: f32, screen_height: f32, output: *WinglessOutput, scene_tex: *c.wlr_texture) void {
+    var width: f32 = undefined;
+    var height: f32 = undefined;
+    var x: f32 = undefined;
+    var y: f32 = undefined;
+
+    switch (elem.anchor) {
+        .center => {
+            switch (elem.sub_element) {
+                .glass => |glass| {
+                    width = elem.w * glass.open_state;
+                    height = if (width > elem.h) elem.h else width;
+                },
+                .text => {
+                    width = elem.w;
+                    height = elem.h;
+                },
+            }
+
+            x = screen_width / 2 - width / 2;
+            y = screen_height / 2 - height / 2;
+
+            if (elem.transform_modifier) |mod| {
+                mod(elem, &width, &height, &x, &y);
+            }
+        },
+        else => @panic("ui element anchor not implemented"),
+    }
+
+    switch (elem.sub_element) {
+        .glass => {
+            if (elem.transform_modifier) |mod| {
+                mod(elem, &width, &height, &x, &y);
+            }
+            drawGlassQuad(output, x, y, width, height, screen_width, screen_height, scene_tex);
+        },
+        .text => {},
+    }
+
+    for (elem.children) |child| {
+        renderUIElem(child, screen_width, screen_height, output, scene_tex);
+    }
+}
+
 pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
+    // setup
     if (initialized == false) {
         try initUI(std.heap.page_allocator);
 
@@ -834,7 +970,26 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     }
     const dt = getDeltaSeconds();
 
+    if (output.gl_vbo == 0)
+        gl.glGenBuffers(1, &output.gl_vbo);
+
+    if (output.gl_vao == 0)
+        gl.glGenBuffers(1, &output.gl_vao);
+
+    ensurePrograms(output);
+
+    gl.glViewport(0, 0, w, h);
+
     // update state
+    for (ui_elements) |elem| {
+        switch (elem.sub_element) {
+            .glass => {
+                try elem.sub_element.glass.updateOpenState(dt);
+            },
+            else => {},
+        }
+    }
+
     const beacon_state_target: f32 = if (beacon_open) 1.0 else 0.0;
     beacon_state = lerp(beacon_state, beacon_state_target, dt * 20.0);
 
@@ -854,17 +1009,6 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     const beacon_line_state_target: f32 = if (beacon_state_target > 0.1) 1 else 0;
     beacon_line_state = lerp(beacon_line_state, beacon_line_state_target, dt * 20.0);
 
-    // setup
-    if (output.gl_vbo == 0)
-        gl.glGenBuffers(1, &output.gl_vbo);
-
-    if (output.gl_vao == 0)
-        gl.glGenBuffers(1, &output.gl_vao);
-
-    ensurePrograms(output);
-
-    gl.glViewport(0, 0, w, h);
-
     // global state
     gl.glDisable(c.GL_SCISSOR_TEST);
     gl.glDisable(c.GL_DEPTH_TEST);
@@ -879,31 +1023,24 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     if (scene_tex == null) @panic("no tex");
     defer c.wlr_texture_destroy(scene_tex);
 
-    const W: f32 = @floatFromInt(w);
-    const H: f32 = @floatFromInt(h);
+    const screen_width: f32 = @floatFromInt(w);
+    const screen_height: f32 = @floatFromInt(h);
 
-    // draw beacon background
-    {
-        const width = 800 * beacon_state;
-        var height = 80 + 200 * beacon_suggestion_state;
-        if (width < 80) height = width;
-
-        const x = W / 2 - width / 2;
-        const y = H / 2 - height / 2 + 50 * beacon_suggestion_state;
-
-        drawGlassQuad(output, x, y, width, height, W, H, scene_tex);
+    // draw ui elements
+    for (ui_elements) |elem| {
+        renderUIElem(elem, screen_width, screen_height, output, scene_tex);
     }
 
     // beacon overlay
     if (beacon_open) {
-        const x: f32 = W / 2 - 370;
-        const y: f32 = H / 2 - 10 + beacon_suggestion_state * 50;
+        const x: f32 = screen_width / 2 - 370;
+        const y: f32 = screen_height / 2 - 10 + beacon_suggestion_state * 50;
 
         const suggestion_offset: f32 = 60;
         var suggestion_y = y - 80;
         const empty_suggestion_text = "Unknown command !";
 
-        drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, W, H, 0.2);
+        drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, screen_width, screen_height, 0.2);
 
         // draw suggestions
         if (beacon_suggestion_state_target > 0.1) {
@@ -930,8 +1067,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                 line_y,
                 line_w,
                 line_h,
-                W,
-                H,
+                screen_width,
+                screen_height,
                 output.fill.?.pos_loc,
             );
 
@@ -946,8 +1083,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                     suggestion,
                     x + 58,
                     suggestion_y,
-                    W,
-                    H,
+                    screen_width,
+                    screen_height,
                     0.0,
                 );
 
@@ -966,8 +1103,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                             suggestion_y - 9,
                             42,
                             42,
-                            W,
-                            H,
+                            screen_width,
+                            screen_height,
                             output.image.?.pos_loc,
                             output.image.?.uv_loc,
                         );
@@ -978,40 +1115,90 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
             }
 
             if (beacon_suggestions.len == 0) {
-                drawGlassSentence(output, &glass_font, empty_suggestion_text, x, suggestion_y, W, H, 0.0);
+                drawGlassSentence(output, &glass_font, empty_suggestion_text, x, suggestion_y, screen_width, screen_height, 0.0);
             }
         }
     }
 
-    if (true) return;
-
     // menu
     {
-        if (server.focused_toplevel != null) {
+        if (server.focused_toplevel != null and menu_open) {
+            // thumbnail code
+            // thumbnails are focusable root surfaces and all of its subsurfaces rendered on top of each other
+
             // collect surface textures
             const focusables = try server.focused_toplevel.?.linkedToList(server.allocator);
-            var surface_textures: std.ArrayList(*c.wlr_texture) = .empty;
-            const IteratorData = struct {
-                tex_list: *std.ArrayList(*c.wlr_texture),
-                server: *WinglessServer,
-                largest_surface: *c.wlr_surface,
+
+            const SurfaceItem = struct {
+                texture: *c.wlr_texture,
+                x: f32,
+                y: f32,
+                w: f32,
+                h: f32,
             };
+
+            const IteratorData = struct {
+                tex_list: *std.ArrayList(*SurfaceItem),
+                server: *WinglessServer,
+
+                base_x: f32,
+                base_y: f32,
+
+                scale: f32,
+            };
+
+            var surface_textures: std.ArrayList(*SurfaceItem) = .empty;
+
+            const base_width: f32 = 2540;
+            const base_height: f32 = 1440;
+
+            const num_surfaces: f32 = @floatFromInt(focusables.len);
+
+            const gap: f32 = 80;
+
+            const scale: f32 = 0.2;
+            var base_x: f32 = base_width / 2 - num_surfaces * base_width * scale / 2;
+            const base_y: f32 = base_height / 2 - base_height * scale / 2;
+
+            // collect and layout focusables and their subsurfaces
             for (focusables) |focusable| {
                 const iterator = struct {
-                    pub fn iterator(surface: [*c]c.wlr_surface, _: c_int, _: c_int, data: ?*anyopaque) callconv(.c) void {
+                    pub fn iterator(surface: [*c]c.wlr_surface, sx: c_int, sy: c_int, data: ?*anyopaque) callconv(.c) void {
                         var idata: *IteratorData = @ptrCast(@alignCast(data.?));
-                        if (c.wlr_surface_get_texture(surface)) |t| {
-                            const tex: *c.wlr_texture = @ptrCast(t);
-                            if (tex.width + tex.height > 2)
-                                idata.tex_list.append(idata.server.allocator, t) catch @panic("out of memory");
-                        } else @panic("fuck no texture");
+
+                        const tex_opt = c.wlr_surface_get_texture(surface);
+                        if (tex_opt == null) return;
+
+                        const tex: *c.wlr_texture = @ptrCast(tex_opt);
+                        const s: *c.wlr_surface = @ptrCast(surface);
+
+                        const sw: f32 = @floatFromInt(s.current.width);
+                        const sh: f32 = @floatFromInt(s.current.height);
+
+                        if (sw <= 0 or sh <= 0) return;
+
+                        const it = idata.server.allocator.create(SurfaceItem) catch @panic("out of memory");
+                        it.* = .{
+                            .texture = tex,
+                            .x = idata.base_x + @as(f32, @floatFromInt(sx)) * idata.scale,
+                            .y = idata.base_y + @as(f32, @floatFromInt(sy)) * idata.scale,
+                            .w = sw * idata.scale,
+                            .h = sh * idata.scale,
+                        };
+
+                        idata.tex_list.append(
+                            idata.server.allocator,
+                            it,
+                        ) catch @panic("out of memory");
                     }
                 }.iterator;
 
                 const iter_data = IteratorData{
                     .tex_list = &surface_textures,
                     .server = server,
-                    .largest_surface = undefined,
+                    .base_x = base_x,
+                    .base_y = base_y,
+                    .scale = scale,
                 };
 
                 c.wlr_surface_for_each_surface(
@@ -1019,13 +1206,17 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
                     iterator,
                     @ptrCast(@alignCast(@constCast(&iter_data))),
                 );
+
+                // draw glass background here for now
+                drawGlassQuad(output, base_x - gap / 2 + 10, base_y - gap / 2 + 10, base_width * scale + gap - 20, base_height * scale + gap - 20, screen_width, screen_height, scene_tex);
+
+                base_x += base_width * scale + gap;
             }
 
             // iterate over surface textures and render them
-            var x: f32 = 0;
-            for (surface_textures.items) |tex| {
+            for (surface_textures.items) |it| {
                 var attribs: c.wlr_gles2_texture_attribs = undefined;
-                c.wlr_gles2_texture_get_attribs(tex, &attribs);
+                c.wlr_gles2_texture_get_attribs(it.texture, &attribs);
 
                 gl.glUseProgram(output.image.?.prog);
 
@@ -1039,24 +1230,21 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
                 gl.glUniform1i(output.image.?.image_loc, 0);
 
-                const width: f32 = @as(f32, @floatFromInt(tex.width)) / 5;
-                var height: f32 = @as(f32, @floatFromInt(tex.height)) / 5;
+                const width: f32 = @as(f32, @floatFromInt(it.texture.width)) / 5;
+                var height: f32 = @as(f32, @floatFromInt(it.texture.height)) / 5;
                 if (width < 80) height = width;
-
-                const y = H / 2;
 
                 drawQuadWithUv(
                     output,
-                    x,
-                    y,
-                    width,
-                    height,
-                    W,
-                    H,
+                    it.x,
+                    it.y,
+                    it.w,
+                    it.h,
+                    screen_width,
+                    screen_height,
                     output.image.?.pos_loc,
                     output.image.?.uv_loc,
                 );
-                x += 400;
             }
         }
     }
