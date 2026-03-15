@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const zclay = @import("zclay");
+
 const config = @import("config.zig");
 
 const main = @import("main.zig");
@@ -863,7 +865,7 @@ const UIGlass = struct {
 };
 
 const UIText = struct {
-    buffer: std.ArrayList(u8) = .empty,
+    buffer: *[]u8,
     size: f32,
 };
 
@@ -895,17 +897,28 @@ var beacon = UIElement{
     .children = &.{},
 };
 
+fn beaconTextTransformModifier(self: *UIElement, w: *f32, h: *f32, x: *f32, y: *f32) void {
+    _ = self;
+    _ = w;
+    _ = h;
+    _ = x;
+    y.* -= 10 + beacon_suggestion_state * 50;
+}
+
 var beacon_text = UIElement{
-    .x = 0,
+    .x = -370,
     .y = 0,
     .w = 800,
     .h = 80,
     .anchor = .center,
     .origin = .center,
 
+    .transform_modifier = beaconTextTransformModifier,
+
     .sub_element = .{
         .text = .{
             .size = 26,
+            .buffer = &beacon_buffer.items,
         },
     },
 
@@ -953,7 +966,9 @@ fn renderUIElem(elem: *UIElement, screen_width: f32, screen_height: f32, output:
             }
             drawGlassQuad(output, x, y, width, height, screen_width, screen_height, scene_tex);
         },
-        .text => {},
+        .text => {
+            drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, screen_width, screen_height, 0.2);
+        },
     }
 
     for (elem.children) |child| {
@@ -1040,7 +1055,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         var suggestion_y = y - 80;
         const empty_suggestion_text = "Unknown command !";
 
-        drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, screen_width, screen_height, 0.2);
+        // drawGlassSentence(output, &glass_font, beacon_buffer.items, x, y, screen_width, screen_height, 0.2);
 
         // draw suggestions
         if (beacon_suggestion_state_target > 0.1) {

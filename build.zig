@@ -9,6 +9,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    const zclay_dep = b.dependency("zclay", .{ .target = target, .optimize = optimize });
+    const zclay_mod = zclay_dep.module("zclay");
+
     const exe = b.addExecutable(.{
         .name = "wingless",
         .root_module = b.createModule(.{
@@ -17,6 +20,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "wingless", .module = mod },
+                .{ .name = "zclay", .module = zclay_mod },
             },
         }),
     });
