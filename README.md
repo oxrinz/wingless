@@ -19,22 +19,29 @@ Minimal Wayland compositor without sacrificing beauty
 - Drag and drop - done
 - Fix right clicks zen browser - done
 - Fix kicad crash - done (not really but solved anyway)
-- Fix random spotify crash - done (doesn't crash anymore no idea what happened or when it got fixed)
-- Tab chooser on super key
+- Fix random spotify crash - done (doesn't crash anymore no idea what happened or when it got fixed) (it does crash afterall but very inconsistently)
+- Clay UI - done
+- Tab chooser on super key - done
+- Volume changing popup - done
+- Volume, time, power, restart in menu - done
+- Copy paste lol - done
+- Layouting / tiling - done
 - UI scaling, support different resolutions
-- Volume changing popup
-- Volume, time, etc in beacon / menu
-- Screenshotting
 - Screen recording
-- Layouting / tiling
+- Line 991 fix segfault in commit
 
 ## todo after mvp:
-- Show a popup that shows next / prev window
+- The Mute Button
+- Design language and design toolkit
+- Wifi and Bluetooth in menu
+- Screenshotting
+- SDF morphing. Shapes should bleed into each other when they're close, for example the shutdown / restart buttons
+- Design menu properly
+- Render all shadows in one pass to avoid shadow overlaps
 - Change volume with keyboard sliders
 - Pointer constraints protocol (zwp_pointer_constraints_v1)
 - Support multiple monitors
 - Compositor icons (question mark or unknown icons, search icon, command icons)
 - Beacon search using .desktop keywords
 - Don't render windows that are behind one another
-- ILP menu layout
 - Port to vulkan

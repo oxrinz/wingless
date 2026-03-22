@@ -1,10 +1,13 @@
 const std = @import("std");
+const zclay = @import("zclay");
 
 const config = @import("config.zig");
 const WinglessConfig = config.WinglessConfig;
 const utils = @import("utils.zig");
 const tests = @import("tests.zig");
 const ui = @import("ui.zig");
+const beacon = @import("ui/beacon.zig");
+const menu = @import("ui/menu.zig");
 
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
@@ -17,9 +20,10 @@ pub const Focusable = union(enum) {
 
     pub fn linkedToList(self: *Focusable, allocator: std.mem.Allocator) ![]*Focusable {
         var list: std.ArrayList(*Focusable) = .empty;
-        try list.append(allocator, self.getNext());
-        while (list.getLast() != self) {
-            try list.append(allocator, list.getLast().getNext());
+        var curr = self.getNext();
+        while (curr != self) {
+            try list.append(allocator, curr);
+            curr = curr.getNext();
         }
         return try list.toOwnedSlice(allocator);
     }
@@ -105,6 +109,8 @@ pub const WinglessPointer = struct {
     libinput: *c.libinput_device,
 };
 
+const CursorMode = enum { passthrough, move, resize };
+
 pub const WinglessServer = struct {
     display: *c.wl_display = undefined,
     backend: *c.wlr_backend = undefined,
@@ -150,6 +156,15 @@ pub const WinglessServer = struct {
     new_xwayland_surface: c.wl_listener = undefined,
 
     wingless_config: config.WinglessConfig = undefined,
+
+    bg_path: ?[]const u8 = null,
+
+    cursor_mode: CursorMode = .passthrough,
+    grabbed_toplevel: ?*WinglessToplevel = null,
+    grab_x: f64 = 0,
+    grab_y: f64 = 0,
+    grab_geo: c.wlr_box = undefined,
+    resize_edges: u32 = 0,
 
     allocator: std.mem.Allocator = undefined,
 
@@ -235,8 +250,20 @@ pub const WinglessServer = struct {
         _ = c.setenv("XDG_SESSION_DESKTOP", "wingless", 1);
 
         server.wingless_config = conf;
-
         server.allocator = allocator;
+
+        if (conf.background) |path| {
+            // expand ~ to home directory
+            if (std.mem.startsWith(u8, path, "~/")) {
+                const home = std.process.getEnvVarOwned(allocator, "HOME") catch null;
+                if (home) |h| {
+                    server.bg_path = std.fmt.allocPrint(allocator, "{s}{s}", .{ h, path[1..] }) catch null;
+                }
+            } else {
+                server.bg_path = allocator.dupe(u8, path) catch null;
+            }
+            ui.bg_path = server.bg_path;
+        }
 
         return server;
     }
@@ -303,12 +330,17 @@ pub const WinglessOutput = struct {
     output: *c.wlr_output,
 
     image: ?ui.ImageProgram = null,
+    window: ?ui.WindowProgram = null,
     fill: ?ui.FillProgram = null,
+    blur: ?ui.BlurProgram = null,
+    shadow: ?ui.ShadowProgram = null,
     glass_background: ?ui.GlassBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
 
     gl_vao: c_uint = 0,
     gl_vbo: c_uint = 0,
+    blur_fbo: c_uint = 0,
+    blur_tex: c_uint = 0,
 
     scene_buffer: ?*c.wlr_buffer = null,
 
@@ -363,6 +395,9 @@ const WinglessToplevel = struct {
     next: ?*Focusable,
 
     thumb: Thumbnail = .{},
+    x: i32 = 0,
+    y: i32 = 0,
+    is_fullscreen: bool = false,
 
     server: *WinglessServer,
     xdg_toplevel: ?*c.wlr_xdg_toplevel,
@@ -373,6 +408,7 @@ const WinglessToplevel = struct {
     commit: c.wl_listener,
     destroy: c.wl_listener,
     surface_destroy: c.wl_listener,
+    request_fullscreen: c.wl_listener,
 
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
@@ -391,6 +427,7 @@ const WinglessToplevel = struct {
             .commit = .{ .link = undefined, .notify = xdg_toplevel_commit },
             .destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy },
             .surface_destroy = .{ .link = undefined, .notify = xdg_toplevel_surface_destroy },
+            .request_fullscreen = .{ .link = undefined, .notify = xdg_toplevel_request_fullscreen },
         };
 
         {
@@ -403,6 +440,7 @@ const WinglessToplevel = struct {
             // toplevel's lifetime can be shorter than the surface's, so we separate the destroys into 2 to let commit listeners know the toplevel doesn't exist
             c.wl_signal_add(&surface.events.destroy, &toplevel.surface_destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
+            c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_fullscreen, &toplevel.request_fullscreen);
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -468,6 +506,7 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.unmap.link);
         c.wl_list_remove(&self.commit.link);
         c.wl_list_remove(&self.destroy.link);
+        c.wl_list_remove(&self.request_fullscreen.link);
     }
 };
 
@@ -617,7 +656,8 @@ fn on_client(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 }
 
 fn close_focused_toplevel(server: *WinglessServer) void {
-    switch (server.focused_toplevel.?.*) {
+    const focused = server.focused_toplevel orelse return;
+    switch (focused.*) {
         .xdg => |xdg| c.wlr_xdg_toplevel_send_close(xdg.xdg_toplevel),
         .xwayland => |xwl| c.wlr_xwayland_surface_close(xwl.xsurface),
     }
@@ -665,7 +705,7 @@ fn tab_prev(server: *WinglessServer) void {
     focus_toplevel(toplevel);
 }
 
-fn focus_toplevel(focusable: *Focusable) void {
+pub fn focus_toplevel(focusable: *Focusable) void {
     const server = focusable.server();
 
     const seat = server.seat;
@@ -677,7 +717,9 @@ fn focus_toplevel(focusable: *Focusable) void {
         if (server.focused_toplevel) |prev| {
             switch (prev.*) {
                 .xdg => |xdg| {
-                    _ = c.wlr_xdg_toplevel_set_activated(xdg.xdg_toplevel, false);
+                    if (xdg.xdg_toplevel) |t| {
+                        if (t.base.*.initialized) _ = c.wlr_xdg_toplevel_set_activated(t, false);
+                    }
                 },
                 .xwayland => |xwl| {
                     c.wlr_xwayland_surface_activate(xwl.xsurface, false);
@@ -691,7 +733,11 @@ fn focus_toplevel(focusable: *Focusable) void {
     // activate new surfaces
     c.wlr_scene_node_raise_to_top(&focusable.sceneTree().node);
     switch (focusable.*) {
-        .xdg => |xdg| _ = c.wlr_xdg_toplevel_set_activated(xdg.xdg_toplevel, true),
+        .xdg => |xdg| {
+            if (xdg.xdg_toplevel) |t| {
+                if (t.base.*.initialized) _ = c.wlr_xdg_toplevel_set_activated(t, true);
+            }
+        },
         .xwayland => |xwl| c.wlr_xwayland_surface_activate(xwl.xsurface, true),
     }
 
@@ -766,6 +812,7 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     if (toplevel.xdg_toplevel) |xdg_toplevel| {
         const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         if (xdg_surface.initial_commit) {
+            std.debug.print("initial_commit: initialized={}\n", .{xdg_surface.initialized});
             const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
             const surface: *c.wlr_surface = wlr_surface.surface;
             const sx = surface.current.dx;
@@ -780,6 +827,9 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             if (toplevel.xdg_toplevel.?.parent == null) {
                 _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
                 _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
+                toplevel.x = 0;
+                toplevel.y = 0;
+                toplevel.is_fullscreen = true;
             } else {
                 _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
             }
@@ -802,6 +852,37 @@ fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
     toplevel.xdg_toplevel = null;
     toplevel.destroyToplevelSurface();
+}
+
+fn xdg_toplevel_request_fullscreen(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("request_fullscreen", listener)));
+    const xdg_toplevel = toplevel.xdg_toplevel orelse return;
+    const wants_fullscreen = xdg_toplevel.requested.fullscreen;
+
+    if (wants_fullscreen and !toplevel.is_fullscreen) {
+        const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(toplevel.x), @floatFromInt(toplevel.y)) orelse return;
+        var ow: c_int = 0;
+        var oh: c_int = 0;
+        c.wlr_output_effective_resolution(o, &ow, &oh);
+        _ = c.wlr_xdg_toplevel_set_size(xdg_toplevel, ow, oh);
+        _ = c.wlr_xdg_toplevel_set_fullscreen(xdg_toplevel, true);
+        toplevel.x = 0;
+        toplevel.y = 0;
+        c.wlr_scene_node_set_position(&toplevel.scene_tree.node, 0, 0);
+        toplevel.is_fullscreen = true;
+    } else if (!wants_fullscreen and toplevel.is_fullscreen) {
+        _ = c.wlr_xdg_toplevel_set_fullscreen(xdg_toplevel, false);
+        toplevel.is_fullscreen = false;
+        const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(toplevel.x), @floatFromInt(toplevel.y)) orelse return;
+        var out_box: c.wlr_box = undefined;
+        c.wlr_output_layout_get_box(toplevel.server.output_layout, o, &out_box);
+        const margin = 10;
+        toplevel.x = out_box.x + margin;
+        toplevel.y = out_box.y + margin;
+        _ = c.wlr_xdg_toplevel_set_size(xdg_toplevel, out_box.width - margin * 2, out_box.height - margin * 2);
+        c.wlr_scene_node_set_position(&toplevel.scene_tree.node, toplevel.x, toplevel.y);
+    }
 }
 
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -910,11 +991,11 @@ fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 
     if (popup.scene_tree) |tree| {
         _ = tree;
-        //c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
     }
 
     const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
-    _ = if (base.initial_commit) c.wlr_xdg_surface_schedule_configure(base);
+    std.debug.print("popup commit: initial={} initialized={}\n", .{ base.initial_commit, base.initialized });
+    if (base.initial_commit and base.initialized) _ = c.wlr_xdg_surface_schedule_configure(base);
 }
 
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -924,6 +1005,7 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const popup = WinglessPopup.init(server.allocator, xdg_popup, server) catch @panic("Out of memory");
 
     const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
+    std.debug.print("new popup: parent.initialized={}\n", .{parent.initialized});
     const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
     const base: *c.wlr_xdg_surface = xdg_popup.base.?;
     _ = base;
@@ -967,6 +1049,72 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var sx: f64 = undefined;
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
+
+    if (ui.initialized) ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
+    ui.volume_slider.onCursorMove(@floatCast(server.cursor.y));
+
+    if (ui.menu_open) return;
+
+    if (server.cursor_mode == .move) {
+        const t = server.grabbed_toplevel.?;
+        if (t.is_fullscreen) {
+            server.cursor_mode = .passthrough;
+            server.grabbed_toplevel = null;
+        } else {
+            var new_x: i32 = @intFromFloat(server.cursor.x - server.grab_x);
+            var new_y: i32 = @intFromFloat(server.cursor.y - server.grab_y);
+
+            const output_at = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y);
+            var out_box: c.wlr_box = undefined;
+            c.wlr_output_layout_get_box(server.output_layout, output_at, &out_box);
+            const geo = t.xdg_toplevel.?.base.*.geometry;
+            const margin = 10;
+            new_x = @max(out_box.x + margin, @min(new_x, out_box.x + out_box.width - geo.width - margin));
+            new_y = @max(out_box.y + margin, @min(new_y, out_box.y + out_box.height - geo.height - margin));
+
+            t.x = new_x;
+            t.y = new_y;
+            c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
+            return;
+        }
+    }
+
+    if (server.cursor_mode == .resize) {
+        const t = server.grabbed_toplevel.?;
+        if (t.is_fullscreen) {
+            server.cursor_mode = .passthrough;
+            server.grabbed_toplevel = null;
+        } else {
+            const dx: i32 = @intFromFloat(server.cursor.x - server.grab_x);
+            const dy: i32 = @intFromFloat(server.cursor.y - server.grab_y);
+            const geo = server.grab_geo;
+
+            var new_left = geo.x;
+            var new_right = geo.x + geo.width;
+            var new_top = geo.y;
+            var new_bottom = geo.y + geo.height;
+
+            if (server.resize_edges & 4 != 0) new_left += dx; // WLR_EDGE_LEFT
+            if (server.resize_edges & 8 != 0) new_right += dx; // WLR_EDGE_RIGHT
+            if (server.resize_edges & 1 != 0) new_top += dy; // WLR_EDGE_TOP
+            if (server.resize_edges & 2 != 0) new_bottom += dy; // WLR_EDGE_BOTTOM
+
+            const output_at = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y);
+            var out_box: c.wlr_box = undefined;
+            c.wlr_output_layout_get_box(server.output_layout, output_at, &out_box);
+            const margin = 10;
+            new_left = @max(new_left, out_box.x + margin);
+            new_right = @min(new_right, out_box.x + out_box.width - margin);
+            new_top = @max(new_top, out_box.y + margin);
+            new_bottom = @min(new_bottom, out_box.y + out_box.height - margin);
+
+            _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, @max(1, new_right - new_left), @max(1, new_bottom - new_top));
+            t.x = new_left;
+            t.y = new_top;
+            c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
+            return;
+        }
+    }
 
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
@@ -1015,16 +1163,61 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
         return;
     }
 
-    // TODO:  horrible. cleanup
+    // release move/resize
+    if (event.state == c.WLR_BUTTON_RELEASED and server.cursor_mode != .passthrough) {
+        server.cursor_mode = .passthrough;
+        server.grabbed_toplevel = null;
+        return;
+    }
+
+    if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive())) {
+        ui.pointer_down = event.state == c.WLR_BUTTON_PRESSED;
+        ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
+        ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
+    }
+
+    if (ui.menu_open) return;
+
     var sx: f64 = undefined;
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
-    _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+    const hit_toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
+
+    // Super+LMB = move, Super+RMB = resize
+    if (event.state == c.WLR_BUTTON_PRESSED and hit_toplevel != null) {
+        const t = hit_toplevel.?;
+        focus_toplevel(&t.focusable);
+        const wlr_kb = c.wlr_seat_get_keyboard(server.seat);
+        const mods = if (wlr_kb != null) c.wlr_keyboard_get_modifiers(wlr_kb) else 0;
+        if (mods & c.WLR_MODIFIER_LOGO != 0) {
+            if (event.button == 272) { // BTN_LEFT
+                if (t.is_fullscreen) return;
+                server.cursor_mode = .move;
+                server.grabbed_toplevel = t;
+                server.grab_x = server.cursor.x - @as(f64, @floatFromInt(t.x));
+                server.grab_y = server.cursor.y - @as(f64, @floatFromInt(t.y));
+                return;
+            } else if (event.button == 273) { // BTN_RIGHT
+                if (t.is_fullscreen) return;
+                const geo = t.xdg_toplevel.?.base.*.geometry;
+                const win_cx = @as(f64, @floatFromInt(t.x + geo.x)) + @as(f64, @floatFromInt(geo.width)) / 2.0;
+                const win_cy = @as(f64, @floatFromInt(t.y + geo.y)) + @as(f64, @floatFromInt(geo.height)) / 2.0;
+                var edges: u32 = 0;
+                if (server.cursor.x < win_cx) edges |= 4 else edges |= 8; // LEFT/RIGHT
+                if (server.cursor.y < win_cy) edges |= 1 else edges |= 2; // TOP/BOTTOM
+                server.cursor_mode = .resize;
+                server.grabbed_toplevel = t;
+                server.grab_x = server.cursor.x;
+                server.grab_y = server.cursor.y;
+                server.grab_geo = .{ .x = t.x, .y = t.y, .width = geo.width, .height = geo.height };
+                server.resize_edges = edges;
+                return;
+            }
+        }
+    }
 
     if (surface != null) {
         c.wlr_seat_pointer_notify_enter(server.seat, surface, sx, sy);
-    } else {
-        //c.wlr_seat_pointer_clear_focus(server.seat);
     }
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
 }
@@ -1042,7 +1235,7 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     c.wlr_seat_pointer_notify_frame(server.seat);
 }
 
-fn spawnCmd(argv: []const []const u8) void {
+pub fn spawnCmd(argv: []const []const u8) void {
     var child = std.process.Child.init(argv, std.heap.page_allocator);
     child.spawn() catch {};
 }
@@ -1058,28 +1251,87 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         .tab_next => tab_next(server),
         .tab_prev => tab_prev(server),
         .close_focused => close_focused_toplevel(server),
+        .toggle_fullscreen => {
+            const focused = server.focused_toplevel orelse return;
+            if (focused.* == .xdg) {
+                const t = focused.xdg;
+                if (t.is_fullscreen) {
+                    _ = c.wlr_xdg_toplevel_set_fullscreen(t.xdg_toplevel, false);
+                    t.is_fullscreen = false;
+                    const o = c.wlr_output_layout_output_at(server.output_layout, @floatFromInt(t.x), @floatFromInt(t.y)) orelse return;
+                    var out_box: c.wlr_box = undefined;
+                    c.wlr_output_layout_get_box(server.output_layout, o, &out_box);
+                    const margin = 10;
+                    t.x = out_box.x + margin;
+                    t.y = out_box.y + margin;
+                    _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, out_box.width - margin * 2, out_box.height - margin * 2);
+                    c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
+                } else {
+                    const o = c.wlr_output_layout_output_at(server.output_layout, @floatFromInt(t.x), @floatFromInt(t.y)) orelse return;
+                    var ow: c_int = 0;
+                    var oh: c_int = 0;
+                    c.wlr_output_effective_resolution(o, &ow, &oh);
+                    _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, ow, oh);
+                    _ = c.wlr_xdg_toplevel_set_fullscreen(t.xdg_toplevel, true);
+                    t.x = 0;
+                    t.y = 0;
+                    c.wlr_scene_node_set_position(&t.scene_tree.node, 0, 0);
+                    t.is_fullscreen = true;
+                }
+            }
+        },
         .toggle_menu => {
-            ui.menu_open = !ui.menu_open;
+            menu.toggleMenu();
         },
         .toggle_beacon => {
-            if (ui.beacon_open == true) ui.beacon_buffer.clearRetainingCapacity();
-            ui.beacon_open = !ui.beacon_open;
+            ui.toggleBeacon();
         },
         .launch_app => {
             const name: *[]const u8 = @ptrCast(@alignCast(args.?[0]));
 
             spawnCmd(&[_][]const u8{ "sh", "-c", name.* });
         },
-
-        .volume_down => spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" }),
-        .volume_up => spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" }),
+        .volume_down => {
+            ui.volume_slider.volume = @max(0.0, ui.volume_slider.volume - 0.05);
+            ui.volume_slider.onVolumeChanged();
+            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" });
+        },
+        .volume_up => {
+            ui.volume_slider.volume = @min(1.0, ui.volume_slider.volume + 0.05);
+            ui.volume_slider.onVolumeChanged();
+            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" });
+        },
         .volume_set => {
             const percent: *u8 = @ptrCast(args.?[0]);
             const p: u8 = if (percent.* > 150) 150 else percent.*;
+            ui.volume_slider.volume = @as(f32, @floatFromInt(p)) / 100.0;
+            ui.volume_slider.onVolumeChanged();
 
             var buf: [8]u8 = undefined;
             const s = std.fmt.bufPrint(&buf, "{d}%", .{p}) catch return;
             spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
+        },
+        .shutdown => spawnCmd(&[_][]const u8{ "systemctl", "poweroff" }),
+        .reboot => spawnCmd(&[_][]const u8{ "systemctl", "reboot" }),
+        .snap_left, .snap_right => {
+            const focused = server.focused_toplevel orelse return;
+            if (focused.* != .xdg) return;
+            const t = focused.xdg;
+            if (t.is_fullscreen) return;
+            const o = c.wlr_output_layout_output_at(server.output_layout, @floatFromInt(t.x), @floatFromInt(t.y)) orelse return;
+            var out_box: c.wlr_box = undefined;
+            c.wlr_output_layout_get_box(server.output_layout, o, &out_box);
+            const margin = 10;
+            const half_w = @divTrunc(out_box.width, 2) - margin - @divTrunc(margin, 2);
+            const h = out_box.height - margin * 2;
+            if (function == .snap_left) {
+                t.x = out_box.x + margin;
+            } else {
+                t.x = out_box.x + @divTrunc(out_box.width, 2) + @divTrunc(margin, 2);
+            }
+            t.y = out_box.y + margin;
+            _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, half_w, h);
+            c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
         },
     }
 }
@@ -1100,18 +1352,25 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
         const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
 
-        // handle keybind
+        // handle Super+Escape = quit
         if (0 < (modifiers & c.WLR_MODIFIER_LOGO)) {
             for (0..@intCast(nsyms)) |i| {
-                const sym = syms[i];
+                if (syms[i] == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
+            }
+        }
 
-                if (sym == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
-                for (server.wingless_config.keybinds) |keybind| {
-                    if (keybind.key == sym) {
-                        launchCommand(keybind.function, null, server);
-                        super_handled = true;
-                        handled = true;
-                    }
+        // handle keybinds
+        for (server.wingless_config.keybinds) |keybind| {
+            const modifier_matches = switch (keybind.modifier) {
+                .super => 0 < (modifiers & c.WLR_MODIFIER_LOGO),
+                .none => true,
+            };
+            if (!modifier_matches) continue;
+            for (0..@intCast(nsyms)) |i| {
+                if (keybind.key == syms[i]) {
+                    launchCommand(keybind.function, null, server);
+                    if (keybind.modifier == .super) super_handled = true;
+                    handled = true;
                 }
             }
         }
@@ -1121,17 +1380,17 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             for (0..@intCast(nsyms)) |i| {
                 const sym = syms[i];
                 if (sym == c.XKB_KEY_BackSpace) {
-                    _ = ui.beacon_buffer.pop();
+                    _ = beacon.beacon_buffer.pop();
 
-                    ui.updateBeaconSuggestions(server.allocator) catch @panic("oops");
+                    beacon.updateBeaconSuggestions(server.allocator) catch @panic("oops");
                     handled = true;
                     continue;
                 } else if (sym == c.XKB_KEY_Return) {
                     // launch command
                     ui.beacon_open = false;
-                    ui.beacon_buffer.clearRetainingCapacity();
+                    beacon.beacon_buffer.clearRetainingCapacity();
 
-                    const command = ui.beacon_suggestions[0];
+                    const command = beacon.beacon_suggestions[0];
 
                     launchCommand(command.function, command.args, server);
 
@@ -1144,10 +1403,10 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 const len = c.xkb_keysym_to_utf8(syms[i], &buf, buf.len);
 
                 if (len > 1) {
-                    ui.beacon_buffer.appendSlice(server.allocator, buf[0..@intCast(len - 1)]) catch {};
+                    beacon.beacon_buffer.appendSlice(server.allocator, buf[0..@intCast(len - 1)]) catch {};
                 }
 
-                ui.updateBeaconSuggestions(server.allocator) catch @panic("oops");
+                beacon.updateBeaconSuggestions(server.allocator) catch @panic("oops");
 
                 handled = true;
             }
@@ -1242,6 +1501,9 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
 const SceneRenderCtx = struct {
     renderer: *c.wlr_renderer,
     pass: *c.wlr_render_pass,
+    output: *WinglessOutput,
+    sw: f32,
+    sh: f32,
 };
 
 var g_draw_idx: u32 = 0;
@@ -1256,8 +1518,45 @@ fn render_scene_buffer_iter(
     const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
     const scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf_bad.?));
 
-    const ss: *c.wlr_scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
-    const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.surface) orelse @panic("nope");
+    const ss = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
+    const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.*.surface) orelse return;
+
+    // Walk up the scene tree to find the owning WinglessToplevel via node.data
+    var toplevel: ?*WinglessToplevel = null;
+    var parent: ?*c.wlr_scene_tree = @ptrCast(scene_buf.node.parent);
+    var depth: usize = 0;
+    while (parent != null and depth < 8) : (depth += 1) {
+        if (parent.?.node.data) |d| {
+            toplevel = @ptrCast(@alignCast(d));
+            break;
+        }
+        parent = @ptrCast(parent.?.node.parent);
+    }
+
+    // Non-fullscreen XDG toplevel: use GL with rounded corners
+    if (toplevel) |t| {
+        if (!t.is_fullscreen and t.xdg_toplevel != null) {
+            const xdg_base: *c.wlr_xdg_surface = @ptrCast(t.xdg_toplevel.?.base);
+            const main_surf: *c.wlr_surface = @ptrCast(xdg_base.surface);
+            const sw: f32 = if (scene_buf.dst_width > 0) @floatFromInt(scene_buf.dst_width) else @floatFromInt(tex.*.width);
+            const sh: f32 = if (scene_buf.dst_height > 0) @floatFromInt(scene_buf.dst_height) else @floatFromInt(tex.*.height);
+            const fsx: f32 = @floatFromInt(sx);
+            const fsy: f32 = @floatFromInt(sy);
+            if (ss.*.surface == main_surf) {
+                // clip to xdg geometry (actual visible content, excludes client-side margins)
+                const geo = xdg_base.geometry;
+                const clip_x: f32 = fsx + @as(f32, @floatFromInt(geo.x));
+                const clip_y: f32 = fsy + @as(f32, @floatFromInt(geo.y));
+                const clip_w: f32 = if (geo.width > 0) @floatFromInt(geo.width) else sw;
+                const clip_h: f32 = if (geo.height > 0) @floatFromInt(geo.height) else sh;
+                const focused = ctx.output.server.focused_toplevel;
+                const is_focused = focused != null and focused.?.* == .xdg and focused.?.xdg == t;
+                ui.drawWindowSurface(ctx.output, tex, fsx, fsy, sw, sh, clip_x, clip_y, clip_w, clip_h, ctx.sw, ctx.sh, true, is_focused);
+                g_draw_idx += 1;
+                return;
+            }
+        }
+    }
 
     const dst = c.wlr_box{
         .x = sx,
@@ -1294,20 +1593,29 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wlr_output_transformed_resolution(output.output, &w, &h);
 
     // reset buffer on resize
-    if (output.scene_buffer == null or
-        output.width != w or
-        output.height != h)
-    {
+    const size_changed = output.width != w or output.height != h;
+    if (output.scene_buffer == null or size_changed) {
         output.width = w;
         output.height = h;
         output.scene_buffer = c.wlr_allocator_create_buffer(server.wlr_allocator, w, h, @ptrCast(output.ui_gl_fmt));
     }
 
-    // render offscreen buffer
+    // render offscreen buffer (scene_tex seen by glass shaders)
     if (c.wlr_renderer_begin_buffer_pass(server.renderer, output.scene_buffer.?, null)) |pass| {
+        // GL context is active after begin_buffer_pass; compile programs if needed
+        ui.ensurePrograms(output);
+
+        // background via GL into scene_buffer so glass shaders can refract it
+        const sw: f32 = @floatFromInt(w);
+        const sh: f32 = @floatFromInt(h);
+        ui.renderBackground(output, sw, sh);
+
         var ctx = SceneRenderCtx{
             .renderer = server.renderer,
             .pass = pass,
+            .output = output,
+            .sw = @floatFromInt(w),
+            .sh = @floatFromInt(h),
         };
 
         c.wlr_scene_output_for_each_buffer(scene_output, render_scene_buffer_iter, &ctx);
@@ -1333,12 +1641,20 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         });
 
         ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
+        // deliver pressed_this_frame to Clay callbacks, then clear so it doesn't repeat
+        ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
+        ui.pointer_down = false;
 
         _ = c.wlr_render_pass_submit(out_pass);
         c.wlr_texture_destroy(tex);
     }
 
     _ = c.wlr_output_commit_state(output.output, &state);
+
+    // keep requesting frames while animated UI is active
+    if (ui.volume_slider.isActive() or ui.menu_open or ui.beacon_open) {
+        c.wlr_output_schedule_frame(output.output);
+    }
 
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, @ptrCast(&now));

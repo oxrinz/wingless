@@ -5,6 +5,7 @@ pub const WinglessFunction = enum {
     tab_next,
     tab_prev,
     close_focused,
+    toggle_fullscreen,
     toggle_menu,
     toggle_beacon,
     launch_app,
@@ -12,15 +13,28 @@ pub const WinglessFunction = enum {
     volume_up,
     volume_down,
     volume_set,
+
+    shutdown,
+    reboot,
+
+    snap_left,
+    snap_right,
+};
+
+pub const Modifier = enum {
+    super,
+    none,
 };
 
 pub const Keybind = struct {
     function: WinglessFunction,
     key: c_int, // uses XKB
+    modifier: Modifier = .super,
 };
 
 pub const WinglessConfig = struct {
     pointer_sensitivity: f64 = 1,
+    background: ?[]const u8 = null,
     keybinds: []Keybind,
 };
 
@@ -78,7 +92,11 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
         const line = std.mem.trim(u8, line_raw, " \t\r");
         if (line.len == 0) continue;
 
-        if (std.mem.startsWith(u8, line, "POINTER_SENSITIVITY")) {
+        if (std.mem.startsWith(u8, line, "BACKGROUND")) {
+            const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
+            const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+            config.background = try allocator.dupe(u8, std.mem.trim(u8, line[eq + 1 .. semi], " \t"));
+        } else if (std.mem.startsWith(u8, line, "POINTER_SENSITIVITY")) {
             const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
             const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
 
@@ -93,14 +111,17 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     }
 
     // keybinds
-    var keybinds = try allocator.alloc(Keybind, 7);
+    var keybinds = try allocator.alloc(Keybind, 10);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
     keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
     keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
-    keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up };
-    keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down };
+    keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up, .modifier = .none };
+    keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down, .modifier = .none };
     keybinds[6] = .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu };
+    keybinds[7] = .{ .key = c.XKB_KEY_f, .function = .toggle_fullscreen };
+    keybinds[8] = .{ .key = c.XKB_KEY_h, .function = .snap_left };
+    keybinds[9] = .{ .key = c.XKB_KEY_l, .function = .snap_right };
 
     config.keybinds = keybinds;
 

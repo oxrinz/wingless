@@ -5,6 +5,11 @@ uniform sampler2D scene;
 uniform vec2 size;
 uniform vec2 quadPos;
 uniform float shadowIntensity;
+uniform float roundness;
+uniform float fillAmount;
+uniform int fillDirection;
+uniform float refractionBand;
+uniform float brightness;
 varying vec2 v_uv;
 
 vec2 resolution = vec2(2560, 1440);
@@ -39,8 +44,6 @@ void main() {
   float ratio = resolution.x / resolution.y;
   vec2 fragCoord = v_uv * resolution;
 
-  float roundness = 75.;
-
   // opening / closing animation
   vec2 paneCenter = quadPos + size * 0.5;
   // paneCenter = resolution / 2.;
@@ -72,15 +75,14 @@ void main() {
   alpha = max(alpha, edge);
 
   if (edge > 0.0) {
-    float distFromCenter = 1.0 - clamp(inversedSDF / 0.2, 0.0, 1.0);
+    float distFromCenter = 1.0 - clamp(-shadowSDF / refractionBand, 0.0, 1.0);
     float distortion = 1.0 - sqrt(1.0 - pow(distFromCenter, 2.0));
     // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
     // the middle that is present when the rectable is long and thin they can,
     // and SHOULD be removed if the size of the rectangle is somewhat balanced
     vec2 paneUV = glassCoord / max(size * .5, vec2(1.));
     vec2 normalizedGlassCoord = normalize(paneUV);
-    vec2 offset =
-        distortion * normalizedGlassCoord * min(size.x, size.y) * 0.12;
+    vec2 offset = distortion * normalizedGlassCoord * 200.0;
     vec2 glassColorCoord = fragCoord - offset;
 
     float blurIntensity = 1.2;
@@ -121,8 +123,24 @@ void main() {
 
     glassColor += gate * (hlTL * colTL + hlBR * colBR) * 1.5;
 
-    // bright
-    glassColor += vec3(0.05);
+    glassColor += vec3(brightness);
+
+    // fill
+    if (fillDirection > 0 && fillAmount > 0.0) {
+      vec2 localUV = (glassCoord + size * 0.5) / size;
+      float t;
+      if (fillDirection == 1)
+        t = localUV.y;
+      else if (fillDirection == 2)
+        t = 1.0 - localUV.y;
+      else if (fillDirection == 3)
+        t = localUV.x;
+      else
+        t = 1.0 - localUV.x;
+
+      float fillMask = 1.0 - step(fillAmount, t);
+      glassColor = mix(glassColor, vec3(1.), fillMask * 0.45);
+    }
 
     glassColor *= edge;
   }
