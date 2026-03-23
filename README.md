@@ -26,11 +26,20 @@ Minimal Wayland compositor without sacrificing beauty
 - Volume, time, power, restart in menu - done
 - Copy paste lol - done
 - Layouting / tiling - done
+- OBS fake fullscreen init configure weird check - done
+- Line 991 fix segfault in commit - done
+- Screen recording - done, wf-recorder only
+- Compositor icons (question mark or unknown icons, search icon, command icons) - done
+- Volume slider based on real defaults - done
+- Beacon placeholder - done
+- Async icon loading - done
+- Fix volume slider and volume control, should be clamped - done
 - UI scaling, support different resolutions
-- Screen recording
-- Line 991 fix segfault in commit
+- Multiple desktops
 
 ## todo after mvp:
+- Refresh .desktop entries at runtime
+- Popups positioned within the screen
 - The Mute Button
 - Design language and design toolkit
 - Wifi and Bluetooth in menu
@@ -41,7 +50,6 @@ Minimal Wayland compositor without sacrificing beauty
 - Change volume with keyboard sliders
 - Pointer constraints protocol (zwp_pointer_constraints_v1)
 - Support multiple monitors
-- Compositor icons (question mark or unknown icons, search icon, command icons)
 - Beacon search using .desktop keywords
 - Don't render windows that are behind one another
 - Port to vulkan

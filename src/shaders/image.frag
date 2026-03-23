@@ -5,6 +5,7 @@ uniform sampler2D image;
 uniform vec2 size;
 uniform vec2 quadPos;
 uniform float roundness;
+uniform float alpha;
 
 varying vec2 v_uv;
 
@@ -24,5 +25,5 @@ void main() {
   if (fill < 0.001) discard;
 
   vec4 tex = texture2D(image, v_uv);
-  gl_FragColor = vec4(tex.rgb, tex.a * fill);
+  gl_FragColor = vec4(tex.rgb, tex.a * fill * alpha);
 }

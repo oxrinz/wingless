@@ -115,11 +115,21 @@ pub fn layout(focusables: ?[]*Focusable) void {
             .direction = .top_to_bottom,
             .sizing = .{ .w = .fit, .h = .fit },
             .padding = .{ .top = 10, .bottom = 10, .left = 0, .right = 0 },
-            .child_gap = 2,
+            .child_gap = 12,
         },
     })({
-        zclay.text(date_str, .{ .font_id = 1, .font_size = 24, .color = .{ 255, 255, 255, 255 } });
-        zclay.text(clock_str, .{ .font_id = 1, .font_size = 72, .color = .{ 255, 255, 255, 255 } });
+        const date_sz = ui.textSize(date_str, 24);
+        zclay.UI()(.{
+            .id = .ID("DateText"),
+            .layout = .{ .sizing = .{ .w = .fixed(date_sz.w), .h = .fixed(date_sz.h) } },
+            .custom = .{ .custom_data = ui.mkGlassText(date_str, 24, false) },
+        })({});
+        const clock_sz = ui.textSize(clock_str, 96);
+        zclay.UI()(.{
+            .id = .ID("ClockText2"),
+            .layout = .{ .sizing = .{ .w = .fixed(clock_sz.w), .h = .fixed(clock_sz.h) } },
+            .custom = .{ .custom_data = ui.mkGlassText(clock_str, 96, true) },
+        })({});
     });
 
     const btn_slide: f32 = lerp(120.0, -40.0, menu_state);

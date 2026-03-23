@@ -147,6 +147,7 @@ pub const WinglessServer = struct {
     seat: *c.wlr_seat = undefined,
 
     request_start_drag: c.wl_listener = undefined,
+    request_set_selection: c.wl_listener = undefined,
 
     active_drag: ?*c.wlr_drag = null,
     drag_icon: ?*c.wlr_scene_tree = null,
@@ -183,8 +184,11 @@ pub const WinglessServer = struct {
         server.compositor = c.wlr_compositor_create(server.display, 5, server.renderer);
         _ = c.wlr_subcompositor_create(server.display);
         _ = c.wlr_data_device_manager_create(server.display);
+        _ = c.wlr_screencopy_manager_v1_create(server.display);
 
         server.output_layout = c.wlr_output_layout_create(server.display);
+        _ = c.wlr_output_manager_v1_create(server.display);
+        _ = c.wlr_xdg_output_manager_v1_create(server.display, server.output_layout);
 
         c.wl_list_init(&server.outputs);
         server.new_output = .{ .link = undefined, .notify = server_new_output };
@@ -235,6 +239,9 @@ pub const WinglessServer = struct {
         server.drag_destroy = .{ .link = undefined, .notify = drag_destroy };
 
         c.wl_signal_add(&server.seat.events.request_start_drag, &server.request_start_drag);
+
+        server.request_set_selection = .{ .link = undefined, .notify = seat_request_set_selection };
+        c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
 
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
         c.wlr_xwayland_set_seat(server.xwayland, server.seat);
@@ -336,6 +343,7 @@ pub const WinglessOutput = struct {
     shadow: ?ui.ShadowProgram = null,
     glass_background: ?ui.GlassBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
+    text: ?ui.TextProgram = null,
 
     gl_vao: c_uint = 0,
     gl_vbo: c_uint = 0,
@@ -637,9 +645,8 @@ const WinglessPopup = struct {
         };
 
         const base: *c.wlr_xdg_surface = xdg_popup.base.?;
-        const surface: *c.wlr_surface = base.surface.?;
-        c.wl_signal_add(&surface.events.commit, &popup.commit);
-        c.wl_signal_add(&surface.events.destroy, &popup.destroy);
+        c.wl_signal_add(&base.surface.*.events.commit, &popup.commit);
+        c.wl_signal_add(&base.events.destroy, &popup.destroy);
 
         return popup;
     }
@@ -647,6 +654,7 @@ const WinglessPopup = struct {
     pub fn deinit(self: *WinglessPopup) void {
         c.wl_list_remove(&self.commit.link);
         c.wl_list_remove(&self.destroy.link);
+        self.server.allocator.destroy(self);
     }
 };
 
@@ -669,6 +677,12 @@ fn drag_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     server.active_drag = null;
     c.wl_list_remove(&server.drag_destroy.link);
+}
+
+fn seat_request_set_selection(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_set_selection", listener)));
+    const event: *c.wlr_seat_request_set_selection_event = @ptrCast(@alignCast(data.?));
+    c.wlr_seat_set_selection(server.seat, event.source, event.serial);
 }
 
 fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -812,7 +826,6 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     if (toplevel.xdg_toplevel) |xdg_toplevel| {
         const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         if (xdg_surface.initial_commit) {
-            std.debug.print("initial_commit: initialized={}\n", .{xdg_surface.initialized});
             const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
             const surface: *c.wlr_surface = wlr_surface.surface;
             const sx = surface.current.dx;
@@ -858,6 +871,7 @@ fn xdg_toplevel_request_fullscreen(listener: [*c]c.wl_listener, data: ?*anyopaqu
     _ = data;
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("request_fullscreen", listener)));
     const xdg_toplevel = toplevel.xdg_toplevel orelse return;
+    if (!xdg_toplevel.base.*.initialized) return;
     const wants_fullscreen = xdg_toplevel.requested.fullscreen;
 
     if (wants_fullscreen and !toplevel.is_fullscreen) {
@@ -994,7 +1008,6 @@ fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
     }
 
     const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
-    std.debug.print("popup commit: initial={} initialized={}\n", .{ base.initial_commit, base.initialized });
     if (base.initial_commit and base.initialized) _ = c.wlr_xdg_surface_schedule_configure(base);
 }
 
@@ -1005,7 +1018,6 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const popup = WinglessPopup.init(server.allocator, xdg_popup, server) catch @panic("Out of memory");
 
     const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
-    std.debug.print("new popup: parent.initialized={}\n", .{parent.initialized});
     const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
     const base: *c.wlr_xdg_surface = xdg_popup.base.?;
     _ = base;
@@ -1034,11 +1046,11 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
     const scene_surface: *c.wlr_scene_surface = wlr_scene_surface;
     surface.* = scene_surface.surface;
 
-    const wlr_tree = node.parent;
+    const wlr_tree = node.parent orelse return null;
     var tree: *c.wlr_scene_tree = wlr_tree;
-    while (wlr_tree != null) {
+    while (true) {
         if (tree.node.data != null) break;
-        tree = tree.node.parent.?;
+        tree = tree.node.parent orelse return null;
     }
     return @ptrCast(@alignCast(tree.node.data));
 }
@@ -1051,7 +1063,7 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var surface: [*c]c.wlr_surface = null;
 
     if (ui.initialized) ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
-    ui.volume_slider.onCursorMove(@floatCast(server.cursor.y));
+    ui.volume_slider.onCursorMove(@floatCast(server.cursor.x), @floatCast(server.cursor.y));
 
     if (ui.menu_open) return;
 
@@ -1294,12 +1306,18 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         .volume_down => {
             ui.volume_slider.volume = @max(0.0, ui.volume_slider.volume - 0.05);
             ui.volume_slider.onVolumeChanged();
-            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-" });
+            var buf_down: [16]u8 = undefined;
+            if (std.fmt.bufPrint(&buf_down, "{d:.2}", .{ui.volume_slider.volume})) |s| {
+                spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
+            } else |_| {}
         },
         .volume_up => {
             ui.volume_slider.volume = @min(1.0, ui.volume_slider.volume + 0.05);
             ui.volume_slider.onVolumeChanged();
-            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+" });
+            var buf_up: [16]u8 = undefined;
+            if (std.fmt.bufPrint(&buf_up, "{d:.2}", .{ui.volume_slider.volume})) |s| {
+                spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
+            } else |_| {}
         },
         .volume_set => {
             const percent: *u8 = @ptrCast(args.?[0]);
@@ -1714,6 +1732,7 @@ pub fn main() !void {
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);
     _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+    _ = c.setenv("XDG_CURRENT_DESKTOP", "wingless", 1);
 
     try applyConfig(server, &conf);
 

@@ -19,8 +19,8 @@ float median(float a, float b, float c) {
 vec3 getBlurred(vec2 uv, float sigma) {
   vec3 color = vec3(0.0);
   float totalWeight = 0.0;
-  for (int x = -3; x <= 3; x++) {
-    for (int y = -3; y <= 3; y++) {
+  for (int x = -12; x <= 12; x++) {
+    for (int y = -12; y <= 12; y++) {
       float fx = float(x);
       float fy = float(y);
       vec2 offset = vec2(fx, fy) / resolution;

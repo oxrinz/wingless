@@ -29,7 +29,19 @@ pub var pointer_down: bool = false;
 pub var screen_height: f32 = 0;
 
 var glass_font: Font = undefined;
-var icon_cache: std.StringHashMap(Icon) = undefined;
+var icon_cache: std.StringHashMap(?Icon) = undefined;
+var icon_path_index: std.StringHashMap([]const u8) = undefined;
+var default_icon: Icon = undefined;
+
+const PendingIcon = struct {
+    name: []const u8,
+    pixels: [*c]u8, // stbi-allocated, free with stbi_image_free
+    w: c_int,
+    h: c_int,
+};
+var pending_icons: std.ArrayList(PendingIcon) = .empty;
+var pending_mutex: std.Thread.Mutex = .{};
+var icon_index_ready: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
 
 pub const Icon = struct {
     tex: c_uint,
@@ -93,6 +105,16 @@ pub const BlurProgram = struct {
     direction_loc: c_int,
 };
 
+pub const TextProgram = struct {
+    prog: c_uint,
+    pos_loc: c_int,
+    uv_loc: c_int,
+    atlas_loc: c_int,
+    px_range_loc: c_int,
+    thickness_loc: c_int,
+    color_loc: c_int,
+};
+
 pub const ImageProgram = struct {
     prog: c_uint,
     pos_loc: c_int,
@@ -101,6 +123,7 @@ pub const ImageProgram = struct {
     size_loc: c_int,
     quad_pos_loc: c_int,
     roundness_loc: c_int,
+    alpha_loc: c_int,
 };
 
 pub const WindowProgram = struct {
@@ -139,8 +162,9 @@ pub const CustomData = union(enum) {
     glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0, refraction_band: f32 = 20.0, brightness: f32 = 0.05 },
     window_surface: struct { focusable: *Focusable, scale: f32, anim_scale: f32 = 1.0 },
     divider: struct { alpha: f32 },
-    icon: struct { icon: ?Icon },
+    icon: struct { icon: Icon, alpha: f32 = 1.0 },
     shadow: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, intensity: f32 },
+    glass_text: struct { text: []const u8, font_size: u16, bold: bool = false },
 };
 
 pub const RenderContext = struct {
@@ -196,6 +220,26 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
     return d;
 }
 
+pub fn textSize(text: []const u8, font_size: u16) zclay.Dimensions {
+    const scale: f32 = @floatFromInt(font_size);
+    var w: f32 = 0;
+    for (text) |ch| {
+        if (ch == ' ') {
+            w += 12.0 * scale / 32.0;
+        } else if (glass_font.glyphs[ch]) |g| {
+            w += g.advance * scale;
+        }
+    }
+    return .{ .w = w, .h = scale };
+}
+
+pub fn mkGlassText(text: []const u8, font_size: u16, bold: bool) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .glass_text = .{ .text = text, .font_size = font_size, .bold = bold } };
+    return d;
+}
+
 pub fn mkDivider(alpha: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
@@ -203,10 +247,59 @@ pub fn mkDivider(alpha: f32) *anyopaque {
     return d;
 }
 
+fn getIcon(allocator: std.mem.Allocator, name: []const u8) ?Icon {
+    if (icon_cache.get(name)) |cached| return cached;
+    const path = (resolveIconPath(allocator, name) catch {
+        if (icon_index_ready.load(.acquire)) {
+            const key = allocator.dupe(u8, name) catch return null;
+            icon_cache.put(key, null) catch @panic("fuck");
+        }
+        return null;
+    }) orelse {
+        if (icon_index_ready.load(.acquire)) {
+            const key = allocator.dupe(u8, name) catch return null;
+            icon_cache.put(key, null) catch @panic("fuck");
+        }
+        return null;
+    };
+
+    defer allocator.free(path);
+
+    const cache_null = struct {
+        fn do(alloc: std.mem.Allocator, n: []const u8) void {
+            const k = alloc.dupe(u8, n) catch return;
+            icon_cache.put(k, null) catch {};
+        }
+    }.do;
+
+    const png: []u8 = if (std.mem.endsWith(u8, path, ".svg")) blk: {
+        break :blk svgToPng(allocator, path, name) orelse {
+            cache_null(allocator, name);
+            return null;
+        };
+    } else blk: {
+        const file = std.fs.openFileAbsolute(path, .{}) catch {
+            cache_null(allocator, name);
+            return null;
+        };
+        defer file.close();
+        break :blk file.readToEndAlloc(allocator, 256 * 1024) catch {
+            cache_null(allocator, name);
+            return null;
+        };
+    };
+    defer allocator.free(png);
+
+    const icon = loadIconFromPng(png);
+    const key = allocator.dupe(u8, name) catch return icon;
+    icon_cache.put(key, @as(?Icon, icon)) catch {};
+    return icon;
+}
+
 pub fn mkIcon(allocator: std.mem.Allocator, cmd: *const beacon.BeaconCommand) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    const resolved = if (cmd.icon) |name| getIcon(allocator, name) else null;
+    const resolved = if (cmd.icon) |name| (getIcon(allocator, name) orelse default_icon) else default_icon;
     d.* = .{ .icon = .{ .icon = resolved } };
     return d;
 }
@@ -214,7 +307,14 @@ pub fn mkIcon(allocator: std.mem.Allocator, cmd: *const beacon.BeaconCommand) *a
 pub fn mkIconByName(allocator: std.mem.Allocator, name: []const u8) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .icon = .{ .icon = getIcon(allocator, name) } };
+    d.* = .{ .icon = .{ .icon = getIcon(allocator, name) orelse default_icon, .alpha = 1.0 } };
+    return d;
+}
+
+pub fn mkIconByNameAlpha(allocator: std.mem.Allocator, name: []const u8, alpha: f32) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .icon = .{ .icon = getIcon(allocator, name) orelse default_icon, .alpha = alpha } };
     return d;
 }
 
@@ -396,6 +496,21 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
     }
 
     {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, @embedFile("shaders/glass_text.vert"));
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/text.frag"));
+        const prog = glLinkProgram(vs, fs);
+        out.text = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .uv_loc = gl.glGetAttribLocation(prog, "uv"),
+            .atlas_loc = gl.glGetUniformLocation(prog, "atlas"),
+            .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
+            .thickness_loc = gl.glGetUniformLocation(prog, "thickness"),
+            .color_loc = gl.glGetUniformLocation(prog, "color"),
+        };
+    }
+
+    {
         const vs = glCompileShader(gl.GL_VERTEX_SHADER, @embedFile("shaders/image.vert"));
         const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/image.frag"));
         const prog = glLinkProgram(vs, fs);
@@ -407,6 +522,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .size_loc = gl.glGetUniformLocation(prog, "size"),
             .quad_pos_loc = gl.glGetUniformLocation(prog, "quadPos"),
             .roundness_loc = gl.glGetUniformLocation(prog, "roundness"),
+            .alpha_loc = gl.glGetUniformLocation(prog, "alpha"),
         };
     }
 
@@ -495,7 +611,8 @@ fn loadIconFromPng(png: []const u8) Icon {
     gl.glGenTextures(1, &tex);
     gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
     gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, w, h, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, pixels);
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR);
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
     return Icon{ .tex = tex, .w = @intCast(w), .h = @intCast(h) };
 }
@@ -543,15 +660,30 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     const font_json = @embedFile("assets/font.json");
     const font_png = @embedFile("assets/font.png");
 
-    icon_cache = std.StringHashMap(Icon).init(allocator);
+    icon_cache = std.StringHashMap(?Icon).init(allocator);
 
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
 
-    try icon_cache.put("_power", loadIconFromPng(bundled_power_png));
-    try icon_cache.put("_restart", loadIconFromPng(bundled_restart_png));
+    try icon_cache.put("_power", @as(?Icon, loadIconFromPng(bundled_power_png)));
+    try icon_cache.put("_restart", @as(?Icon, loadIconFromPng(bundled_restart_png)));
+
+    volume_slider.init();
+
+    // transparent 1x1 placeholder until preload thread sets the real default
+    {
+        var tex: c_uint = 0;
+        gl.glGenTextures(1, &tex);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
+        const px = [_]u8{ 0, 0, 0, 0 };
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, 1, 1, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, &px);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+        default_icon = Icon{ .tex = tex, .w = 1, .h = 1 };
+    }
 
     try beacon.initCommands(allocator);
+    _ = std.Thread.spawn(.{}, preloadThread, .{}) catch |err| std.log.warn("preload thread failed: {}", .{err});
 
     const min_mem = zclay.minMemorySize();
     clay_mem = try allocator.alloc(u8, min_mem);
@@ -560,85 +692,184 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
     zclay.setMeasureTextFunction(void, {}, measureText);
 }
 
+fn preloadThread() void {
+    const alloc = std.heap.page_allocator;
+    buildIconIndex(alloc);
+    icon_index_ready.store(true, .release);
+    var seen = std.StringHashMap(void).init(alloc);
+    defer seen.deinit();
+    for (beacon.beacon_commands) |cmd| {
+        const name = cmd.icon orelse continue;
+        if (seen.contains(name)) continue;
+        seen.put(alloc.dupe(u8, name) catch continue, {}) catch continue;
+        const path = (resolveIconPath(alloc, name) catch continue) orelse continue;
+        defer alloc.free(path);
+        const png: []u8 = if (std.mem.endsWith(u8, path, ".svg")) blk: {
+            break :blk svgToPng(alloc, path, name) orelse continue;
+        } else blk: {
+            const file = std.fs.openFileAbsolute(path, .{}) catch continue;
+            defer file.close();
+            break :blk file.readToEndAlloc(alloc, 256 * 1024) catch continue;
+        };
+        defer alloc.free(png);
+        var w: c_int = 0;
+        var h: c_int = 0;
+        var comp: c_int = 0;
+        const pixels = c.stbi_load_from_memory(png.ptr, @intCast(png.len), &w, &h, &comp, 4) orelse continue;
+        const name_copy = alloc.dupe(u8, name) catch { c.stbi_image_free(pixels); continue; };
+        pending_mutex.lock();
+        pending_icons.append(alloc, .{ .name = name_copy, .pixels = pixels, .w = w, .h = h }) catch {
+            c.stbi_image_free(pixels);
+            alloc.free(name_copy);
+        };
+        pending_mutex.unlock();
+    }
+}
+
+var default_icon_set: bool = false;
+const symbolic_css_path = "/tmp/wingless-symbolic.css";
+var symbolic_css_written: bool = false;
+
+fn svgToPng(allocator: std.mem.Allocator, svg_path: []const u8, icon_name: []const u8) ?[]u8 {
+    const is_symbolic = std.mem.endsWith(u8, icon_name, "-symbolic") or
+        std.mem.indexOf(u8, svg_path, "symbolic") != null;
+    if (is_symbolic and !symbolic_css_written) {
+        const f = std.fs.createFileAbsolute(symbolic_css_path, .{}) catch return null;
+        f.writeAll("* { fill: white !important; color: white !important; stroke: white; stroke-width: 1.2px; }") catch {};
+        f.close();
+        symbolic_css_written = true;
+    }
+    const argv = if (is_symbolic)
+        &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", "--stylesheet", symbolic_css_path, svg_path }
+    else
+        &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", svg_path };
+    const result = std.process.Child.run(.{ .allocator = allocator, .argv = argv }) catch return null;
+    allocator.free(result.stderr);
+    return result.stdout;
+}
+
+pub fn flushPendingIcons() void {
+    if (!default_icon_set and icon_index_ready.load(.acquire)) {
+        if (getIcon(std.heap.page_allocator, "application-x-executable")) |ic| {
+            default_icon = ic;
+        }
+        default_icon_set = true;
+    }
+    pending_mutex.lock();
+    const to_flush = pending_icons;
+    pending_icons = .empty;
+    pending_mutex.unlock();
+    for (to_flush.items) |item| {
+        defer std.heap.page_allocator.free(item.name);
+        defer c.stbi_image_free(item.pixels);
+        if (icon_cache.contains(item.name)) continue;
+        var tex: c_uint = 0;
+        gl.glGenTextures(1, &tex);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, item.w, item.h, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, item.pixels);
+        gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+        const icon = Icon{ .tex = tex, .w = @intCast(item.w), .h = @intCast(item.h) };
+        const key = std.heap.page_allocator.dupe(u8, item.name) catch continue;
+        icon_cache.put(key, @as(?Icon, icon)) catch std.heap.page_allocator.free(key);
+    }
+}
+
 fn resolveIconPath(allocator: std.mem.Allocator, icon: []const u8) !?[]const u8 {
     if (std.fs.path.isAbsolute(icon)) {
         if (std.fs.openFileAbsolute(icon, .{}) catch null != null) return try allocator.dupe(u8, icon);
         return null;
     }
-
-    const themes = [_][]const u8{ "Adwaita", "AdwaitaLegacy", "hicolor" };
-    const sizes = [_][]const u8{ "128x128", "64x64", "48x48", "32x32", "scalable" };
-    const subdirs = [_][]const u8{ "apps", "legacy", "actions", "status" };
-
-    const home = try std.process.getEnvVarOwned(allocator, "HOME");
-    const dirs = [_][]const u8{
-        try std.fs.path.join(allocator, &.{ home, ".local/share/icons" }),
-        try std.fs.path.join(allocator, &.{ home, ".icons" }),
-        "/usr/share/icons",
-        "/usr/share/pixmaps",
-    };
-    defer allocator.free(dirs[0]);
-    defer allocator.free(dirs[1]);
-
-    for (dirs) |dir| {
-        for (themes) |theme| {
-            for (sizes) |size| {
-                for (subdirs) |sub| {
-                    const path = try std.fs.path.join(
-                        allocator,
-                        &.{ dir, theme, size, sub, try std.mem.concat(allocator, u8, &.{ icon, ".png" }) },
-                    );
-                    if (std.fs.openFileAbsolute(path, .{}) catch null != null) return path;
-                    allocator.free(path);
-                }
-            }
-        }
-    }
-
-    for (dirs) |base| {
-        const path = try std.fs.path.join(allocator, &.{
-            base,
-            try std.mem.concat(allocator, u8, &.{ icon, ".png" }),
-        });
-        if (std.fs.openFileAbsolute(path, .{}) catch null != null) return path;
-        allocator.free(path);
-    }
-
+    if (!icon_index_ready.load(.acquire)) return null;
+    if (icon_path_index.get(icon)) |path| return try allocator.dupe(u8, path);
     return null;
 }
 
-fn getIcon(allocator: std.mem.Allocator, icon_name: []const u8) ?Icon {
-    if (icon_cache.get(icon_name)) |cached| return cached;
-    const path = (resolveIconPath(allocator, icon_name) catch return null) orelse return null;
-    defer allocator.free(path);
+// Higher = better. Scalable beats all fixed sizes; larger fixed beats smaller.
+fn iconPathPriority(path: []const u8) u8 {
+    if (std.mem.indexOf(u8, path, "scalable") != null) return 10;
+    if (std.mem.indexOf(u8, path, "256") != null) return 8;
+    if (std.mem.indexOf(u8, path, "128") != null) return 7;
+    if (std.mem.indexOf(u8, path, "96") != null) return 6;
+    if (std.mem.indexOf(u8, path, "64") != null) return 5;
+    if (std.mem.indexOf(u8, path, "48") != null) return 4;
+    if (std.mem.indexOf(u8, path, "32") != null) return 3;
+    if (std.mem.indexOf(u8, path, "24") != null) return 2;
+    if (std.mem.indexOf(u8, path, "16") != null) return 1;
+    return 4; // unknown fixed size
+}
 
-    if (icon_cache.get(path)) |cached| return cached;
+fn indexIconDir(allocator: std.mem.Allocator, base: []const u8) void {
+    var dir = std.fs.openDirAbsolute(base, .{ .iterate = true }) catch return;
+    defer dir.close();
+    var walker = dir.walk(allocator) catch return;
+    defer walker.deinit();
+    while (walker.next() catch null) |entry| {
+        if (entry.kind != .file) continue;
+        const ext = std.fs.path.extension(entry.basename);
+        const is_png = std.mem.eql(u8, ext, ".png");
+        const is_svg = std.mem.eql(u8, ext, ".svg");
+        if (!is_png and !is_svg) continue;
+        const icon_name = entry.basename[0 .. entry.basename.len - ext.len];
+        const full = std.fs.path.join(allocator, &.{ base, entry.path }) catch continue;
+        const new_prio = iconPathPriority(full);
+        if (icon_path_index.getPtr(icon_name)) |existing| {
+            const old_prio = iconPathPriority(existing.*);
+            const upgrade = new_prio > old_prio or
+                (new_prio == old_prio and is_png and std.mem.endsWith(u8, existing.*, ".svg"));
+            if (upgrade) {
+                existing.* = full;
+            } else {
+                allocator.free(full);
+            }
+            continue;
+        }
+        const key = allocator.dupe(u8, icon_name) catch { allocator.free(full); continue; };
+        icon_path_index.put(key, full) catch { allocator.free(full); allocator.free(key); };
+    }
+}
 
-    const file = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer file.close();
-
-    const png = file.readToEndAlloc(allocator, 256 * 1024) catch return null;
-    defer allocator.free(png);
-
-    var w: c_int = 0;
-    var h: c_int = 0;
-    var comp: c_int = 0;
-
-    const pixels = c.stbi_load_from_memory(png.ptr, @intCast(png.len), &w, &h, &comp, 4) orelse return null;
-    defer c.stbi_image_free(pixels);
-
-    var tex: c_uint = 0;
-    gl.glGenTextures(1, &tex);
-    gl.glBindTexture(gl.GL_TEXTURE_2D, tex);
-    gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, w, h, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, pixels);
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
-
-    const icon = Icon{ .tex = tex, .w = @intCast(w), .h = @intCast(h) };
-
-    const key = allocator.dupe(u8, path) catch return icon;
-    icon_cache.put(key, icon) catch {};
-    return icon;
+fn buildIconIndex(allocator: std.mem.Allocator) void {
+    icon_path_index = std.StringHashMap([]const u8).init(allocator);
+    const home = std.process.getEnvVarOwned(allocator, "HOME") catch "";
+    defer if (home.len > 0) allocator.free(home);
+    const themes = [_][]const u8{ "WhiteSur-dark", "hicolor" };
+    const user_bases = if (home.len > 0) [_][]const u8{
+        ".local/share/icons",
+        ".icons",
+        // Flatpak user installs
+        ".local/share/flatpak/exports/share/icons",
+    } else [_][]const u8{ "", "", "" };
+    const sys_dirs = [_][]const u8{
+        "/usr/share/icons",
+        "/var/lib/flatpak/exports/share/icons",
+        "/usr/local/share/icons",
+    };
+    if (home.len > 0) {
+        for (user_bases) |ub| {
+            if (ub.len == 0) continue;
+            for (themes) |t| {
+                const d = std.fs.path.join(allocator, &.{ home, ub, t }) catch continue;
+                defer allocator.free(d);
+                indexIconDir(allocator, d);
+            }
+            // also index flat (no theme subdir) for app-specific icons
+            const flat = std.fs.path.join(allocator, &.{ home, ub }) catch continue;
+            defer allocator.free(flat);
+            indexIconDir(allocator, flat);
+        }
+    }
+    for (sys_dirs) |sd| {
+        for (themes) |t| {
+            const d = std.fs.path.join(allocator, &.{ sd, t }) catch continue;
+            defer allocator.free(d);
+            indexIconDir(allocator, d);
+        }
+        // flat icons directly in the dir (e.g. /usr/share/icons/zen-browser.png)
+        indexIconDir(allocator, sd);
+    }
+    indexIconDir(allocator, "/usr/share/pixmaps");
 }
 
 fn debugFill() void {
@@ -656,6 +887,8 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         try initUI(std.heap.page_allocator);
         initialized = true;
     }
+
+    flushPendingIcons();
 
     const dt = getDeltaSeconds();
 

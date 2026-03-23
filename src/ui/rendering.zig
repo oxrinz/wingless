@@ -229,6 +229,59 @@ fn drawGlassSentence(output: *WinglessOutput, font: *const Font, sentence: []con
     }
 }
 
+fn drawTextChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, color: [4]f32) f32 {
+    if (ch == ' ') return 12.0 * scale / 32.0;
+    const g = font.glyphs[ch] orelse return 0;
+
+    gl.glUseProgram(output.text.?.prog);
+
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(gl.GL_TEXTURE_2D, font.atlas_tex);
+    gl.glUniform1i(output.text.?.atlas_loc, 0);
+    gl.glUniform1f(output.text.?.px_range_loc, font.px_range);
+    gl.glUniform1f(output.text.?.thickness_loc, thickness);
+    gl.glUniform4f(output.text.?.color_loc, color[0], color[1], color[2], color[3]);
+
+    const gx = x + g.x_off;
+    const gy = y + g.y_off * scale + 0.1 * 32;
+
+    const x0 = ndc_x(gx, screen_w);
+    const y0 = ndc_y(gy, screen_h);
+    const x1 = ndc_x(gx + g.w * scale, screen_w);
+    const y1 = ndc_y(gy + g.h * scale, screen_h);
+
+    const verts = [_]f32{
+        x0, y0, g.u0, g.v1,
+        x1, y0, g.u1, g.v1,
+        x0, y1, g.u0, g.v0,
+        x1, y0, g.u1, g.v1,
+        x1, y1, g.u1, g.v0,
+        x0, y1, g.u0, g.v0,
+    };
+
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, output.gl_vbo);
+    gl.glBufferData(gl.GL_ARRAY_BUFFER, @sizeOf(@TypeOf(verts)), &verts, gl.GL_STREAM_DRAW);
+
+    const stride = 4 * @sizeOf(f32);
+    gl.glEnableVertexAttribArray(@intCast(output.text.?.pos_loc));
+    gl.glVertexAttribPointer(@intCast(output.text.?.pos_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(0));
+    gl.glEnableVertexAttribArray(@intCast(output.text.?.uv_loc));
+    gl.glVertexAttribPointer(@intCast(output.text.?.uv_loc), 2, gl.GL_FLOAT, gl.GL_FALSE, stride, @ptrFromInt(2 * @sizeOf(f32)));
+    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 6);
+    gl.glDisableVertexAttribArray(@intCast(output.text.?.pos_loc));
+    gl.glDisableVertexAttribArray(@intCast(output.text.?.uv_loc));
+    gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
+
+    return g.advance * scale;
+}
+
+pub fn drawText(output: *WinglessOutput, font: *const Font, sentence: []const u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, r: f32, g_: f32, b: f32, a: f32) void {
+    var real_x = x;
+    for (sentence) |char| {
+        real_x += drawTextChar(output, font, char, real_x, y, screen_w, screen_h, thickness, scale, .{ r, g_, b, a });
+    }
+}
+
 fn ensureBlurFbo(output: *WinglessOutput, w: c_int, h: c_int) void {
     if (output.blur_fbo != 0) return;
     gl.glGenFramebuffers(1, &output.blur_fbo);
@@ -395,6 +448,7 @@ pub fn renderBackground(output: *WinglessOutput, screen_w: f32, screen_h: f32) v
     gl.glUniform2f(prog.size_loc, screen_w, screen_h);
     gl.glUniform2f(prog.quad_pos_loc, 0, 0);
     gl.glUniform1f(prog.roundness_loc, 0);
+    gl.glUniform1f(prog.alpha_loc, 1.0);
     gl.glDisable(c.GL_BLEND);
     drawQuadWithUvScene(output, 0, 0, screen_w, screen_h, screen_w, screen_h, prog.pos_loc, prog.uv_loc);
     gl.glEnable(c.GL_BLEND);
@@ -486,6 +540,8 @@ pub fn render(ctx: ui.RenderContext) void {
                                 gl.glUniform2f(id.output.image.?.size_loc, qw, qh);
                                 gl.glUniform2f(id.output.image.?.quad_pos_loc, qx, qy);
                                 gl.glUniform1f(id.output.image.?.roundness_loc, 12.0);
+                                gl.glUniform1f(id.output.image.?.alpha_loc, 1.0);
+
                                 drawQuadWithUv(
                                     id.output,
                                     qx,
@@ -505,6 +561,11 @@ pub fn render(ctx: ui.RenderContext) void {
                             @ptrCast(@alignCast(@constCast(&iter_data))),
                         );
                     },
+                    .glass_text => |gt| {
+                        const scale: f32 = @floatFromInt(gt.font_size);
+                        const thickness: f32 = if (gt.bold) 0.2 else 0.0;
+                        drawGlassSentence(ctx.output, ctx.font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, thickness, scale, ctx.scene_tex, 1);
+                    },
                     .divider => |d| {
                         gl.glUseProgram(ctx.output.fill.?.prog);
                         gl.glUniform4f(ctx.output.fill.?.color_loc, 1.0, 1.0, 1.0, d.alpha);
@@ -522,36 +583,34 @@ pub fn render(ctx: ui.RenderContext) void {
                         }
                     },
                     .icon => |ic| {
-                        if (ic.icon) |icon| {
-                            gl.glUseProgram(ctx.output.image.?.prog);
-                            gl.glActiveTexture(gl.GL_TEXTURE0);
-                            gl.glBindTexture(gl.GL_TEXTURE_2D, icon.tex);
-                            gl.glUniform1i(ctx.output.image.?.image_loc, 0);
-                            gl.glUniform2f(ctx.output.image.?.size_loc, bb.width, bb.height);
-                            gl.glUniform2f(ctx.output.image.?.quad_pos_loc, bb.x, bb.y);
-                            gl.glUniform1f(ctx.output.image.?.roundness_loc, 0.0);
-                            drawQuadWithUv(
-                                ctx.output,
-                                bb.x,
-                                bb.y,
-                                bb.width,
-                                bb.height,
-                                ctx.screen_width,
-                                ctx.screen_height,
-                                ctx.output.image.?.pos_loc,
-                                ctx.output.image.?.uv_loc,
-                            );
-                        }
+                        gl.glUseProgram(ctx.output.image.?.prog);
+                        gl.glActiveTexture(gl.GL_TEXTURE0);
+                        gl.glBindTexture(gl.GL_TEXTURE_2D, ic.icon.tex);
+                        gl.glUniform1i(ctx.output.image.?.image_loc, 0);
+                        gl.glUniform2f(ctx.output.image.?.size_loc, bb.width, bb.height);
+                        gl.glUniform2f(ctx.output.image.?.quad_pos_loc, bb.x, bb.y);
+                        gl.glUniform1f(ctx.output.image.?.roundness_loc, 0.0);
+                        gl.glUniform1f(ctx.output.image.?.alpha_loc, ic.alpha);
+                        drawQuadWithUv(
+                            ctx.output,
+                            bb.x,
+                            bb.y,
+                            bb.width,
+                            bb.height,
+                            ctx.screen_width,
+                            ctx.screen_height,
+                            ctx.output.image.?.pos_loc,
+                            ctx.output.image.?.uv_loc,
+                        );
                     },
                 }
             },
             .text => {
                 const td = cmd.render_data.text;
                 const text = td.string_contents.chars[0..@intCast(td.string_contents.length)];
-                const thickness: f32 = if (td.font_id == 1) 0.2 else 0.0;
-                const glass_mode: c_int = if (td.font_id == 1) 1 else 0;
                 const scale: f32 = @floatFromInt(td.font_size);
-                drawGlassSentence(ctx.output, ctx.font, text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, thickness, scale, ctx.scene_tex, glass_mode);
+                const col = td.text_color;
+                drawText(ctx.output, ctx.font, text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, 0.0, scale, col[0] / 255.0, col[1] / 255.0, col[2] / 255.0, col[3] / 255.0);
             },
             else => {},
         }

@@ -4,7 +4,26 @@ const ui = @import("../ui.zig");
 const main = @import("../main.zig");
 
 pub var volume: f32 = 0.5;
-var fill_state: f32 = 0.5;  // lerped fill amount for smooth volume bar
+var fill_state: f32 = 0.5;
+const max_volume: f32 = 1.0;
+
+pub fn init() void {
+    const result = std.process.Child.run(.{
+        .allocator = std.heap.page_allocator,
+        .argv = &[_][]const u8{ "wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@" },
+    }) catch return;
+    defer std.heap.page_allocator.free(result.stdout);
+    defer std.heap.page_allocator.free(result.stderr);
+    // output: "Volume: 0.50\n" or "Volume: 0.50 [MUTED]\n"
+    const prefix = "Volume: ";
+    const line = std.mem.trimRight(u8, result.stdout, " \n\r");
+    if (std.mem.startsWith(u8, line, prefix)) {
+        const rest = line[prefix.len..];
+        const end = std.mem.indexOfScalar(u8, rest, ' ') orelse rest.len;
+        volume = std.math.clamp(std.fmt.parseFloat(f32, rest[0..end]) catch 0.5, 0.0, max_volume);
+        fill_state = std.math.clamp(volume / max_volume, 0.0, 1.0);
+    }
+}
 
 // pos_state drives the x offset (slow — gives a visible slide in/out)
 // glass_state drives anim_scale (fast open, held at 1 during close until off screen)
@@ -15,6 +34,7 @@ var hide_countdown: f32 = 0;
 var prev_menu_open: bool = false;
 
 var dragging: bool = false;
+var cursor_x: f32 = 0;
 var cursor_y: f32 = 0;
 var last_sent_volume: f32 = -1;
 var vol_hovered: bool = false;
@@ -33,19 +53,45 @@ pub fn onVolumeChanged() void {
     hide_countdown = 2.0;
 }
 
-pub fn onCursorMove(y: f32) void {
+pub fn onCursorMove(x: f32, y: f32) void {
+    cursor_x = x;
     cursor_y = y;
 }
 
+fn calcVolumeFromCursor() void {
+    const pad: f32 = 6;
+    const inner_h: f32 = 288;
+    const data = zclay.getElementData(zclay.ElementId.ID("VolumeSlider"));
+    if (data.found) {
+        const bb = data.bounding_box;
+        const rel_y = cursor_y - bb.y - pad;
+        volume = max_volume * (1.0 - std.math.clamp(rel_y / inner_h, 0, 1));
+    }
+}
+
+fn sendVolume() void {
+    if (@abs(volume - last_sent_volume) < 0.005) return;
+    var buf: [16]u8 = undefined;
+    const s = std.fmt.bufPrint(&buf, "{d:.2}", .{std.math.clamp(volume, 0, max_volume)}) catch return;
+    main.spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
+    last_sent_volume = volume;
+}
+
 pub fn onMouseButton(pressed: bool) void {
-    if (!pressed and dragging) {
+    if (pressed) {
+        const data = zclay.getElementData(zclay.ElementId.ID("VolumeSlider"));
+        if (data.found) {
+            const bb = data.bounding_box;
+            if (cursor_x >= bb.x and cursor_x <= bb.x + bb.width and cursor_y >= bb.y and cursor_y <= bb.y + bb.height) {
+                dragging = true;
+                calcVolumeFromCursor();
+            }
+        }
+    } else if (dragging) {
         dragging = false;
-        const pct: u8 = @intFromFloat(std.math.clamp(volume, 0, 1) * 100);
-        var buf: [8]u8 = undefined;
-        const s = std.fmt.bufPrint(&buf, "{d}%", .{pct}) catch return;
-        main.spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
-        last_sent_volume = volume;
-    } else if (!pressed) {
+        last_sent_volume = -1; // force a final send
+        sendVolume();
+    } else {
         dragging = false;
     }
 }
@@ -76,18 +122,11 @@ pub fn tick(dt: f32) void {
     glass_state = clampedLerp(glass_state, glass_target, dt * 20.0);
 
     // smooth fill
-    fill_state = clampedLerp(fill_state, std.math.clamp(volume, 0, 1), dt * 10.0);
+    fill_state = clampedLerp(fill_state, std.math.clamp(volume / max_volume, 0, 1), dt * 10.0);
 
     if (dragging) {
-        const pad: f32 = 6;
-        const inner_h: f32 = 288;
-        const data = zclay.getElementData(zclay.ElementId.ID("VolumeSlider"));
-        if (data.found) {
-            const bb = data.bounding_box;
-            const rel_y = cursor_y - bb.y - pad;
-            volume = 1.0 - std.math.clamp(rel_y / inner_h, 0, 1);
-
-        }
+        calcVolumeFromCursor();
+        sendVolume();
     }
 
     const speed = dt * 14.0;

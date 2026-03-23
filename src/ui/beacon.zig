@@ -14,6 +14,7 @@ var beacon_state: f32 = 0;
 var beacon_suggestion_state: f32 = 0;
 var beacon_line_state: f32 = 0;
 var sugg_target: f32 = 0;
+var placeholder_alpha: f32 = 0;
 
 pub var beacon_buffer: std.ArrayList(u8) = .empty;
 pub var beacon_suggestions: []*BeaconCommand = &.{};
@@ -24,7 +25,10 @@ fn lerp(a: f32, b: f32, t: f32) f32 {
 }
 
 pub fn tick(dt: f32) void {
-    beacon_state = lerp(beacon_state, if (ui.beacon_open) 1.0 else 0.0, dt * 20.0);
+    const t20 = @min(dt * 20.0, 1.0);
+    const t18 = @min(dt * 18.0, 1.0);
+
+    beacon_state = lerp(beacon_state, if (ui.beacon_open) 1.0 else 0.0, t20);
 
     sugg_target = if (beacon_buffer.items.len >= 2)
         switch (beacon_suggestions.len) {
@@ -34,8 +38,14 @@ pub fn tick(dt: f32) void {
         }
     else
         0.0;
-    beacon_suggestion_state = lerp(beacon_suggestion_state, sugg_target, dt * 20.0);
-    beacon_line_state = lerp(beacon_line_state, if (beacon_state > 0.1) 1.0 else 0.0, dt * 20.0);
+    beacon_suggestion_state = lerp(beacon_suggestion_state, sugg_target, t20);
+    beacon_line_state = lerp(beacon_line_state, if (beacon_state > 0.1) 1.0 else 0.0, t20);
+    if (beacon_buffer.items.len > 0) {
+        placeholder_alpha = 0.0;
+    } else {
+        const placeholder_target: f32 = if (beacon_state > 0.85) 1.0 else 0.0;
+        placeholder_alpha = lerp(placeholder_alpha, placeholder_target, t18);
+    }
 }
 
 pub fn layout(allocator: std.mem.Allocator) void {
@@ -55,7 +65,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
         .custom = .{ .custom_data = ui.mkGlass(80) },
     })({
         // suggestions below input
-        if (sugg_target > 0.1) {
+        if (beacon_suggestion_state > 0.05) {
             const n_sugg = @min(beacon_suggestions.len, 3);
 
             zclay.UI()(.{
@@ -76,15 +86,13 @@ pub fn layout(allocator: std.mem.Allocator) void {
                             },
                         })({
                             // icon slot
-                            if (beacon_suggestions[i].icon != null) {
-                                zclay.UI()(.{
-                                    .id = .IDI("SuggIcon", @intCast(i)),
-                                    .layout = .{
-                                        .sizing = .{ .w = .fixed(32), .h = .fixed(32) },
-                                    },
-                                    .custom = .{ .custom_data = ui.mkIcon(allocator, beacon_suggestions[i]) },
-                                })({});
-                            }
+                            zclay.UI()(.{
+                                .id = .IDI("SuggIcon", @intCast(i)),
+                                .layout = .{
+                                    .sizing = .{ .w = .fixed(32), .h = .fixed(32) },
+                                },
+                                .custom = .{ .custom_data = ui.mkIcon(allocator, beacon_suggestions[i]) },
+                            })({});
                             zclay.UI()(.{
                                 .id = .IDI("SuggTextWrap", @intCast(i)),
                                 .layout = .{
@@ -93,7 +101,6 @@ pub fn layout(allocator: std.mem.Allocator) void {
                                 },
                             })({
                                 zclay.text(beacon_suggestions[i].name, .{
-                                    .font_id = 0,
                                     .font_size = 26,
                                     .color = .{ 255, 255, 255, 255 },
                                 });
@@ -102,7 +109,6 @@ pub fn layout(allocator: std.mem.Allocator) void {
                     }
                 } else {
                     zclay.text("Unknown command !", .{
-                        .font_id = 0,
                         .font_size = 26,
                         .color = .{ 255, 255, 255, 255 },
                     });
@@ -111,7 +117,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
         }
 
         // divider between input and suggestions
-        if (sugg_target > 0.1) {
+        if (beacon_suggestion_state > 0.05) {
             zclay.UI()(.{
                 .id = .ID("BeaconDivider"),
                 .layout = .{
@@ -125,15 +131,29 @@ pub fn layout(allocator: std.mem.Allocator) void {
         zclay.UI()(.{
             .id = .ID("BeaconInput"),
             .layout = .{
-                .sizing = .{ .w = .grow },
+                .sizing = .{ .w = .grow, .h = .fixed(32) },
                 .child_alignment = .{ .y = .center },
+                .child_gap = 10,
             },
         })({
-            zclay.text(beacon_buffer.items, .{
-                .font_id = 0,
-                .font_size = 26,
-                .color = .{ 255, 255, 255, 255 },
-            });
+            if (placeholder_alpha > 0.01) {
+                zclay.UI()(.{
+                    .id = .ID("BeaconSearchIcon"),
+                    .layout = .{ .sizing = .{ .w = .fixed(34), .h = .fixed(34) } },
+                    .custom = .{ .custom_data = ui.mkIconByNameAlpha(allocator, "system-search-symbolic", placeholder_alpha * 180.0 / 255.0) },
+                })({});
+                zclay.text("Search...", .{
+                    .font_size = 26,
+                    .color = .{ 255, 255, 255, placeholder_alpha * 180.0 },
+                });
+            }
+
+            if (beacon_buffer.items.len > 0) {
+                zclay.text(beacon_buffer.items, .{
+                    .font_size = 26,
+                    .color = .{ 255, 255, 255, 255 },
+                });
+            }
         });
     });
 }
@@ -141,12 +161,27 @@ pub fn layout(allocator: std.mem.Allocator) void {
 pub fn initCommands(allocator: std.mem.Allocator) !void {
     var command_array: std.ArrayList(*BeaconCommand) = .empty;
     for (std.enums.values(config.WinglessFunction)) |function| {
+        const icon: ?[]const u8 = switch (function) {
+            .shutdown => "_power",
+            .reboot => "_restart",
+            .toggle_beacon => "system-search-symbolic",
+            .toggle_menu => "view-app-grid-symbolic",
+            .close_focused => "application-exit-symbolic",
+            .toggle_fullscreen => "view-fullscreen-symbolic",
+            .tab_next => "go-next-symbolic",
+            .tab_prev => "go-previous-symbolic",
+            .volume_up => "audio-volume-high-symbolic",
+            .volume_down => "audio-volume-low-symbolic",
+            .volume_set => "audio-volume-medium-symbolic",
+            .snap_left, .snap_right => "focus-windows-symbolic",
+            .launch_app => null,
+        };
         const object = allocator.create(BeaconCommand) catch return;
         object.* = .{
             .name = try allocator.dupe(u8, @constCast(@tagName(function))),
             .args = null,
             .function = function,
-            .icon = null,
+            .icon = icon,
         };
         command_array.append(std.heap.page_allocator, object) catch @panic("fuck");
     }
@@ -207,7 +242,8 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
             }
 
             if (name != null and exec != null) {
-                exec = std.mem.trimRight(u8, exec.?, " %uUfF");
+                exec = std.mem.trimRight(u8, exec.?, " %uUfFiIck");
+                if (icon == null) icon = try allocator.dupe(u8, "application-x-executable");
 
                 const name_ptr = allocator.create([]const u8) catch @panic("out of memory");
                 name_ptr.* = exec.?;

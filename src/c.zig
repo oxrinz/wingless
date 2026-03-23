@@ -25,6 +25,9 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_subcompositor.h");
     @cInclude("wlr/types/wlr_xcursor_manager.h");
     @cInclude("wlr/types/wlr_xdg_shell.h");
+    @cInclude("wlr/types/wlr_screencopy_v1.h");
+    @cInclude("wlr/types/wlr_output_management_v1.h");
+    @cInclude("wlr/types/wlr_xdg_output_v1.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/xwayland.h");
     @cInclude("wayland-server-core.h");
