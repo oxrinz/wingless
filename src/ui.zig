@@ -27,6 +27,7 @@ pub var beacon_open = false;
 pub var menu_open = false;
 pub var pointer_down: bool = false;
 pub var screen_height: f32 = 0;
+pub var ui_scale: f32 = 1.0;
 
 var glass_font: Font = undefined;
 var icon_cache: std.StringHashMap(?Icon) = undefined;
@@ -61,6 +62,7 @@ pub const GlassBackgroundProgram = struct {
     fill_direction_loc: c_int,
     refraction_band_loc: c_int,
     brightness_loc: c_int,
+    resolution_loc: c_int,
 };
 
 pub const FillDir = enum(i32) {
@@ -80,6 +82,7 @@ pub const GlassTextProgram = struct {
     px_range_loc: c_int,
     thickness_loc: c_int,
     glass_mode_loc: c_int,
+    resolution_loc: c_int,
 };
 
 pub const FillProgram = struct {
@@ -103,6 +106,7 @@ pub const BlurProgram = struct {
     scene_loc: c_int,
     intensity_loc: c_int,
     direction_loc: c_int,
+    resolution_loc: c_int,
 };
 
 pub const TextProgram = struct {
@@ -437,6 +441,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .fill_direction_loc = gl.glGetUniformLocation(prog, "fillDirection"),
             .refraction_band_loc = gl.glGetUniformLocation(prog, "refractionBand"),
             .brightness_loc = gl.glGetUniformLocation(prog, "brightness"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
         };
         if (out.glass_background.?.pos_loc < 0) @panic("pos not found");
     }
@@ -454,6 +459,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
             .thickness_loc = gl.glGetUniformLocation(prog, "thickness"),
             .glass_mode_loc = gl.glGetUniformLocation(prog, "glassMode"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
         };
     }
 
@@ -492,6 +498,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
             .intensity_loc = gl.glGetUniformLocation(prog, "intensity"),
             .direction_loc = gl.glGetUniformLocation(prog, "direction"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
         };
     }
 
@@ -901,6 +908,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
 
     const screen_width: f32 = @floatFromInt(w);
     screen_height = @floatFromInt(h);
+    ui_scale = output.output.scale;
 
     // animate state
     beacon.tick(dt);

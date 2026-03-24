@@ -51,18 +51,19 @@ pub fn tick(dt: f32) void {
 pub fn layout(allocator: std.mem.Allocator) void {
     if (beacon_state <= 0.0001) return;
 
-    const bw = 600.0 * beacon_state;
-    const bh = @min(bw, 80.0) + 180.0 * beacon_suggestion_state;
+    const s = ui.ui_scale;
+    const bw = 600.0 * s * beacon_state;
+    const bh = @min(bw, 80.0 * s) + 180.0 * s * beacon_suggestion_state;
 
     zclay.UI()(.{
         .id = .ID("Beacon"),
         .layout = .{
             .direction = .top_to_bottom,
-            .padding = .{ .top = 24, .bottom = 24, .left = 24, .right = 24 },
-            .child_gap = 8,
+            .padding = .{ .top = @intFromFloat(24 * s), .bottom = @intFromFloat(24 * s), .left = @intFromFloat(24 * s), .right = @intFromFloat(24 * s) },
+            .child_gap = @intFromFloat(8 * s),
             .sizing = .{ .w = .fixed(bw), .h = .fixed(bh) },
         },
-        .custom = .{ .custom_data = ui.mkGlass(80) },
+        .custom = .{ .custom_data = ui.mkGlass(80 * s) },
     })({
         // suggestions below input
         if (beacon_suggestion_state > 0.05) {
@@ -80,16 +81,16 @@ pub fn layout(allocator: std.mem.Allocator) void {
                         zclay.UI()(.{
                             .id = .IDI("SuggRow", @intCast(i)),
                             .layout = .{
-                                .sizing = .{ .w = .grow, .h = .fixed(44) },
+                                .sizing = .{ .w = .grow, .h = .fixed(44 * s) },
                                 .child_alignment = .{ .x = .left, .y = .center },
-                                .child_gap = 12,
+                                .child_gap = @intFromFloat(12 * s),
                             },
                         })({
                             // icon slot
                             zclay.UI()(.{
                                 .id = .IDI("SuggIcon", @intCast(i)),
                                 .layout = .{
-                                    .sizing = .{ .w = .fixed(32), .h = .fixed(32) },
+                                    .sizing = .{ .w = .fixed(32 * s), .h = .fixed(32 * s) },
                                 },
                                 .custom = .{ .custom_data = ui.mkIcon(allocator, beacon_suggestions[i]) },
                             })({});
@@ -121,7 +122,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
             zclay.UI()(.{
                 .id = .ID("BeaconDivider"),
                 .layout = .{
-                    .sizing = .{ .w = .grow, .h = .fixed(2) },
+                    .sizing = .{ .w = .grow, .h = .fixed(2 * s) },
                 },
                 .custom = .{ .custom_data = ui.mkDivider(beacon_line_state * 0.2) },
             })({});
@@ -131,15 +132,15 @@ pub fn layout(allocator: std.mem.Allocator) void {
         zclay.UI()(.{
             .id = .ID("BeaconInput"),
             .layout = .{
-                .sizing = .{ .w = .grow, .h = .fixed(32) },
+                .sizing = .{ .w = .grow, .h = .fixed(32 * s) },
                 .child_alignment = .{ .y = .center },
-                .child_gap = 10,
+                .child_gap = @intFromFloat(10 * s),
             },
         })({
             if (placeholder_alpha > 0.01) {
                 zclay.UI()(.{
                     .id = .ID("BeaconSearchIcon"),
-                    .layout = .{ .sizing = .{ .w = .fixed(34), .h = .fixed(34) } },
+                    .layout = .{ .sizing = .{ .w = .fixed(34 * s), .h = .fixed(34 * s) } },
                     .custom = .{ .custom_data = ui.mkIconByNameAlpha(allocator, "system-search-symbolic", placeholder_alpha * 180.0 / 255.0) },
                 })({});
                 zclay.text("Search...", .{

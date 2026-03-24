@@ -185,6 +185,7 @@ pub const WinglessServer = struct {
         _ = c.wlr_subcompositor_create(server.display);
         _ = c.wlr_data_device_manager_create(server.display);
         _ = c.wlr_screencopy_manager_v1_create(server.display);
+        _ = c.wlr_linux_dmabuf_v1_create_with_renderer(server.display, 4, server.renderer);
 
         server.output_layout = c.wlr_output_layout_create(server.display);
         _ = c.wlr_output_manager_v1_create(server.display);
@@ -1663,6 +1664,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
         ui.pointer_down = false;
 
+        c.wlr_output_add_software_cursors_to_render_pass(output.output, out_pass, null);
         _ = c.wlr_render_pass_submit(out_pass);
         c.wlr_texture_destroy(tex);
     }
@@ -1708,6 +1710,8 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 
     _ = c.wlr_output_commit_state(wlr_output, &state);
     c.wlr_output_state_finish(@ptrCast(@constCast(&state)));
+
+    c.wlr_output_lock_software_cursors(wlr_output, true);
 
     const output = WinglessOutput.init(server, wlr_output) catch @panic("Failed to create output");
 

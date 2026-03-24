@@ -10,7 +10,7 @@ uniform int glassMode;
 varying vec2 v_uv;
 varying vec2 v_screen_uv;
 
-vec2 resolution = vec2(2560, 1440);
+uniform vec2 resolution;
 
 float median(float a, float b, float c) {
   return max(min(a, b), min(max(a, b), c));

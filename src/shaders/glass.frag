@@ -12,7 +12,7 @@ uniform float refractionBand;
 uniform float brightness;
 varying vec2 v_uv;
 
-vec2 resolution = vec2(2560, 1440);
+uniform vec2 resolution;
 
 vec3 getTextureColorAt(vec2 coord) {
   return texture2D(scene, coord / resolution).rgb;

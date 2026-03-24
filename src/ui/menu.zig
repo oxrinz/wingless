@@ -86,7 +86,8 @@ pub fn isActive() bool {
 pub fn layout(focusables: ?[]*Focusable) void {
     if (menu_state <= 0.0001) return;
 
-    const clock_x_off: f32 = lerp(-300.0, 40.0, menu_state);
+    const s = ui.ui_scale;
+    const clock_x_off: f32 = lerp(-300.0 * s, 40.0 * s, menu_state);
     // const shadow_x_off: f32 = lerp(-620.0, -320.0, menu_state);
 
     // TODO: add shadow behind clock text
@@ -109,30 +110,32 @@ pub fn layout(focusables: ?[]*Focusable) void {
         .floating = .{
             .attach_to = .to_root,
             .attach_points = .{ .element = .left_bottom, .parent = .left_bottom },
-            .offset = .{ .x = clock_x_off, .y = -40 },
+            .offset = .{ .x = clock_x_off, .y = -40 * s },
         },
         .layout = .{
             .direction = .top_to_bottom,
             .sizing = .{ .w = .fit, .h = .fit },
-            .padding = .{ .top = 10, .bottom = 10, .left = 0, .right = 0 },
-            .child_gap = 12,
+            .padding = .{ .top = @intFromFloat(10 * s), .bottom = @intFromFloat(10 * s), .left = 0, .right = 0 },
+            .child_gap = @intFromFloat(12 * s),
         },
     })({
-        const date_sz = ui.textSize(date_str, 24);
+        const date_font_size: u16 = @intFromFloat(24 * s);
+        const date_sz = ui.textSize(date_str, date_font_size);
         zclay.UI()(.{
             .id = .ID("DateText"),
             .layout = .{ .sizing = .{ .w = .fixed(date_sz.w), .h = .fixed(date_sz.h) } },
-            .custom = .{ .custom_data = ui.mkGlassText(date_str, 24, false) },
+            .custom = .{ .custom_data = ui.mkGlassText(date_str, date_font_size, false) },
         })({});
-        const clock_sz = ui.textSize(clock_str, 96);
+        const clock_font_size: u16 = @intFromFloat(96 * s);
+        const clock_sz = ui.textSize(clock_str, clock_font_size);
         zclay.UI()(.{
             .id = .ID("ClockText2"),
             .layout = .{ .sizing = .{ .w = .fixed(clock_sz.w), .h = .fixed(clock_sz.h) } },
-            .custom = .{ .custom_data = ui.mkGlassText(clock_str, 96, true) },
+            .custom = .{ .custom_data = ui.mkGlassText(clock_str, clock_font_size, true) },
         })({});
     });
 
-    const btn_slide: f32 = lerp(120.0, -40.0, menu_state);
+    const btn_slide: f32 = lerp(120.0 * s, -40.0 * s, menu_state);
 
     // Reboot button
     zclay.UI()(.{
@@ -140,13 +143,13 @@ pub fn layout(focusables: ?[]*Focusable) void {
         .floating = .{
             .attach_to = .to_root,
             .attach_points = .{ .element = .right_bottom, .parent = .right_bottom },
-            .offset = .{ .x = btn_slide - 66, .y = -40 },
+            .offset = .{ .x = btn_slide - 66 * s, .y = -40 * s },
         },
         .layout = .{
-            .sizing = .{ .w = .fixed(54), .h = .fixed(54) },
+            .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
             .child_alignment = .{ .x = .center, .y = .center },
         },
-        .custom = .{ .custom_data = ui.mkAnimatedGlass(54, menu_state * reboot_hover_scale, 10.0, reboot_hover_brightness) },
+        .custom = .{ .custom_data = ui.mkAnimatedGlass(54 * s, menu_state * reboot_hover_scale, 10.0 * s, reboot_hover_brightness) },
     })({
         zclay.cdefs.Clay_OnHover(struct {
             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
@@ -156,7 +159,7 @@ pub fn layout(focusables: ?[]*Focusable) void {
         }.callback, null);
         zclay.UI()(.{
             .id = .ID("RebootIcon"),
-            .layout = .{ .sizing = .{ .w = .fixed(32 * reboot_hover_scale), .h = .fixed(32 * reboot_hover_scale) } },
+            .layout = .{ .sizing = .{ .w = .fixed(32 * s * reboot_hover_scale), .h = .fixed(32 * s * reboot_hover_scale) } },
             .custom = .{ .custom_data = ui.mkIconByName(std.heap.page_allocator, "_restart") },
         })({});
     });
@@ -167,13 +170,13 @@ pub fn layout(focusables: ?[]*Focusable) void {
         .floating = .{
             .attach_to = .to_root,
             .attach_points = .{ .element = .right_bottom, .parent = .right_bottom },
-            .offset = .{ .x = btn_slide, .y = -40 },
+            .offset = .{ .x = btn_slide, .y = -40 * s },
         },
         .layout = .{
-            .sizing = .{ .w = .fixed(54), .h = .fixed(54) },
+            .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
             .child_alignment = .{ .x = .center, .y = .center },
         },
-        .custom = .{ .custom_data = ui.mkAnimatedGlass(54, menu_state * power_hover_scale, 10.0, power_hover_brightness) },
+        .custom = .{ .custom_data = ui.mkAnimatedGlass(54 * s, menu_state * power_hover_scale, 10.0 * s, power_hover_brightness) },
     })({
         zclay.cdefs.Clay_OnHover(struct {
             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
@@ -183,7 +186,7 @@ pub fn layout(focusables: ?[]*Focusable) void {
         }.callback, null);
         zclay.UI()(.{
             .id = .ID("PowerIcon"),
-            .layout = .{ .sizing = .{ .w = .fixed(32 * power_hover_scale), .h = .fixed(32 * power_hover_scale) } },
+            .layout = .{ .sizing = .{ .w = .fixed(32 * s * power_hover_scale), .h = .fixed(32 * s * power_hover_scale) } },
             .custom = .{ .custom_data = ui.mkIconByName(std.heap.page_allocator, "_power") },
         })({});
     });
@@ -192,8 +195,8 @@ pub fn layout(focusables: ?[]*Focusable) void {
 
     const focs = focusables.?;
     const scale: f32 = 0.2;
-    const menu_gap: f32 = 80.0;
-    const padding: f32 = 16.0;
+    const menu_gap: f32 = 80.0 * s;
+    const padding: f32 = 16.0 * s;
 
     zclay.UI()(.{
         .id = .ID("Menu"),

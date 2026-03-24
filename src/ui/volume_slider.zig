@@ -59,8 +59,8 @@ pub fn onCursorMove(x: f32, y: f32) void {
 }
 
 fn calcVolumeFromCursor() void {
-    const pad: f32 = 6;
-    const inner_h: f32 = 288;
+    const pad: f32 = 6 * ui.ui_scale;
+    const inner_h: f32 = 288 * ui.ui_scale;
     const data = zclay.getElementData(zclay.ElementId.ID("VolumeSlider"));
     if (data.found) {
         const bb = data.bounding_box;
@@ -144,12 +144,13 @@ pub fn isActive() bool {
 pub fn layout() void {
     if (!isActive()) return;
 
-    const track_h: f32 = 300;
-    const track_w: f32 = 44;
-    const pad: f32 = 6;
+    const s = ui.ui_scale;
+    const track_h: f32 = 300 * s;
+    const track_w: f32 = 44 * s;
+    const pad: f32 = 6 * s;
 
     // short off-screen distance so the entire slide is within the visible zone
-    const vol_x_off: f32 = lerp(70.0, -24.0, pos_state);
+    const vol_x_off: f32 = lerp(70.0 * s, -24.0 * s, pos_state);
 
     zclay.UI()(.{
         .id = .ID("VolumeSlider"),

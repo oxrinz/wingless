@@ -34,7 +34,10 @@ Minimal Wayland compositor without sacrificing beauty
 - Beacon placeholder - done
 - Async icon loading - done
 - Fix volume slider and volume control, should be clamped - done
-- UI scaling, support different resolutions
+- UI scaling, support different resolutions - done
+- zwp_linux_dmabuf_v1 - done
+- zxdg_output_manager_v1 - done
+- Fix recoridng software causing cursor to disappear
 - Multiple desktops
 
 ## todo after mvp:
@@ -44,12 +47,13 @@ Minimal Wayland compositor without sacrificing beauty
 - Design language and design toolkit
 - Wifi and Bluetooth in menu
 - Screenshotting
+- Pointer constraints protocol (zwp_pointer_constraints_v1)
 - SDF morphing. Shapes should bleed into each other when they're close, for example the shutdown / restart buttons
 - Design menu properly
 - Render all shadows in one pass to avoid shadow overlaps
 - Change volume with keyboard sliders
-- Pointer constraints protocol (zwp_pointer_constraints_v1)
 - Support multiple monitors
 - Beacon search using .desktop keywords
 - Don't render windows that are behind one another
 - Port to vulkan
+- Get rid of wlroots

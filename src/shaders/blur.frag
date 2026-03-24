@@ -4,7 +4,7 @@ uniform float intensity;
 uniform vec2 direction;
 varying vec2 v_uv;
 
-vec2 resolution = vec2(2560, 1440);
+uniform vec2 resolution;
 
 void main() {
   vec2 coord = v_uv * resolution;

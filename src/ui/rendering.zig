@@ -48,8 +48,10 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glUniform1i(output.glass_background.?.fill_direction_loc, fill_direction);
     gl.glUniform1f(output.glass_background.?.refraction_band_loc, refraction_band);
     gl.glUniform1f(output.glass_background.?.brightness_loc, brightness);
+    gl.glUniform2f(output.glass_background.?.resolution_loc, screen_w, screen_h);
 
-    drawQuad(output, x - 300, y - 300, w + 600, h + 600, screen_w, screen_h, output.glass_background.?.pos_loc);
+    const glass_pad = 300 * ui.ui_scale;
+    drawQuad(output, x - glass_pad, y - glass_pad, w + glass_pad * 2, h + glass_pad * 2, screen_w, screen_h, output.glass_background.?.pos_loc);
 }
 
 fn drawQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, gl_pos_loc: c_int) void {
@@ -186,6 +188,7 @@ fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: 
 
     gl.glUniform1f(output.glass_text.?.px_range_loc, font.px_range);
     gl.glUniform1f(output.glass_text.?.thickness_loc, thickness);
+    gl.glUniform2f(output.glass_text.?.resolution_loc, screen_w, screen_h);
 
     const gx = x + g.x_off;
     const gy = y + g.y_off * scale + 0.2 * 32;
@@ -305,7 +308,7 @@ fn drawShadowQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, scree
     gl.glUniform2f(output.shadow.?.size_loc, w, h);
     gl.glUniform1f(output.shadow.?.roundness_loc, roundness);
     gl.glUniform1f(output.shadow.?.intensity_loc, intensity);
-    const pad: f32 = 200;
+    const pad: f32 = 200 * ui.ui_scale;
     drawQuad(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, output.shadow.?.pos_loc);
 }
 
@@ -316,7 +319,7 @@ fn drawShadowQuadScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, 
     gl.glUniform2f(output.shadow.?.size_loc, w, h);
     gl.glUniform1f(output.shadow.?.roundness_loc, roundness);
     gl.glUniform1f(output.shadow.?.intensity_loc, intensity);
-    const pad: f32 = 200;
+    const pad: f32 = 200 * ui.ui_scale;
     drawQuadScene(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, output.shadow.?.pos_loc);
 }
 
@@ -352,6 +355,7 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
     gl.glUniform1i(scene_loc, 0);
     gl.glUniform1f(intensity_loc, 1.0);
     gl.glUniform2f(dir_loc, 1.0, 0.0);
+    gl.glUniform2f(output.blur.?.resolution_loc, screen_w, screen_h);
     drawQuad(output, 0, 0, screen_w, screen_h, screen_w, screen_h, pos_loc);
 
     // pass 2: vertical, blur_tex -> compositor fbo
@@ -365,6 +369,7 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
     gl.glUniform1i(scene_loc, 0);
     gl.glUniform1f(intensity_loc, intensity);
     gl.glUniform2f(dir_loc, 0.0, 1.0);
+    gl.glUniform2f(output.blur.?.resolution_loc, screen_w, screen_h);
     drawQuad(output, 0, 0, screen_w, screen_h, screen_w, screen_h, pos_loc);
 }
 
@@ -372,7 +377,7 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
 // clip_x, clip_y, clip_w, clip_h: rounded clip rect (parent window for subsurfaces, self for main)
 // with_decorations: draw shadow + border only for the main surface
 pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, sy: f32, sw: f32, sh: f32, clip_x: f32, clip_y: f32, clip_w: f32, clip_h: f32, screen_w: f32, screen_h: f32, with_decorations: bool, is_focused: bool) void {
-    const roundness: f32 = 12.0;
+    const roundness: f32 = 12.0 * ui.ui_scale;
 
     gl.glEnable(c.GL_BLEND);
     gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
@@ -539,7 +544,7 @@ pub fn render(ctx: ui.RenderContext) void {
                                 gl.glUniform1i(id.output.image.?.image_loc, 0);
                                 gl.glUniform2f(id.output.image.?.size_loc, qw, qh);
                                 gl.glUniform2f(id.output.image.?.quad_pos_loc, qx, qy);
-                                gl.glUniform1f(id.output.image.?.roundness_loc, 12.0);
+                                gl.glUniform1f(id.output.image.?.roundness_loc, 12.0 * ui.ui_scale);
                                 gl.glUniform1f(id.output.image.?.alpha_loc, 1.0);
 
                                 drawQuadWithUv(
