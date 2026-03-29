@@ -7,6 +7,7 @@ const ui = @import("../ui.zig");
 const main = @import("../main.zig");
 
 const menu = @import("menu.zig");
+const blur_proto = @import("../protocols/blur.zig");
 
 const WinglessOutput = main.WinglessOutput;
 const Font = ui.Font;
@@ -42,13 +43,13 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glUniform1i(output.glass_background.?.scene_loc, 0);
     gl.glUniform2f(output.glass_background.?.quad_pos_loc, x, screen_h - y - h);
     gl.glUniform2f(output.glass_background.?.size_loc, w, h);
-    gl.glUniform1f(output.glass_background.?.shadow_intensity_loc, 0.01 * @min(0.5 * 100, @min(w, h)));
     gl.glUniform1f(output.glass_background.?.roundness, roundness);
     gl.glUniform1f(output.glass_background.?.fill_amount_loc, fill_amount);
     gl.glUniform1i(output.glass_background.?.fill_direction_loc, fill_direction);
     gl.glUniform1f(output.glass_background.?.refraction_band_loc, refraction_band);
     gl.glUniform1f(output.glass_background.?.brightness_loc, brightness);
     gl.glUniform2f(output.glass_background.?.resolution_loc, screen_w, screen_h);
+    gl.glUniform1f(output.glass_background.?.blur_amount_loc, 1.2);
 
     const glass_pad = 300 * ui.ui_scale;
     drawQuad(output, x - glass_pad, y - glass_pad, w + glass_pad * 2, h + glass_pad * 2, screen_w, screen_h, output.glass_background.?.pos_loc);
@@ -164,6 +165,48 @@ fn drawQuadWithUvScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
+fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, _: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) void {
+    const prog = output.glass_blob_prog orelse return;
+
+    var attribs: c.wlr_gles2_texture_attribs = undefined;
+    c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
+
+    gl.glUseProgram(prog.prog);
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glBindTexture(attribs.target, attribs.tex);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+    gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+    gl.glUniform1i(prog.scene_loc, 0);
+    gl.glUniform2f(prog.resolution_loc, screen_w, screen_h);
+
+    // Convert button centers: Clay coords (y from top) → GL screen coords (y from bottom)
+    const diag: f32 = 0.7071067811865476;
+    const cy_gl = screen_h - bb_y - radius;
+    const cx0 = bb_x + bb_w - radius;
+
+    // Pack 4 active circles into slots 0-3; slots 4-7 inactive (scale=0)
+    const centers = [16]f32{
+        cx0,                          cy_gl,
+        cx0 - spread * t1,            cy_gl + spread * 0.15 * t1,
+        cx0 - spread * diag * t2,     cy_gl - spread * diag * t2,
+        cx0 + spread * 0.15 * t3,     cy_gl - spread * t3,
+        cx0, cy_gl, cx0, cy_gl, cx0, cy_gl, cx0, cy_gl,
+    };
+    const scales = [8]f32{ scale0, scale1, scale2, scale3, 0.0, 0.0, 0.0, 0.0 };
+    const brights = [8]f32{ bright0, bright1, bright2, bright3, 0.0, 0.0, 0.0, 0.0 };
+
+    gl.glUniform2fv(prog.centers_loc, 8, &centers[0]);
+    gl.glUniform1fv(prog.scales_loc, 8, &scales[0]);
+    gl.glUniform1fv(prog.brights_loc, 8, &brights[0]);
+    gl.glUniform1f(prog.radius_loc, radius);
+    gl.glUniform1f(prog.morph_k_loc, radius * 1.2 * @max(t1, @max(t2, t3)));
+
+    const pad = 300.0 * ui.ui_scale;
+    drawQuad(output, bb_x - pad, bb_y - pad, bb_w + pad * 2.0, bb_h + pad * 2.0, screen_w, screen_h, prog.pos_loc);
+}
+
 fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, scene_tex: *c.wlr_texture, glass_mode: c_int) f32 {
     if (ch == ' ') return 12.0 * scale / 32.0;
     const g = font.glyphs[ch] orelse return 0;
@@ -191,7 +234,7 @@ fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: 
     gl.glUniform2f(output.glass_text.?.resolution_loc, screen_w, screen_h);
 
     const gx = x + g.x_off;
-    const gy = y + g.y_off * scale + 0.2 * 32;
+    const gy = y + g.y_off * scale + 0.2 * scale;
 
     const x0 = ndc_x(gx, screen_w);
     const y0 = ndc_y(gy, screen_h);
@@ -246,7 +289,7 @@ fn drawTextChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: f
     gl.glUniform4f(output.text.?.color_loc, color[0], color[1], color[2], color[3]);
 
     const gx = x + g.x_off;
-    const gy = y + g.y_off * scale + 0.1 * 32;
+    const gy = y + g.y_off * scale + 0.1 * scale;
 
     const x0 = ndc_x(gx, screen_w);
     const y0 = ndc_y(gy, screen_h);
@@ -301,26 +344,94 @@ fn ensureBlurFbo(output: *WinglessOutput, w: c_int, h: c_int) void {
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
 }
 
-// Output-pass shadow (glass.vert: fragCoord = v_uv * res, where v_uv.y = 1 - y/h, so quadPos.y = screen_h - y - h)
-fn drawShadowQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, roundness: f32, intensity: f32) void {
-    gl.glUseProgram(output.shadow.?.prog);
-    gl.glUniform2f(output.shadow.?.quad_pos_loc, x, screen_h - y - h);
-    gl.glUniform2f(output.shadow.?.size_loc, w, h);
-    gl.glUniform1f(output.shadow.?.roundness_loc, roundness);
-    gl.glUniform1f(output.shadow.?.intensity_loc, intensity);
-    const pad: f32 = 200 * ui.ui_scale;
-    drawQuad(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, output.shadow.?.pos_loc);
+// Called during Pass 1 (scene_buffer), before drawing a window that has blur regions.
+// Snapshots the current FBO (background + windows below this one) then draws the glass
+// shader over each region using that snapshot — so the window draws on top of glass bg.
+// Uses drawQuadScene (y=0=top) and passes quadPos without y-flip, unlike the UI-overlay
+// drawGlassQuad which runs in Pass 2 where y=0=bottom.
+pub fn drawWindowBlurRegions(output: *WinglessOutput, regions: []*blur_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
+    if (regions.len == 0) return;
+    const glass = output.glass_background orelse return;
+
+    const iw: c_int = @intFromFloat(screen_w);
+    const ih: c_int = @intFromFloat(screen_h);
+
+    // lazily create snapshot texture (holds a copy of the FBO before this window is drawn)
+    if (output.blur_snapshot_tex == 0) {
+        gl.glGenTextures(1, &output.blur_snapshot_tex);
+        gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_snapshot_tex);
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, iw, ih, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, null);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
+    }
+
+    // snapshot: copy scene_buffer FBO (background + windows below this one) into snapshot texture
+    gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_snapshot_tex);
+    gl.glCopyTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, 0, 0, iw, ih);
+
+    gl.glUseProgram(glass.prog);
+    gl.glActiveTexture(gl.GL_TEXTURE0);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR);
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR);
+    gl.glUniform1i(glass.scene_loc, 0);
+    gl.glUniform2f(glass.resolution_loc, screen_w, screen_h);
+    gl.glUniform1f(glass.fill_amount_loc, 0.0);
+    gl.glUniform1i(glass.fill_direction_loc, 0);
+    gl.glUniform1f(glass.brightness_loc, 0.0);
+
+    gl.glEnable(c.GL_BLEND);
+    gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+
+    for (regions) |region| {
+        const r = region.current;
+        if (r.width <= 0 or r.height <= 0) continue;
+        const rx: f32 = sx + @as(f32, @floatFromInt(r.x));
+        const ry: f32 = sy + @as(f32, @floatFromInt(r.y));
+        const rw: f32 = @floatFromInt(r.width);
+        const rh: f32 = @floatFromInt(r.height);
+        // quadPos: top-left in scene_buffer fragCoord space (y=0=top, no flip needed)
+        gl.glUniform2f(glass.quad_pos_loc, rx, ry);
+        gl.glUniform2f(glass.size_loc, rw, rh);
+        gl.glUniform1f(glass.roundness, @as(f32, @floatFromInt(r.radius)) * ui.ui_scale);
+        gl.glUniform1f(glass.refraction_band_loc, @floatFromInt(r.refraction_band));
+        gl.glUniform1f(glass.blur_amount_loc, @as(f32, @floatFromInt(r.blur_amount)) / 100.0);
+        const glass_pad = 300 * ui.ui_scale;
+        drawQuadScene(output, rx - glass_pad, ry - glass_pad, rw + glass_pad * 2, rh + glass_pad * 2, screen_w, screen_h, glass.pos_loc);
+    }
+
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
 }
 
-// Scene-buffer-pass shadow (fragCoord.y = y directly in screen coords, so quadPos.y = y)
-fn drawShadowQuadScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, roundness: f32, intensity: f32) void {
-    gl.glUseProgram(output.shadow.?.prog);
-    gl.glUniform2f(output.shadow.?.quad_pos_loc, x, y);
-    gl.glUniform2f(output.shadow.?.size_loc, w, h);
-    gl.glUniform1f(output.shadow.?.roundness_loc, roundness);
-    gl.glUniform1f(output.shadow.?.intensity_loc, intensity);
+const ShadowEntry = struct { x: f32, y: f32, w: f32, h: f32, roundness: f32, intensity: f32 };
+
+fn uploadShadowUniforms(prog: ui.ShadowProgram, entries: []const ShadowEntry, screen_h: f32, y_flip: bool) void {
+    for (0..ui.MAX_SHADOW_COUNT) |i| {
+        if (i < entries.len) {
+            const e = entries[i];
+            const qy: f32 = if (y_flip) screen_h - e.y - e.h else e.y;
+            gl.glUniform2f(prog.pos_locs[i], e.x, qy);
+            gl.glUniform2f(prog.size_locs[i], e.w, e.h);
+            gl.glUniform1f(prog.roundness_locs[i], e.roundness);
+            gl.glUniform1f(prog.intensity_locs[i], e.intensity);
+        } else {
+            gl.glUniform2f(prog.pos_locs[i], 0, 0);
+            gl.glUniform2f(prog.size_locs[i], 0, 0);
+            gl.glUniform1f(prog.roundness_locs[i], 0);
+            gl.glUniform1f(prog.intensity_locs[i], 0);
+        }
+    }
+}
+
+// Scene-buffer-pass: single window shadow (no y-flip, padded quad)
+fn drawWindowShadowScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, roundness: f32, intensity: f32) void {
+    const prog = output.shadow orelse return;
+    gl.glUseProgram(prog.prog);
+    gl.glUniform2f(prog.resolution_loc, screen_w, screen_h);
+    uploadShadowUniforms(prog, &.{.{ .x = x, .y = y, .w = w, .h = h, .roundness = roundness, .intensity = intensity }}, screen_h, false);
     const pad: f32 = 200 * ui.ui_scale;
-    drawQuadScene(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, output.shadow.?.pos_loc);
+    drawQuadScene(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, prog.pos_loc);
 }
 
 fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, intensity: f32) void {
@@ -384,7 +495,7 @@ pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, 
 
     if (with_decorations) {
         const intensity: f32 = 0.01 * @min(50.0, @min(clip_w, clip_h));
-        drawShadowQuadScene(output, clip_x, clip_y, clip_w, clip_h, screen_w, screen_h, roundness, intensity);
+        drawWindowShadowScene(output, clip_x, clip_y, clip_w, clip_h, screen_w, screen_h, roundness, intensity);
     }
 
     const prog = output.window orelse return;
@@ -467,23 +578,102 @@ pub fn render(ctx: ui.RenderContext) void {
 
     const render_cmds = zclay.endLayout();
 
-    // Pass 1: glass backgrounds (oversized quads with shadows) — all before any content
+    // Pass 0: all shadows in a single draw, below everything
+    {
+        var entries: [ui.MAX_SHADOW_COUNT]ShadowEntry = undefined;
+        var count: usize = 0;
+
+        for (render_cmds) |cmd| {
+            if (count >= ui.MAX_SHADOW_COUNT) break;
+            if (cmd.command_type != .custom) continue;
+            const cd: *ui.CustomData = @ptrCast(@alignCast(cmd.render_data.custom.custom_data));
+            const bb = cmd.bounding_box;
+            switch (cd.*) {
+                .glass => |g| {
+                    const x, const y, const w, const h = if (g.animated) blk: {
+                        const cx = bb.x + bb.width * 0.5;
+                        const cy = bb.y + bb.height * 0.5;
+                        break :blk .{ cx - bb.width * g.anim_scale * 0.5, cy - bb.height * g.anim_scale * 0.5, bb.width * g.anim_scale, bb.height * g.anim_scale };
+                    } else .{ bb.x, bb.y, bb.width, bb.height };
+                    entries[count] = .{ .x = x, .y = y, .w = w, .h = h, .roundness = g.roundness, .intensity = 0.01 * @min(0.5 * 100.0, @min(w, h)) };
+                    count += 1;
+                },
+                .shadow => |sh| {
+                    const x, const y, const w, const h = if (sh.animated) blk: {
+                        const cx = bb.x + bb.width * 0.5;
+                        const cy = bb.y + bb.height * 0.5;
+                        break :blk .{ cx - bb.width * sh.anim_scale * 0.5, cy - bb.height * sh.anim_scale * 0.5, bb.width * sh.anim_scale, bb.height * sh.anim_scale };
+                    } else .{ bb.x, bb.y, bb.width, bb.height };
+                    entries[count] = .{ .x = x, .y = y, .w = w, .h = h, .roundness = sh.roundness, .intensity = sh.intensity };
+                    count += 1;
+                },
+                .glass_blob => |pcb| {
+                    const btn_size = pcb.radius * 2.0;
+                    const shadow_intensity = 0.01 * @min(0.5 * 100.0, btn_size);
+                    const diag: f32 = 0.7071067811865476;
+                    // cx/cy in Clay coords: center button anchored to right edge
+                    const cx0 = bb.x + bb.width - pcb.radius;
+                    const cy0 = bb.y + pcb.radius;
+                    if (count < ui.MAX_SHADOW_COUNT) {
+                        entries[count] = .{ .x = cx0 - pcb.radius, .y = cy0 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity };
+                        count += 1;
+                    }
+                    if (pcb.t1 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
+                        const cx1 = cx0 - pcb.spread * pcb.t1;
+                        const cy1 = cy0 - pcb.spread * 0.15 * pcb.t1;
+                        entries[count] = .{ .x = cx1 - pcb.radius, .y = cy1 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t1 };
+                        count += 1;
+                    }
+                    if (pcb.t2 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
+                        const cx2 = cx0 - pcb.spread * diag * pcb.t2;
+                        const cy2 = cy0 + pcb.spread * diag * pcb.t2;
+                        entries[count] = .{ .x = cx2 - pcb.radius, .y = cy2 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t2 };
+                        count += 1;
+                    }
+                    if (pcb.t3 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
+                        const cx3 = cx0 + pcb.spread * 0.15 * pcb.t3;
+                        const cy3 = cy0 + pcb.spread * pcb.t3;
+                        entries[count] = .{ .x = cx3 - pcb.radius, .y = cy3 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t3 };
+                        count += 1;
+                    }
+                },
+                else => {},
+            }
+        }
+
+        if (count > 0) {
+            if (ctx.output.shadow) |prog| {
+                gl.glUseProgram(prog.prog);
+                gl.glUniform2f(prog.resolution_loc, ctx.screen_width, ctx.screen_height);
+                uploadShadowUniforms(prog, entries[0..count], ctx.screen_height, true);
+                drawQuad(ctx.output, 0, 0, ctx.screen_width, ctx.screen_height, ctx.screen_width, ctx.screen_height, prog.pos_loc);
+            }
+        }
+    }
+
+    // Pass 1: glass backgrounds — all before any other content
     var ci: usize = 0;
     while (ci < render_cmds.len) : (ci += 1) {
         const cmd = render_cmds[ci];
         if (cmd.command_type != .custom) continue;
         const cd: *ui.CustomData = @ptrCast(@alignCast(cmd.render_data.custom.custom_data));
-        if (cd.* != .glass) continue;
         const bb = cmd.bounding_box;
-        const g = cd.glass;
-        if (g.animated) {
-            const cx = bb.x + bb.width * 0.5;
-            const cy = bb.y + bb.height * 0.5;
-            const aw = bb.width * g.anim_scale;
-            const ah = bb.height * g.anim_scale;
-            drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
-        } else {
-            drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
+        switch (cd.*) {
+            .glass => |g| {
+                if (g.animated) {
+                    const cx = bb.x + bb.width * 0.5;
+                    const cy = bb.y + bb.height * 0.5;
+                    const aw = bb.width * g.anim_scale;
+                    const ah = bb.height * g.anim_scale;
+                    drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
+                } else {
+                    drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
+                }
+            },
+            .glass_blob => |pcb| {
+                drawBlobQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, pcb.t, pcb.t1, pcb.t2, pcb.t3, pcb.radius, pcb.spread, pcb.bright0, pcb.bright1, pcb.bright2, pcb.bright3, pcb.scale0, pcb.scale1, pcb.scale2, pcb.scale3);
+            },
+            else => {},
         }
     }
 
@@ -571,22 +761,28 @@ pub fn render(ctx: ui.RenderContext) void {
                         const thickness: f32 = if (gt.bold) 0.2 else 0.0;
                         drawGlassSentence(ctx.output, ctx.font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, thickness, scale, ctx.scene_tex, 1);
                     },
-                    .divider => |d| {
-                        gl.glUseProgram(ctx.output.fill.?.prog);
-                        gl.glUniform4f(ctx.output.fill.?.color_loc, 1.0, 1.0, 1.0, d.alpha);
-                        drawQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.output.fill.?.pos_loc);
+                    .rect => |rc| {
+                        const rf = ctx.output.round_fill.?;
+                        gl.glUseProgram(rf.prog);
+                        gl.glUniform4f(rf.color_loc, rc.r, rc.g, rc.b, rc.a);
+                        gl.glUniform2f(rf.quad_pos_loc, bb.x, ctx.screen_height - bb.y - bb.height);
+                        gl.glUniform2f(rf.size_loc, bb.width, bb.height);
+                        gl.glUniform1f(rf.roundness_loc, rc.roundness);
+                        gl.glUniform2f(rf.resolution_loc, ctx.screen_width, ctx.screen_height);
+                        drawQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, rf.pos_loc);
                     },
-                    .shadow => |sh| {
-                        if (sh.animated) {
-                            const cx = bb.x + bb.width * 0.5;
-                            const cy = bb.y + bb.height * 0.5;
-                            const aw = bb.width * sh.anim_scale;
-                            const ah = bb.height * sh.anim_scale;
-                            drawShadowQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, sh.roundness, sh.intensity);
-                        } else {
-                            drawShadowQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, sh.roundness, sh.intensity);
-                        }
+                    .spinner => |sp| {
+                        const spn = ctx.output.spinner.?;
+                        gl.glUseProgram(spn.prog);
+                        gl.glUniform4f(spn.color_loc, 1.0, 1.0, 1.0, 1.0);
+                        gl.glUniform2f(spn.quad_pos_loc, bb.x, ctx.screen_height - bb.y - bb.height);
+                        gl.glUniform2f(spn.size_loc, bb.width, bb.height);
+                        gl.glUniform2f(spn.resolution_loc, ctx.screen_width, ctx.screen_height);
+                        gl.glUniform1f(spn.time_loc, sp.time);
+                        drawQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, spn.pos_loc);
                     },
+                    .shadow => {}, // handled in Pass 0
+                    .glass_blob => {}, // handled in Pass 1
                     .icon => |ic| {
                         gl.glUseProgram(ctx.output.image.?.prog);
                         gl.glActiveTexture(gl.GL_TEXTURE0);

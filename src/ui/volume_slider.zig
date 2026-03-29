@@ -64,7 +64,8 @@ fn calcVolumeFromCursor() void {
     const data = zclay.getElementData(zclay.ElementId.ID("VolumeSlider"));
     if (data.found) {
         const bb = data.bounding_box;
-        const rel_y = cursor_y - bb.y - pad;
+        const clamped_y = std.math.clamp(cursor_y, bb.y, bb.y + bb.height);
+        const rel_y = clamped_y - bb.y - pad;
         volume = max_volume * (1.0 - std.math.clamp(rel_y / inner_h, 0, 1));
     }
 }
@@ -148,8 +149,6 @@ pub fn layout() void {
     const track_h: f32 = 300 * s;
     const track_w: f32 = 44 * s;
     const pad: f32 = 6 * s;
-
-    // short off-screen distance so the entire slide is within the visible zone
     const vol_x_off: f32 = lerp(70.0 * s, -24.0 * s, pos_state);
 
     zclay.UI()(.{
@@ -164,7 +163,7 @@ pub fn layout() void {
             .sizing = .{ .w = .fixed(track_w), .h = .fixed(track_h) },
             .padding = .{ .top = @intFromFloat(pad), .bottom = @intFromFloat(pad), .left = @intFromFloat(pad), .right = @intFromFloat(pad) },
         },
-        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(44, glass_state * vol_hover_scale, fill_state, .top_to_bottom, 8.0, vol_hover_brightness) },
+        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(22, glass_state * vol_hover_scale, fill_state, .top_to_bottom, 8.0, vol_hover_brightness) },
     })({
         zclay.cdefs.Clay_OnHover(struct {
             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {

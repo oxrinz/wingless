@@ -20,7 +20,8 @@ void main() {
 
   float screenPxRange = pxRange * length(vec2(dFdx(v_uv.x), dFdy(v_uv.y)));
   float dist = sd + thickness;
-  float alpha = smoothstep(-softness * screenPxRange, softness * screenPxRange, dist);
+  float range = min(softness * screenPxRange, 0.38);
+  float alpha = smoothstep(-range, range, dist);
 
   if (alpha < 0.01)
     discard;

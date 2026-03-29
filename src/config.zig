@@ -13,16 +13,24 @@ pub const WinglessFunction = enum {
     volume_up,
     volume_down,
     volume_set,
+    volume_mute,
 
     shutdown,
     reboot,
 
     snap_left,
     snap_right,
+
+    screenshot,
+    screenshot_fullscreen,
+
+    record_toggle,
+    record_toggle_fullscreen,
 };
 
 pub const Modifier = enum {
     super,
+    super_shift,
     none,
 };
 
@@ -111,17 +119,22 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     }
 
     // keybinds
-    var keybinds = try allocator.alloc(Keybind, 10);
+    var keybinds = try allocator.alloc(Keybind, 15);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
     keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
     keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
     keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up, .modifier = .none };
     keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down, .modifier = .none };
-    keybinds[6] = .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu };
-    keybinds[7] = .{ .key = c.XKB_KEY_f, .function = .toggle_fullscreen };
-    keybinds[8] = .{ .key = c.XKB_KEY_h, .function = .snap_left };
-    keybinds[9] = .{ .key = c.XKB_KEY_l, .function = .snap_right };
+    keybinds[6] = .{ .key = c.XKB_KEY_XF86AudioMute, .function = .volume_mute, .modifier = .none };
+    keybinds[7] = .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu };
+    keybinds[8] = .{ .key = c.XKB_KEY_f, .function = .toggle_fullscreen };
+    keybinds[9] = .{ .key = c.XKB_KEY_h, .function = .snap_left };
+    keybinds[10] = .{ .key = c.XKB_KEY_l, .function = .snap_right };
+    keybinds[11] = .{ .key = c.XKB_KEY_s, .function = .screenshot_fullscreen };
+    keybinds[12] = .{ .key = c.XKB_KEY_s, .function = .screenshot, .modifier = .super_shift };
+    keybinds[13] = .{ .key = c.XKB_KEY_r, .function = .record_toggle_fullscreen };
+    keybinds[14] = .{ .key = c.XKB_KEY_r, .function = .record_toggle, .modifier = .super_shift };
 
     config.keybinds = keybinds;
 

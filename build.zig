@@ -26,6 +26,8 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/xdg-shell-protocol.c" } });
+    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/pointer-constraints-unstable-v1-protocol.c" } });
+    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/wingless-blur-v1-protocol.c" } });
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "src/stb_impl.c" } });
     exe.linkSystemLibrary("libinput");
@@ -36,6 +38,8 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("wayland-client");
     exe.linkSystemLibrary("wayland-server");
     exe.linkSystemLibrary("xkbcommon");
+    exe.linkSystemLibrary("pixman-1");
+    exe.linkSystemLibrary("libsystemd");
     exe.linkLibC();
 
     exe.addIncludePath(.{ .cwd_relative = "protocols" });

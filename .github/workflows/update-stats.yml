@@ -1,0 +1,62 @@
+name: Update Stats
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update-stats:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tokei
+        run: |
+          curl -sL https://github.com/XAMPPRocky/tokei/releases/download/v12.1.2/tokei-x86_64-unknown-linux-gnu.tar.gz | tar xz
+
+      - name: Compute stats
+        id: stats
+        run: |
+          LINES=$(./tokei src/ --output json | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print(sum(v['code'] for v in d.values() if isinstance(v, dict) and 'code' in v))
+          ")
+          FUNCTIONS=$(grep -rE "^\s*(pub\s+)?fn\s+\w" src/ --include="*.zig" | wc -l | tr -d ' ')
+          echo "lines=$LINES" >> $GITHUB_OUTPUT
+          echo "functions=$FUNCTIONS" >> $GITHUB_OUTPUT
+
+      - name: Update README
+        env:
+          LINES: ${{ steps.stats.outputs.lines }}
+          FUNCTIONS: ${{ steps.stats.outputs.functions }}
+        run: |
+          python3 - <<'EOF'
+          import re, os
+
+          lines = os.environ['LINES']
+          functions = os.environ['FUNCTIONS']
+
+          with open('README.md', 'r') as f:
+              content = f.read()
+
+          new_section = (
+              f'<!-- stats -->\n'
+              f'![Lines of code](https://img.shields.io/badge/lines_of_code-{lines}-blue) '
+              f'![Functions](https://img.shields.io/badge/functions-{functions}-blue)\n'
+              f'<!-- /stats -->'
+          )
+
+          content = re.sub(r'<!-- stats -->.*?<!-- /stats -->', new_section, content, flags=re.DOTALL)
+
+          with open('README.md', 'w') as f:
+              f.write(content)
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet README.md || (git add README.md && git commit -m "chore: update stats" && git push)

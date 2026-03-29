@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="wingless_blur_v1">
+
+  <interface name="wingless_blur_manager_v1" version="1">
+    <description summary="factory for blur region objects"/>
+
+    <request name="get_blur_region">
+      <description summary="create a new blur region for a surface"/>
+      <arg name="id" type="new_id" interface="wingless_blur_region_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager, regions are unaffected"/>
+    </request>
+  </interface>
+
+  <interface name="wingless_blur_region_v1" version="1">
+    <description summary="a single blur region within a surface"/>
+
+    <request name="set_region">
+      <description summary="set the rectangle within the surface to apply blur to"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </request>
+
+    <request name="set_radius">
+      <description summary="set blur radius in pixels"/>
+      <arg name="radius" type="uint"/>
+    </request>
+
+    <request name="set_tint">
+      <description summary="set RGBA tint overlaid on the blur, values 0-255"/>
+      <arg name="r" type="uint"/>
+      <arg name="g" type="uint"/>
+      <arg name="b" type="uint"/>
+      <arg name="a" type="uint"/>
+    </request>
+
+    <request name="set_refraction_band">
+      <description summary="set the refraction band width in pixels (default 20)"/>
+      <arg name="band" type="uint"/>
+    </request>
+
+    <request name="set_blur_amount">
+      <description summary="set the blur intensity, value divided by 100 (e.g. 120 = 1.2, default 120)"/>
+      <arg name="amount" type="uint"/>
+    </request>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy this blur region and remove the effect"/>
+    </request>
+  </interface>
+
+</protocol>

@@ -1,13 +1,14 @@
 precision highp float;
 
-uniform vec2 size;
-uniform vec2 quadPos;
-uniform float roundness;
-uniform float intensity;
+#define MAX_SHADOWS 16
+
+uniform vec2 shadowPos[MAX_SHADOWS];
+uniform vec2 shadowSize[MAX_SHADOWS];
+uniform float shadowRoundness[MAX_SHADOWS];
+uniform float shadowIntensity[MAX_SHADOWS];
+uniform vec2 resolution;
 
 varying vec2 v_uv;
-
-vec2 resolution = vec2(2560, 1440);
 
 float sdf(vec2 p, vec2 b, float r) {
   vec2 d = abs(p) - b + vec2(r);
@@ -16,15 +17,16 @@ float sdf(vec2 p, vec2 b, float r) {
 
 void main() {
   vec2 fragCoord = v_uv * resolution;
-  vec2 paneCenter = quadPos + size * 0.5;
-  vec2 glassCoord = fragCoord - paneCenter;
+  float total = 0.0;
 
-  float shadowSDF = sdf(glassCoord, size * 0.5, roundness / 2.);
-  float curvature = 8.0;
-  float falloff = 400.0;
-  float outline = exp(-curvature * max(shadowSDF, 0.0) / falloff);
-  float fill = step(shadowSDF, 0.0);
-  float shadow = max(fill, outline) * intensity;
+  for (int i = 0; i < MAX_SHADOWS; i++) {
+    vec2 center = shadowPos[i] + shadowSize[i] * 0.5;
+    float d = sdf(fragCoord - center, shadowSize[i] * 0.5, shadowRoundness[i] * 0.5);
+    float outline = exp(-8.0 * max(d, 0.0) / 400.0);
+    float fill = step(d, 0.0);
+    float s = max(fill, outline) * shadowIntensity[i];
+    total = 1.0 - (1.0 - total) * (1.0 - s);
+  }
 
-  gl_FragColor = vec4(0.0, 0.0, 0.0, shadow);
+  gl_FragColor = vec4(0.0, 0.0, 0.0, total);
 }

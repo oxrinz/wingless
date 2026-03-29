@@ -3,6 +3,7 @@ pub const c = @cImport({
     @cDefine("WLR_USE_UNSTABLE", "1");
     @cInclude("xdg-shell-protocol.h");
     @cInclude("xdg-shell-client-protocol.h");
+    @cInclude("wingless-blur-v1-protocol.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/backend.h");
     @cInclude("wlr/backend/libinput.h");
@@ -29,11 +30,13 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_output_management_v1.h");
     @cInclude("wlr/types/wlr_xdg_output_v1.h");
     @cInclude("wlr/types/wlr_linux_dmabuf_v1.h");
+    @cInclude("wlr/types/wlr_pointer_constraints_v1.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/xwayland.h");
     @cInclude("wayland-server-core.h");
     @cInclude("drm/drm_fourcc.h");
     @cInclude("stb/stb_image.h");
+    @cInclude("stb/stb_image_write.h");
     @cInclude("xcb/xcb.h");
     @cInclude("libinput.h");
 });

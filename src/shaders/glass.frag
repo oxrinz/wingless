@@ -1,144 +1,63 @@
-#extension GL_OES_standard_derivatives : enable
-
-precision highp float;
-uniform sampler2D scene;
 uniform vec2 size;
 uniform vec2 quadPos;
-uniform float shadowIntensity;
 uniform float roundness;
 uniform float fillAmount;
 uniform int fillDirection;
 uniform float refractionBand;
 uniform float brightness;
+uniform float blurAmount;
 varying vec2 v_uv;
 
-uniform vec2 resolution;
-
-vec3 getTextureColorAt(vec2 coord) {
-  return texture2D(scene, coord / resolution).rgb;
-}
-
-float sdf(vec2 p, vec2 b, float r) {
-  vec2 d = abs(p) - b + vec2(r);
-  return min(max(d.x, d.y), 0.0) + length(max(d, 0.0)) - r;
-}
-
-vec3 getBlurredColor(vec2 coord, float blurRadius) {
-  vec3 color = vec3(0.);
-  float totalWeight = 0.;
-
-  for (int x = -2; x <= 2; x++) {
-    for (int y = -2; y <= 2; y++) {
-      vec2 offset = vec2(float(x), float(y)) * blurRadius;
-      float weight = exp(-.5 * (float(x * x + y * y)) / 2.0);
-
-      color += getTextureColorAt(coord + offset) * weight;
-      totalWeight += weight;
-    }
-  }
-
-  return color / totalWeight;
-}
+const float interiorDarken = 0.5;
 
 void main() {
-  float ratio = resolution.x / resolution.y;
   vec2 fragCoord = v_uv * resolution;
-
-  // opening / closing animation
   vec2 paneCenter = quadPos + size * 0.5;
-  // paneCenter = resolution / 2.;
   vec2 glassCoord = fragCoord - paneCenter;
 
-  // glass refractions
-  // size / {num} defines the roundness
-  float inversedSDF =
-      -sdf(glassCoord, size * 0.5, roundness / 2.) / min(size.x, size.y);
+  float panelSDF = sdf(glassCoord, size * 0.5, roundness);
+  float inversedSDF = -panelSDF / min(size.x, size.y);
 
-  float alpha = 1.0;
+  float shadow =
+      max(step(panelSDF, 0.0), exp(-8.0 * max(panelSDF, 0.0) / 400.0)) *
+      interiorDarken;
+
+  float aa = fwidth(inversedSDF);
+  float edge = smoothstep(-aa * 0.5, aa * 0.5, inversedSDF);
+  float alpha = edge;
   vec3 glassColor = vec3(0.0);
 
-  // shadow
-  float shadowSDF = sdf(glassCoord, size * 0.5, roundness / 2.);
-
-  float fill = step(shadowSDF, 0.);
-  float curvature = 8.0;
-  float falloff = 400.00;
-  float outline = exp(-curvature * max(shadowSDF, 0.) / falloff);
-  float shadow = max(fill, outline);
-  shadow *= shadowIntensity;
-  alpha = shadow;
-
-  // smooth edges
-  float aa = fwidth(inversedSDF);
-  float edge = smoothstep(0., aa, inversedSDF);
-
-  alpha = max(alpha, edge);
-
   if (edge > 0.0) {
-    float distFromCenter = 1.0 - clamp(-shadowSDF / refractionBand, 0.0, 1.0);
-    float distortion = 1.0 - sqrt(1.0 - pow(distFromCenter, 2.0));
-    // the normalize(glassCoord) / {num} and clamp values get rid of the tear at
-    // the middle that is present when the rectable is long and thin they can,
-    // and SHOULD be removed if the size of the rectangle is somewhat balanced
-    vec2 paneUV = glassCoord / max(size * .5, vec2(1.));
-    vec2 normalizedGlassCoord = normalize(paneUV);
-    vec2 offset = distortion * normalizedGlassCoord * 200.0;
-    vec2 glassColorCoord = fragCoord - offset;
+    vec2 grad;
+    float gradMag;
+    sdfGrad(glassCoord, size * 0.5, roundness, grad, gradMag);
 
-    float blurIntensity = 1.2;
-    float blurRadius = blurIntensity * (1.0 - distFromCenter * 0.5);
-    glassColor = getBlurredColor(glassColorCoord, blurRadius) * (1. - shadow);
+    float t = clamp(1.0 + panelSDF / (refractionBand * 2.0), 0.0, 1.0);
+    float distortion = pow(t, 5.0);
+    vec2 glassColorCoord = fragCoord - distortion * grad * refractionBand * 1.2;
+
+    float blurRadius = blurAmount * (1.0 - t);
+    glassColor = getBlurredColor(glassColorCoord, blurRadius) * (1.0 - shadow);
     glassColor *= 0.9;
 
-    // highlight
-    float sd = shadowSDF;
-    float d = max(-sd, 0.0);
-    float aaH = max(fwidth(sd), 1e-4);
-
-    float insetPx = aaH * 1.5;
-
-    float rimPx = 5.;
-
-    float rimBand =
-        smoothstep(insetPx, insetPx + aaH, d) *
-        (1. - smoothstep(insetPx + rimPx - aa, insetPx + rimPx + aa, d));
-
-    float falloffPx = 2.;
-    float falloff = exp(-d / falloffPx);
-
-    vec2 n = normalize(vec2(dFdx(sd), dFdy(sd)));
-
-    vec2 lightDir = normalize(vec2(-0.35, -0.45));
-
-    float ndlTL = max(dot(n, lightDir), 0.0);
-    float ndlBR = max(dot(n, -lightDir), 0.0);
-
-    float hlTL = rimBand * falloff * pow(ndlTL, 2.0);
-    float hlBR = rimBand * falloff * pow(ndlBR, 2.0);
-
-    float gate = edge * (1.0 - clamp(shadow, 0.0, 1.0));
-
-    vec3 colTL = vec3(1., 1., 1.);
-    vec3 colBR = vec3(1., 1., 1.);
-
-    glassColor += gate * (hlTL * colTL + hlBR * colBR) * 1.5;
+    vec2 hl = glassRimHighlight(panelSDF, grad, gradMag);
+    glassColor += edge * (hl.x + hl.y);
 
     glassColor += vec3(brightness);
 
-    // fill
     if (fillDirection > 0 && fillAmount > 0.0) {
       vec2 localUV = (glassCoord + size * 0.5) / size;
-      float t;
+      float ft;
       if (fillDirection == 1)
-        t = localUV.y;
+        ft = localUV.y;
       else if (fillDirection == 2)
-        t = 1.0 - localUV.y;
+        ft = 1.0 - localUV.y;
       else if (fillDirection == 3)
-        t = localUV.x;
+        ft = localUV.x;
       else
-        t = 1.0 - localUV.x;
+        ft = 1.0 - localUV.x;
 
-      float fillMask = 1.0 - step(fillAmount, t);
+      float fillMask = 1.0 - step(fillAmount, ft);
       glassColor = mix(glassColor, vec3(1.), fillMask * 0.45);
     }
 

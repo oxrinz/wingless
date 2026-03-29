@@ -8,6 +8,7 @@ const tests = @import("tests.zig");
 const ui = @import("ui.zig");
 const beacon = @import("ui/beacon.zig");
 const menu = @import("ui/menu.zig");
+const blur = @import("protocols/blur.zig");
 
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
@@ -153,6 +154,13 @@ pub const WinglessServer = struct {
     drag_icon: ?*c.wlr_scene_tree = null,
     drag_destroy: c.wl_listener = undefined,
 
+    pointer_constraints: *c.wlr_pointer_constraints_v1 = undefined,
+    new_constraint: c.wl_listener = undefined,
+    active_constraint: ?*c.wlr_pointer_constraint_v1 = null,
+    active_constraint_destroy: c.wl_listener = undefined,
+    last_cursor_x: f64 = 0,
+    last_cursor_y: f64 = 0,
+
     xwayland: *c.wlr_xwayland = undefined,
     new_xwayland_surface: c.wl_listener = undefined,
 
@@ -166,6 +174,7 @@ pub const WinglessServer = struct {
     grab_y: f64 = 0,
     grab_geo: c.wlr_box = undefined,
     resize_edges: u32 = 0,
+    drag_from_client: bool = false,
 
     allocator: std.mem.Allocator = undefined,
 
@@ -244,6 +253,10 @@ pub const WinglessServer = struct {
         server.request_set_selection = .{ .link = undefined, .notify = seat_request_set_selection };
         c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
 
+        server.pointer_constraints = c.wlr_pointer_constraints_v1_create(server.display) orelse return error.PointerConstraintsFailed;
+        server.new_constraint = .{ .link = undefined, .notify = server_new_constraint };
+        c.wl_signal_add(&server.pointer_constraints.events.new_constraint, &server.new_constraint);
+
         server.xwayland = c.wlr_xwayland_create(server.display, server.compositor, false) orelse @panic("XWayland failed");
         c.wlr_xwayland_set_seat(server.xwayland, server.seat);
 
@@ -256,6 +269,8 @@ pub const WinglessServer = struct {
         _ = c.setenv("XDG_CURRENT_DESKTOP", "wingless", 1);
         _ = c.setenv("XDG_SESSION_TYPE", "wayland", 1);
         _ = c.setenv("XDG_SESSION_DESKTOP", "wingless", 1);
+
+        blur.register(server.display, server);
 
         server.wingless_config = conf;
         server.allocator = allocator;
@@ -290,7 +305,13 @@ pub const WinglessServer = struct {
         c.wl_list_remove(&self.new_input.link);
         c.wl_list_remove(&self.new_output.link);
 
+        c.wl_list_remove(&self.request_set_selection.link);
         c.wl_list_remove(&self.request_start_drag.link);
+
+        c.wl_list_remove(&self.new_constraint.link);
+        if (self.active_constraint != null) {
+            c.wl_list_remove(&self.active_constraint_destroy.link);
+        }
 
         c.wl_list_remove(&self.new_xwayland_surface.link);
 
@@ -313,6 +334,10 @@ const WinglessKeyboard = struct {
     key: c.wl_listener,
     destroy: c.wl_listener,
 
+    repeat_timer: ?*c.wl_event_source = null,
+    repeat_sym: c.xkb_keysym_t = 0,
+    eaten_keycodes: [64]u32 = [_]u32{0} ** 64,
+
     pub fn init(server: *WinglessServer, device: *c.wlr_input_device) !*WinglessKeyboard {
         const keyboard = try server.allocator.create(WinglessKeyboard);
 
@@ -328,6 +353,9 @@ const WinglessKeyboard = struct {
 
         c.wl_list_init(@ptrCast(@constCast(&keyboard.link)));
 
+        const loop = c.wl_display_get_event_loop(server.display);
+        keyboard.repeat_timer = c.wl_event_loop_add_timer(loop, keyboard_repeat_cb, keyboard);
+
         return keyboard;
     }
 };
@@ -340,16 +368,20 @@ pub const WinglessOutput = struct {
     image: ?ui.ImageProgram = null,
     window: ?ui.WindowProgram = null,
     fill: ?ui.FillProgram = null,
+    round_fill: ?ui.RoundFillProgram = null,
+    spinner: ?ui.SpinnerProgram = null,
     blur: ?ui.BlurProgram = null,
     shadow: ?ui.ShadowProgram = null,
     glass_background: ?ui.GlassBackgroundProgram = null,
     glass_text: ?ui.GlassTextProgram = null,
     text: ?ui.TextProgram = null,
+    glass_blob_prog: ?ui.GlassBlobProgram = null,
 
     gl_vao: c_uint = 0,
     gl_vbo: c_uint = 0,
     blur_fbo: c_uint = 0,
     blur_tex: c_uint = 0,
+    blur_snapshot_tex: c_uint = 0,
 
     scene_buffer: ?*c.wlr_buffer = null,
 
@@ -418,6 +450,7 @@ const WinglessToplevel = struct {
     destroy: c.wl_listener,
     surface_destroy: c.wl_listener,
     request_fullscreen: c.wl_listener,
+    request_move: c.wl_listener,
 
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
@@ -437,6 +470,7 @@ const WinglessToplevel = struct {
             .destroy = .{ .link = undefined, .notify = xdg_toplevel_destroy },
             .surface_destroy = .{ .link = undefined, .notify = xdg_toplevel_surface_destroy },
             .request_fullscreen = .{ .link = undefined, .notify = xdg_toplevel_request_fullscreen },
+            .request_move = .{ .link = undefined, .notify = xdg_toplevel_request_move },
         };
 
         {
@@ -450,6 +484,7 @@ const WinglessToplevel = struct {
             c.wl_signal_add(&surface.events.destroy, &toplevel.surface_destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_fullscreen, &toplevel.request_fullscreen);
+            c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_move, &toplevel.request_move);
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -516,6 +551,7 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.commit.link);
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.request_fullscreen.link);
+        c.wl_list_remove(&self.request_move.link);
     }
 };
 
@@ -647,7 +683,7 @@ const WinglessPopup = struct {
 
         const base: *c.wlr_xdg_surface = xdg_popup.base.?;
         c.wl_signal_add(&base.surface.*.events.commit, &popup.commit);
-        c.wl_signal_add(&base.events.destroy, &popup.destroy);
+        c.wl_signal_add(&xdg_popup.events.destroy, &popup.destroy);
 
         return popup;
     }
@@ -655,6 +691,7 @@ const WinglessPopup = struct {
     pub fn deinit(self: *WinglessPopup) void {
         c.wl_list_remove(&self.commit.link);
         c.wl_list_remove(&self.destroy.link);
+        c.wl_list_remove(&self.reposition.link);
         self.server.allocator.destroy(self);
     }
 };
@@ -804,16 +841,32 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
-    std.debug.print("mapping\n", .{});
-
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("map", listener)));
+
+    if (toplevel.xdg_toplevel != null and toplevel.xdg_toplevel.?.parent == null) {
+        const server = toplevel.server;
+        const o = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y) orelse blk: {
+            if (server.outputs.next == &server.outputs) break :blk null;
+            const wo: *WinglessOutput = @ptrCast(@alignCast(server.outputs.next));
+            break :blk wo.output;
+        };
+        if (o) |output| {
+            var ow: c_int = 0;
+            var oh: c_int = 0;
+            c.wlr_output_effective_resolution(output, &ow, &oh);
+            const geo = toplevel.xdg_toplevel.?.base.*.geometry;
+            toplevel.x = @divTrunc(ow - geo.width, 2);
+            toplevel.y = @divTrunc(oh - geo.height, 2);
+            c.wlr_scene_node_set_position(&toplevel.scene_tree.node, toplevel.x, toplevel.y);
+        }
+    }
+
     toplevel.insert();
     focus_toplevel(&toplevel.focusable);
 }
 
 fn xdg_toplevel_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("unmapping\n", .{});
 
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("unmap", listener)));
     toplevel.remove();
@@ -826,6 +879,7 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
 
     if (toplevel.xdg_toplevel) |xdg_toplevel| {
         const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base;
+        blur.commitSurface(xdg_surface.surface);
         if (xdg_surface.initial_commit) {
             const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
             const surface: *c.wlr_surface = wlr_surface.surface;
@@ -833,20 +887,8 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             const sy = surface.current.dy;
             const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(sx), @floatFromInt(sy)) orelse @panic("nope");
 
-            var w: c_int = 0;
-            var h: c_int = 0;
-
-            c.wlr_output_effective_resolution(o, &w, &h);
-
-            if (toplevel.xdg_toplevel.?.parent == null) {
-                _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, w, h);
-                _ = c.wlr_xdg_toplevel_set_fullscreen(toplevel.xdg_toplevel, true);
-                toplevel.x = 0;
-                toplevel.y = 0;
-                toplevel.is_fullscreen = true;
-            } else {
-                _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
-            }
+            _ = o;
+            _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
         }
     }
 }
@@ -862,7 +904,6 @@ fn xdg_toplevel_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) 
 
 fn xdg_toplevel_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
-    std.debug.print("yea bitch dstroying\n", .{});
     const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("destroy", listener)));
     toplevel.xdg_toplevel = null;
     toplevel.destroyToplevelSurface();
@@ -898,6 +939,18 @@ fn xdg_toplevel_request_fullscreen(listener: [*c]c.wl_listener, data: ?*anyopaqu
         _ = c.wlr_xdg_toplevel_set_size(xdg_toplevel, out_box.width - margin * 2, out_box.height - margin * 2);
         c.wlr_scene_node_set_position(&toplevel.scene_tree.node, toplevel.x, toplevel.y);
     }
+}
+
+fn xdg_toplevel_request_move(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("request_move", listener)));
+    if (toplevel.is_fullscreen) return;
+    const server = toplevel.server;
+    server.cursor_mode = .move;
+    server.grabbed_toplevel = toplevel;
+    server.grab_x = server.cursor.x - @as(f64, @floatFromInt(toplevel.x));
+    server.grab_y = server.cursor.y - @as(f64, @floatFromInt(toplevel.y));
+    server.drag_from_client = true;
 }
 
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -979,6 +1032,33 @@ fn server_new_xdg_toplevel(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     _ = toplevel;
 }
 
+fn constrainPopupToOutput(xdg_popup: *c.wlr_xdg_popup, server: *WinglessServer) void {
+    const parent_surface = xdg_popup.parent orelse return;
+    const parent_xdg_raw = c.wlr_xdg_surface_try_from_wlr_surface(parent_surface);
+    if (parent_xdg_raw == null) return;
+    const parent_xdg: *c.wlr_xdg_surface = @ptrCast(parent_xdg_raw);
+    if (parent_xdg.data == null) return;
+    const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent_xdg.data));
+
+    var lx: c_int = 0;
+    var ly: c_int = 0;
+    _ = c.wlr_scene_node_coords(&parent_tree.node, &lx, &ly);
+
+    const wlr_output = c.wlr_output_layout_output_at(server.output_layout, @floatFromInt(lx), @floatFromInt(ly)) orelse return;
+
+    var output_box: c.wlr_box = undefined;
+    c.wlr_output_layout_get_box(server.output_layout, wlr_output, &output_box);
+
+    const box = c.wlr_box{
+        .x = output_box.x - lx,
+        .y = output_box.y - ly,
+        .width = output_box.width,
+        .height = output_box.height,
+    };
+
+    c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+}
+
 fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
@@ -989,27 +1069,18 @@ fn xdg_popup_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
 fn xdg_popup_reposition(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("reposition", listener)));
-
-    if (popup.scene_tree) |tree| {
-        _ = tree;
-        //c.wlr_scene_node_set_position(&tree.node, popup.xdg_popup.current.geometry.x, popup.xdg_popup.current.geometry.y);
-    }
-
-    const base: *c.wlr_xdg_surface = popup.xdg_popup.base orelse return;
-    if (!base.initialized) return;
+    constrainPopupToOutput(popup.xdg_popup, popup.server);
 }
 
 fn xdg_popup_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
 
     const popup: *WinglessPopup = @ptrCast(@as(*allowzero WinglessPopup, @fieldParentPtr("commit", listener)));
-
-    if (popup.scene_tree) |tree| {
-        _ = tree;
-    }
-
     const base: *c.wlr_xdg_surface = popup.xdg_popup.base.?;
-    if (base.initial_commit and base.initialized) _ = c.wlr_xdg_surface_schedule_configure(base);
+
+    if (base.initial_commit) {
+        constrainPopupToOutput(popup.xdg_popup, popup.server);
+    }
 }
 
 fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -1020,12 +1091,12 @@ fn server_new_xdg_popup(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
     const parent: *c.wlr_xdg_surface = c.wlr_xdg_surface_try_from_wlr_surface(xdg_popup.parent).?;
     const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(parent.data.?));
-    const base: *c.wlr_xdg_surface = xdg_popup.base.?;
-    _ = base;
     const tree: *c.wlr_scene_tree = c.wlr_scene_xdg_surface_create(parent_tree, xdg_popup.base);
     popup.scene_tree = tree;
 
     xdg_popup.base.*.data = tree;
+
+    c.wl_signal_add(&xdg_popup.events.reposition, &popup.reposition);
 
     c.wlr_scene_node_raise_to_top(&tree.node);
     c.wlr_scene_node_set_enabled(&tree.node, true);
@@ -1062,6 +1133,8 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var sx: f64 = undefined;
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
+
+    if (ui.screenshot.onMouseMotion(@floatCast(server.cursor.x), @floatCast(server.cursor.y))) return;
 
     if (ui.initialized) ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
     ui.volume_slider.onCursorMove(@floatCast(server.cursor.x), @floatCast(server.cursor.y));
@@ -1131,6 +1204,19 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
 
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
+    // Update active pointer constraint based on surface under pointer
+    update_pointer_constraint(server, surface);
+
+    // For confined pointer, enforce the constraint region
+    if (server.active_constraint) |constraint| {
+        if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_CONFINED) {
+            if (c.pixman_region32_contains_point(&constraint.region, @intFromFloat(sx), @intFromFloat(sy), null) == 0) {
+                c.wlr_cursor_warp_closest(server.cursor, null, server.last_cursor_x, server.last_cursor_y);
+                return;
+            }
+        }
+    }
+
     if (server.active_drag != null) {
         if (server.drag_icon) |icon| {
             c.wlr_scene_node_set_position(&icon.node, @intFromFloat(server.cursor.x), @intFromFloat(server.cursor.y));
@@ -1153,6 +1239,16 @@ fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const event: *c.wlr_pointer_motion_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = event.pointer;
 
+    server.last_cursor_x = server.cursor.x;
+    server.last_cursor_y = server.cursor.y;
+
+    if (server.active_constraint) |constraint| {
+        if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+            process_cursor_motion(server, event.time_msec);
+            return;
+        }
+    }
+
     c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
 
     process_cursor_motion(server, event.time_msec);
@@ -1162,6 +1258,9 @@ fn server_cursor_motion_absolute(listener: [*c]c.wl_listener, data: ?*anyopaque)
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_motion_absolute", listener)));
     const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = event.pointer;
+
+    server.last_cursor_x = server.cursor.x;
+    server.last_cursor_y = server.cursor.y;
 
     c.wlr_cursor_warp_absolute(server.cursor, &pointer.base, event.x, event.y);
     process_cursor_motion(server, event.time_msec);
@@ -1180,14 +1279,21 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     if (event.state == c.WLR_BUTTON_RELEASED and server.cursor_mode != .passthrough) {
         server.cursor_mode = .passthrough;
         server.grabbed_toplevel = null;
+        if (server.drag_from_client) {
+            server.drag_from_client = false;
+            _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+        }
         return;
     }
 
-    if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive())) {
+    // always feed Clay pointer state so toolbar buttons work during capture overlay
+    if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive() or ui.screenshot.isActive())) {
         ui.pointer_down = event.state == c.WLR_BUTTON_PRESSED;
         ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
         ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
     }
+
+    if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, @floatCast(server.cursor.x), @floatCast(server.cursor.y))) return;
 
     if (ui.menu_open) return;
 
@@ -1246,6 +1352,56 @@ fn server_cursor_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     _ = data;
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_frame", listener)));
     c.wlr_seat_pointer_notify_frame(server.seat);
+}
+
+fn update_pointer_constraint(server: *WinglessServer, surface: [*c]c.wlr_surface) void {
+    const raw = if (surface != null)
+        c.wlr_pointer_constraints_v1_constraint_for_surface(server.pointer_constraints, surface, server.seat)
+    else
+        null;
+    const new_constraint: ?*c.wlr_pointer_constraint_v1 = if (raw != null) @ptrCast(raw) else null;
+
+    if (new_constraint == server.active_constraint) return;
+
+    if (server.active_constraint) |old| {
+        // Apply cursor hint before deactivating a locked pointer
+        if (old.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED and
+            old.current.committed & c.WLR_POINTER_CONSTRAINT_V1_STATE_CURSOR_HINT != 0 and
+            old.current.cursor_hint.enabled)
+        {
+            const hint_x = old.current.cursor_hint.x;
+            const hint_y = old.current.cursor_hint.y;
+            c.wlr_cursor_warp_closest(server.cursor, null, hint_x, hint_y);
+        }
+        c.wl_list_remove(&server.active_constraint_destroy.link);
+        c.wlr_pointer_constraint_v1_send_deactivated(old);
+        server.active_constraint = null;
+    }
+
+    if (new_constraint) |nc| {
+        server.active_constraint = nc;
+        server.active_constraint_destroy = .{ .link = undefined, .notify = constraint_destroy_notify };
+        c.wl_signal_add(&nc.events.destroy, &server.active_constraint_destroy);
+        c.wlr_pointer_constraint_v1_send_activated(nc);
+    }
+}
+
+fn constraint_destroy_notify(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("active_constraint_destroy", listener)));
+    c.wl_list_remove(&server.active_constraint_destroy.link);
+    server.active_constraint = null;
+}
+
+fn server_new_constraint(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_constraint", listener)));
+    const constraint: *c.wlr_pointer_constraint_v1 = @ptrCast(@alignCast(data.?));
+
+    // Activate immediately if the pointer is already over this surface
+    const focused = server.seat.pointer_state.focused_surface;
+    if (focused != null and focused == constraint.surface) {
+        update_pointer_constraint(server, focused);
+    }
 }
 
 pub fn spawnCmd(argv: []const []const u8) void {
@@ -1320,6 +1476,11 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                 spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", s });
             } else |_| {}
         },
+        .volume_mute => {
+            ui.volume_slider.volume = 0.0;
+            ui.volume_slider.onVolumeChanged();
+            spawnCmd(&[_][]const u8{ "wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0" });
+        },
         .volume_set => {
             const percent: *u8 = @ptrCast(args.?[0]);
             const p: u8 = if (percent.* > 150) 150 else percent.*;
@@ -1332,6 +1493,26 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         },
         .shutdown => spawnCmd(&[_][]const u8{ "systemctl", "poweroff" }),
         .reboot => spawnCmd(&[_][]const u8{ "systemctl", "reboot" }),
+        .screenshot => ui.screenshot.activate(),
+        .screenshot_fullscreen => ui.screenshot.activateFullscreen(),
+        .record_toggle => {
+            if (ui.recording.isRecording()) {
+                ui.recording.stop();
+            } else {
+                ui.screenshot.activateRecordingRegion();
+            }
+        },
+        .record_toggle_fullscreen => {
+            if (ui.recording.isRecording()) {
+                ui.recording.stop();
+            } else {
+                const ro = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y) orelse return;
+                var ow: c_int = 0;
+                var oh: c_int = 0;
+                c.wlr_output_effective_resolution(ro, &ow, &oh);
+                ui.recording.startFullscreen(ow, oh);
+            }
+        },
         .snap_left, .snap_right => {
             const focused = server.focused_toplevel orelse return;
             if (focused.* != .xdg) return;
@@ -1356,6 +1537,32 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
 }
 
 var super_handled = false;
+
+fn keyboard_repeat_cb(data: ?*anyopaque) callconv(.c) c_int {
+    const keyboard: *WinglessKeyboard = @ptrCast(@alignCast(data.?));
+    const sym = keyboard.repeat_sym;
+
+    if (ui.menu.wifi_pw_mode) {
+        _ = ui.menu.handleKey(sym);
+    } else if (ui.beacon_open) {
+        if (beacon.handleKey(sym, keyboard.server.allocator)) |cmd| {
+            launchCommand(cmd.function, cmd.args, keyboard.server);
+        }
+    }
+
+    const still_active = ui.menu.wifi_pw_mode or ui.beacon_open;
+    if (!still_active) {
+        _ = c.wl_event_source_timer_update(keyboard.repeat_timer.?, 0);
+        return 0;
+    }
+
+    const rate = keyboard.wlr_keyboard.repeat_info.rate;
+    const interval: c_int = if (rate > 0) @intCast(@divTrunc(1000, rate)) else 0;
+    _ = c.wl_event_source_timer_update(keyboard.repeat_timer.?, interval);
+
+    return 0;
+}
+
 fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("key", listener)));
     const server = keyboard.server;
@@ -1378,15 +1585,23 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             }
         }
 
+        // handle screenshot overlay keys (Return/Escape)
+        for (0..@intCast(nsyms)) |i| {
+            if (ui.screenshot.onKey(@intCast(syms[i]))) {
+                handled = true;
+            }
+        }
+
         // handle keybinds
         for (server.wingless_config.keybinds) |keybind| {
             const modifier_matches = switch (keybind.modifier) {
-                .super => 0 < (modifiers & c.WLR_MODIFIER_LOGO),
+                .super => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT == 0,
+                .super_shift => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT != 0,
                 .none => true,
             };
             if (!modifier_matches) continue;
             for (0..@intCast(nsyms)) |i| {
-                if (keybind.key == syms[i]) {
+                if (keybind.key == c.xkb_keysym_to_lower(syms[i])) {
                     launchCommand(keybind.function, null, server);
                     if (keybind.modifier == .super) super_handled = true;
                     handled = true;
@@ -1394,40 +1609,30 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             }
         }
 
-        // handle beacon input
-        if (ui.beacon_open == true and handled == false) {
+        // handle wifi password input
+        if (ui.menu.wifi_pw_mode and !handled) {
             for (0..@intCast(nsyms)) |i| {
-                const sym = syms[i];
-                if (sym == c.XKB_KEY_BackSpace) {
-                    _ = beacon.beacon_buffer.pop();
-
-                    beacon.updateBeaconSuggestions(server.allocator) catch @panic("oops");
+                if (ui.menu.handleKey(syms[i])) {
                     handled = true;
-                    continue;
-                } else if (sym == c.XKB_KEY_Return) {
-                    // launch command
-                    ui.beacon_open = false;
-                    beacon.beacon_buffer.clearRetainingCapacity();
-
-                    const command = beacon.beacon_suggestions[0];
-
-                    launchCommand(command.function, command.args, server);
-
-                    handled = true;
-                    continue;
+                    if (keyboard.repeat_timer) |timer| {
+                        keyboard.repeat_sym = syms[i];
+                        _ = c.wl_event_source_timer_update(timer, @intCast(keyboard.wlr_keyboard.repeat_info.delay));
+                    }
                 }
+            }
+        }
 
-                var buf: [8]u8 = undefined;
-
-                const len = c.xkb_keysym_to_utf8(syms[i], &buf, buf.len);
-
-                if (len > 1) {
-                    beacon.beacon_buffer.appendSlice(server.allocator, buf[0..@intCast(len - 1)]) catch {};
+        // handle beacon input
+        if (ui.beacon_open and !handled) {
+            for (0..@intCast(nsyms)) |i| {
+                if (beacon.handleKey(syms[i], server.allocator)) |cmd| {
+                    launchCommand(cmd.function, cmd.args, server);
                 }
-
-                beacon.updateBeaconSuggestions(server.allocator) catch @panic("oops");
-
                 handled = true;
+                if (keyboard.repeat_timer) |timer| {
+                    keyboard.repeat_sym = syms[i];
+                    _ = c.wl_event_source_timer_update(timer, @intCast(keyboard.wlr_keyboard.repeat_info.delay));
+                }
             }
         }
     }
@@ -1440,6 +1645,32 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
             if (superkey) {
                 if (super_handled)
                     super_handled = false;
+            }
+
+            if (sym == keyboard.repeat_sym) {
+                if (keyboard.repeat_timer) |timer| {
+                    _ = c.wl_event_source_timer_update(timer, 0);
+                }
+                keyboard.repeat_sym = 0;
+            }
+        }
+
+        for (&keyboard.eaten_keycodes) |*slot| {
+            if (slot.* == keycode) {
+                slot.* = 0;
+                handled = true;
+                break;
+            }
+        }
+    }
+
+    if (handled) {
+        if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
+            for (&keyboard.eaten_keycodes) |*slot| {
+                if (slot.* == 0) {
+                    slot.* = keycode;
+                    break;
+                }
             }
         }
     }
@@ -1461,6 +1692,11 @@ fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) cal
 fn keyboard_handle_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const keyboard: *WinglessKeyboard = @ptrCast(@as(*allowzero WinglessKeyboard, @fieldParentPtr("destroy", listener)));
+
+    if (keyboard.repeat_timer) |timer| {
+        _ = c.wl_event_source_remove(timer);
+        keyboard.repeat_timer = null;
+    }
 
     c.wl_list_remove(&keyboard.modifiers.link);
     c.wl_list_remove(&keyboard.key.link);
@@ -1570,6 +1806,11 @@ fn render_scene_buffer_iter(
                 const clip_h: f32 = if (geo.height > 0) @floatFromInt(geo.height) else sh;
                 const focused = ctx.output.server.focused_toplevel;
                 const is_focused = focused != null and focused.?.* == .xdg and focused.?.xdg == t;
+                if (blur.fromSurface(main_surf)) |bd| {
+                    if (bd.regions.items.len > 0) {
+                        ui.drawWindowBlurRegions(ctx.output, bd.regions.items, fsx, fsy, ctx.sw, ctx.sh);
+                    }
+                }
                 ui.drawWindowSurface(ctx.output, tex, fsx, fsy, sw, sh, clip_x, clip_y, clip_w, clip_h, ctx.sw, ctx.sh, true, is_focused);
                 g_draw_idx += 1;
                 return;
@@ -1672,7 +1913,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     _ = c.wlr_output_commit_state(output.output, &state);
 
     // keep requesting frames while animated UI is active
-    if (ui.volume_slider.isActive() or ui.menu_open or ui.beacon_open) {
+    if (ui.volume_slider.isActive() or ui.menu_open or ui.beacon_open or ui.screenshot.isActive() or ui.recording.isRecording()) {
         c.wlr_output_schedule_frame(output.output);
     }
 

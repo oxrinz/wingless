@@ -6,6 +6,8 @@ const rendering = @import("ui/rendering.zig");
 pub const beacon = @import("ui/beacon.zig");
 pub const menu = @import("ui/menu.zig");
 pub const volume_slider = @import("ui/volume_slider.zig");
+pub const screenshot = @import("ui/screenshot.zig");
+pub const recording = @import("ui/recording.zig");
 
 const main = @import("main.zig");
 const WinglessOutput = main.WinglessOutput;
@@ -16,7 +18,9 @@ const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
 
 const glass_vert_src = @embedFile("shaders/glass.vert");
-const glass_frag_src = @embedFile("shaders/glass.frag");
+const glass_common_src = @embedFile("shaders/glass_common.glsl");
+const glass_frag_src = glass_common_src ++ @embedFile("shaders/glass.frag");
+const glass_blob_frag_src = glass_common_src ++ @embedFile("shaders/glass_blob.frag");
 const text_frag_src = @embedFile("shaders/glass_text.frag");
 
 pub const AnimState = struct { elapsed: u64 };
@@ -26,8 +30,10 @@ var last_ns: i128 = 0;
 pub var beacon_open = false;
 pub var menu_open = false;
 pub var pointer_down: bool = false;
+pub var screen_width: f32 = 0;
 pub var screen_height: f32 = 0;
 pub var ui_scale: f32 = 1.0;
+pub var output_refresh_hz: u32 = 60;
 
 var glass_font: Font = undefined;
 var icon_cache: std.StringHashMap(?Icon) = undefined;
@@ -56,13 +62,25 @@ pub const GlassBackgroundProgram = struct {
     scene_loc: c_int,
     quad_pos_loc: c_int,
     size_loc: c_int,
-    shadow_intensity_loc: c_int,
     roundness: c_int,
     fill_amount_loc: c_int,
     fill_direction_loc: c_int,
     refraction_band_loc: c_int,
     brightness_loc: c_int,
     resolution_loc: c_int,
+    blur_amount_loc: c_int,
+};
+
+pub const GlassBlobProgram = struct {
+    prog: c_uint,
+    pos_loc: c_int,
+    scene_loc: c_int,
+    resolution_loc: c_int,
+    centers_loc: c_int,
+    scales_loc: c_int,
+    brights_loc: c_int,
+    radius_loc: c_int,
+    morph_k_loc: c_int,
 };
 
 pub const FillDir = enum(i32) {
@@ -91,13 +109,36 @@ pub const FillProgram = struct {
     color_loc: c_int,
 };
 
-pub const ShadowProgram = struct {
+pub const RoundFillProgram = struct {
     prog: c_uint,
     pos_loc: c_int,
+    color_loc: c_int,
     quad_pos_loc: c_int,
     size_loc: c_int,
     roundness_loc: c_int,
-    intensity_loc: c_int,
+    resolution_loc: c_int,
+};
+
+pub const SpinnerProgram = struct {
+    prog: c_uint,
+    pos_loc: c_int,
+    color_loc: c_int,
+    quad_pos_loc: c_int,
+    size_loc: c_int,
+    resolution_loc: c_int,
+    time_loc: c_int,
+};
+
+pub const MAX_SHADOW_COUNT: usize = 16;
+
+pub const ShadowProgram = struct {
+    prog: c_uint,
+    pos_loc: c_int,
+    resolution_loc: c_int,
+    pos_locs: [MAX_SHADOW_COUNT]c_int,
+    size_locs: [MAX_SHADOW_COUNT]c_int,
+    roundness_locs: [MAX_SHADOW_COUNT]c_int,
+    intensity_locs: [MAX_SHADOW_COUNT]c_int,
 };
 
 pub const BlurProgram = struct {
@@ -165,10 +206,19 @@ pub const Font = struct {
 pub const CustomData = union(enum) {
     glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0, refraction_band: f32 = 20.0, brightness: f32 = 0.05 },
     window_surface: struct { focusable: *Focusable, scale: f32, anim_scale: f32 = 1.0 },
-    divider: struct { alpha: f32 },
     icon: struct { icon: Icon, alpha: f32 = 1.0 },
     shadow: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, intensity: f32 },
     glass_text: struct { text: []const u8, font_size: u16, bold: bool = false },
+    rect: struct { roundness: f32, a: f32, r: f32 = 1.0, g: f32 = 1.0, b: f32 = 1.0 },
+    spinner: struct { time: f32 },
+    glass_blob: struct {
+        t: f32,       // 0=collapsed, 1=expanded (background morph)
+        t1: f32, t2: f32, t3: f32, // per-button expansion states
+        radius: f32, // button radius
+        spread: f32, // center-to-center distance between buttons at t=1
+        bright0: f32, bright1: f32, bright2: f32, bright3: f32,
+        scale0: f32, scale1: f32, scale2: f32, scale3: f32,
+    },
 };
 
 pub const RenderContext = struct {
@@ -182,10 +232,10 @@ pub const RenderContext = struct {
 var custom_pool: [256]CustomData = undefined;
 var custom_pool_idx: usize = 0;
 
-pub fn mkGlass(roundness: f32) *anyopaque {
+pub fn mkGlass(roundness: f32, refraction_band: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness } };
+    d.* = .{ .glass = .{ .roundness = roundness, .refraction_band = refraction_band } };
     return d;
 }
 
@@ -224,6 +274,13 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
     return d;
 }
 
+pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .glass_blob = .{ .t = t, .t1 = t1, .t2 = t2, .t3 = t3, .radius = radius, .spread = spread, .bright0 = bright0, .bright1 = bright1, .bright2 = bright2, .bright3 = bright3, .scale0 = scale0, .scale1 = scale1, .scale2 = scale2, .scale3 = scale3 } };
+    return d;
+}
+
 pub fn textSize(text: []const u8, font_size: u16) zclay.Dimensions {
     const scale: f32 = @floatFromInt(font_size);
     var w: f32 = 0;
@@ -244,10 +301,24 @@ pub fn mkGlassText(text: []const u8, font_size: u16, bold: bool) *anyopaque {
     return d;
 }
 
-pub fn mkDivider(alpha: f32) *anyopaque {
+pub fn mkSpinner(time: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .divider = .{ .alpha = alpha } };
+    d.* = .{ .spinner = .{ .time = time } };
+    return d;
+}
+
+pub fn mkRect(roundness: f32, a: f32) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .rect = .{ .roundness = roundness, .a = a } };
+    return d;
+}
+
+pub fn mkRectColor(roundness: f32, r: f32, g: f32, b: f32, a: f32) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .rect = .{ .roundness = roundness, .a = a, .r = r, .g = g, .b = b } };
     return d;
 }
 
@@ -300,22 +371,7 @@ fn getIcon(allocator: std.mem.Allocator, name: []const u8) ?Icon {
     return icon;
 }
 
-pub fn mkIcon(allocator: std.mem.Allocator, cmd: *const beacon.BeaconCommand) *anyopaque {
-    const d = &custom_pool[custom_pool_idx];
-    custom_pool_idx += 1;
-    const resolved = if (cmd.icon) |name| (getIcon(allocator, name) orelse default_icon) else default_icon;
-    d.* = .{ .icon = .{ .icon = resolved } };
-    return d;
-}
-
-pub fn mkIconByName(allocator: std.mem.Allocator, name: []const u8) *anyopaque {
-    const d = &custom_pool[custom_pool_idx];
-    custom_pool_idx += 1;
-    d.* = .{ .icon = .{ .icon = getIcon(allocator, name) orelse default_icon, .alpha = 1.0 } };
-    return d;
-}
-
-pub fn mkIconByNameAlpha(allocator: std.mem.Allocator, name: []const u8, alpha: f32) *anyopaque {
+pub fn mkIcon(allocator: std.mem.Allocator, name: []const u8, alpha: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
     d.* = .{ .icon = .{ .icon = getIcon(allocator, name) orelse default_icon, .alpha = alpha } };
@@ -419,11 +475,11 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
 
 pub fn toggleBeacon() void {
     if (beacon_open == true) beacon.beacon_buffer.clearRetainingCapacity();
-    if (menu_open == false) beacon_open = !beacon_open;
+    if (menu_open == false and !screenshot.isActive()) beacon_open = !beacon_open;
 }
 
 pub fn ensurePrograms(out: *WinglessOutput) void {
-    if (out.glass_background != null) return;
+    if (out.glass_background != null and out.glass_blob_prog != null) return;
 
     {
         const vs = glCompileShader(gl.GL_VERTEX_SHADER, glass_vert_src);
@@ -435,13 +491,13 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .scene_loc = gl.glGetUniformLocation(prog, "scene"),
             .quad_pos_loc = gl.glGetUniformLocation(prog, "quadPos"),
             .size_loc = gl.glGetUniformLocation(prog, "size"),
-            .shadow_intensity_loc = gl.glGetUniformLocation(prog, "shadowIntensity"),
             .roundness = gl.glGetUniformLocation(prog, "roundness"),
             .fill_amount_loc = gl.glGetUniformLocation(prog, "fillAmount"),
             .fill_direction_loc = gl.glGetUniformLocation(prog, "fillDirection"),
             .refraction_band_loc = gl.glGetUniformLocation(prog, "refractionBand"),
             .brightness_loc = gl.glGetUniformLocation(prog, "brightness"),
             .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
+            .blur_amount_loc = gl.glGetUniformLocation(prog, "blurAmount"),
         };
         if (out.glass_background.?.pos_loc < 0) @panic("pos not found");
     }
@@ -476,16 +532,40 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
 
     {
         const vs = glCompileShader(gl.GL_VERTEX_SHADER, glass_vert_src);
-        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/shadow.frag"));
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/fill_rounded.frag"));
         const prog = glLinkProgram(vs, fs);
-        out.shadow = .{
+        out.round_fill = .{
             .prog = prog,
             .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .color_loc = gl.glGetUniformLocation(prog, "color"),
             .quad_pos_loc = gl.glGetUniformLocation(prog, "quadPos"),
             .size_loc = gl.glGetUniformLocation(prog, "size"),
             .roundness_loc = gl.glGetUniformLocation(prog, "roundness"),
-            .intensity_loc = gl.glGetUniformLocation(prog, "intensity"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
         };
+    }
+
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, glass_vert_src);
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/shadow.frag"));
+        const prog = glLinkProgram(vs, fs);
+        var sp: ShadowProgram = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
+            .pos_locs = undefined,
+            .size_locs = undefined,
+            .roundness_locs = undefined,
+            .intensity_locs = undefined,
+        };
+        var name_buf: [32]u8 = undefined;
+        for (0..MAX_SHADOW_COUNT) |i| {
+            sp.pos_locs[i] = gl.glGetUniformLocation(prog, (std.fmt.bufPrintZ(&name_buf, "shadowPos[{d}]", .{i}) catch unreachable).ptr);
+            sp.size_locs[i] = gl.glGetUniformLocation(prog, (std.fmt.bufPrintZ(&name_buf, "shadowSize[{d}]", .{i}) catch unreachable).ptr);
+            sp.roundness_locs[i] = gl.glGetUniformLocation(prog, (std.fmt.bufPrintZ(&name_buf, "shadowRoundness[{d}]", .{i}) catch unreachable).ptr);
+            sp.intensity_locs[i] = gl.glGetUniformLocation(prog, (std.fmt.bufPrintZ(&name_buf, "shadowIntensity[{d}]", .{i}) catch unreachable).ptr);
+        }
+        out.shadow = sp;
     }
 
     {
@@ -549,6 +629,38 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .roundness_loc = gl.glGetUniformLocation(prog, "roundness"),
             .border_width_loc = gl.glGetUniformLocation(prog, "borderWidth"),
             .border_color_loc = gl.glGetUniformLocation(prog, "borderColor"),
+        };
+    }
+
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, glass_vert_src);
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, @embedFile("shaders/spinner.frag"));
+        const prog = glLinkProgram(vs, fs);
+        out.spinner = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .color_loc = gl.glGetUniformLocation(prog, "color"),
+            .quad_pos_loc = gl.glGetUniformLocation(prog, "quadPos"),
+            .size_loc = gl.glGetUniformLocation(prog, "size"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
+            .time_loc = gl.glGetUniformLocation(prog, "time"),
+        };
+    }
+
+    {
+        const vs = glCompileShader(gl.GL_VERTEX_SHADER, glass_vert_src);
+        const fs = glCompileShader(gl.GL_FRAGMENT_SHADER, glass_blob_frag_src);
+        const prog = glLinkProgram(vs, fs);
+        out.glass_blob_prog = .{
+            .prog = prog,
+            .pos_loc = gl.glGetAttribLocation(prog, "pos"),
+            .scene_loc = gl.glGetUniformLocation(prog, "scene"),
+            .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
+            .centers_loc = gl.glGetUniformLocation(prog, "centers[0]"),
+            .scales_loc = gl.glGetUniformLocation(prog, "scales[0]"),
+            .brights_loc = gl.glGetUniformLocation(prog, "brights[0]"),
+            .radius_loc = gl.glGetUniformLocation(prog, "radius"),
+            .morph_k_loc = gl.glGetUniformLocation(prog, "morphK"),
         };
     }
 }
@@ -660,8 +772,16 @@ pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, 
     rendering.drawWindowSurface(output, tex, sx, sy, sw, sh, clip_x, clip_y, clip_w, clip_h, screen_w, screen_h, with_decorations, is_focused);
 }
 
+const blur_proto = @import("protocols/blur.zig");
+pub fn drawWindowBlurRegions(output: *WinglessOutput, regions: []*blur_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
+    rendering.drawWindowBlurRegions(output, regions, sx, sy, screen_w, screen_h);
+}
+
 const bundled_power_png = @embedFile("assets/power.png");
 const bundled_restart_png = @embedFile("assets/restart.png");
+const bundled_wifi_png = @embedFile("assets/wifi.png");
+const bundled_bluetooth_png = @embedFile("assets/bluetooth.png");
+const bundled_sleep_png = @embedFile("assets/sleep.png");
 
 pub fn initUI(allocator: std.mem.Allocator) !void {
     const font_json = @embedFile("assets/font.json");
@@ -674,6 +794,9 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
     try icon_cache.put("_power", @as(?Icon, loadIconFromPng(bundled_power_png)));
     try icon_cache.put("_restart", @as(?Icon, loadIconFromPng(bundled_restart_png)));
+    try icon_cache.put("_wifi", @as(?Icon, loadIconFromPng(bundled_wifi_png)));
+    try icon_cache.put("_bluetooth", @as(?Icon, loadIconFromPng(bundled_bluetooth_png)));
+    try icon_cache.put("_sleep", @as(?Icon, loadIconFromPng(bundled_sleep_png)));
 
     volume_slider.init();
 
@@ -841,7 +964,7 @@ fn buildIconIndex(allocator: std.mem.Allocator) void {
     icon_path_index = std.StringHashMap([]const u8).init(allocator);
     const home = std.process.getEnvVarOwned(allocator, "HOME") catch "";
     defer if (home.len > 0) allocator.free(home);
-    const themes = [_][]const u8{ "WhiteSur-dark", "hicolor" };
+    const themes = [_][]const u8{ "WhiteSur-dark", "hicolor", "breeze-dark" };
     const user_bases = if (home.len > 0) [_][]const u8{
         ".local/share/icons",
         ".icons",
@@ -885,7 +1008,7 @@ fn debugFill() void {
         .layout = .{
             .sizing = .{ .w = .grow, .h = .grow },
         },
-        .custom = .{ .custom_data = mkDivider(1.0) },
+        .custom = .{ .custom_data = mkRect(0.0, 1.0) },
     })({});
 }
 
@@ -906,14 +1029,19 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     ensurePrograms(output);
     gl.glViewport(0, 0, w, h);
 
-    const screen_width: f32 = @floatFromInt(w);
+    screen_width = @floatFromInt(w);
     screen_height = @floatFromInt(h);
     ui_scale = output.output.scale;
+    if (output.output.current_mode != null) {
+        const hz: u32 = @intCast(@divTrunc(output.output.current_mode.*.refresh, 1000));
+        if (hz > 0) output_refresh_hz = hz;
+    }
 
     // animate state
     beacon.tick(dt);
     menu.tick(dt);
     volume_slider.tick(dt);
+    screenshot.tick(dt);
 
     // gl state
     gl.glDisable(c.GL_SCISSOR_TEST);
@@ -933,6 +1061,10 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         server.focused_toplevel.?.linkedToList(server.allocator) catch null
     else
         null;
+    const focused_toplevel = if (menu.isActive()) server.focused_toplevel else null;
+
+    // draw capture dim overlay before Clay so the toolbar floats on top
+    screenshot.renderBackground(w, h);
 
     // layout
     custom_pool_idx = 0;
@@ -948,8 +1080,10 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         },
     })({
         beacon.layout(server.allocator);
-        menu.layout(focusables);
+        menu.layout(focused_toplevel, focusables);
+        menu.layoutPowerCluster();
         volume_slider.layout();
+        screenshot.layoutToolbar();
     });
 
     rendering.render(.{
@@ -959,4 +1093,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         .scene_tex = @ptrCast(scene_tex.?),
         .font = &glass_font,
     });
+
+    screenshot.onFrame(w, h);
+    recording.onFrame(w, h);
 }
