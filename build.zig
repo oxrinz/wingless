@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/xdg-shell-protocol.c" } });
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/pointer-constraints-unstable-v1-protocol.c" } });
-    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/wingless-blur-v1-protocol.c" } });
+    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "protocols/wingless-glass-v1-protocol.c" } });
 
     exe.addCSourceFile(.{ .file = .{ .cwd_relative = "src/stb_impl.c" } });
     exe.linkSystemLibrary("libinput");

@@ -3,7 +3,7 @@ pub const c = @cImport({
     @cDefine("WLR_USE_UNSTABLE", "1");
     @cInclude("xdg-shell-protocol.h");
     @cInclude("xdg-shell-client-protocol.h");
-    @cInclude("wingless-blur-v1-protocol.h");
+    @cInclude("wingless-glass-v1-protocol.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/backend.h");
     @cInclude("wlr/backend/libinput.h");

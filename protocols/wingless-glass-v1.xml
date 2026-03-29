@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<protocol name="wingless_blur_v1">
+<protocol name="wingless_glass_v1">
 
-  <interface name="wingless_blur_manager_v1" version="1">
+  <interface name="wingless_glass_manager_v1" version="1">
     <description summary="factory for blur region objects"/>
 
     <request name="get_blur_region">
       <description summary="create a new blur region for a surface"/>
-      <arg name="id" type="new_id" interface="wingless_blur_region_v1"/>
+      <arg name="id" type="new_id" interface="wingless_glass_region_v1"/>
       <arg name="surface" type="object" interface="wl_surface"/>
     </request>
 
@@ -15,7 +15,7 @@
     </request>
   </interface>
 
-  <interface name="wingless_blur_region_v1" version="1">
+  <interface name="wingless_glass_region_v1" version="1">
     <description summary="a single blur region within a surface"/>
 
     <request name="set_region">
@@ -40,7 +40,7 @@
     </request>
 
     <request name="set_refraction_band">
-      <description summary="set the refraction band width in pixels (default 20)"/>
+      <description summary="set the refraction band as a multiple of the corner radius, value divided by 100 (e.g. 150 = 1.5×, minimum 100, default 100)"/>
       <arg name="band" type="uint"/>
     </request>
 

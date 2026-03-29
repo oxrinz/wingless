@@ -13,6 +13,12 @@ float smin(float a, float b, float k) {
     return min(a, b) - h * h * k * 0.25;
 }
 
+float smax(float a, float b, float k) {
+    if (k <= 0.001) return max(a, b);
+    float h = max(k - abs(a - b), 0.0) / k;
+    return max(a, b) + h * h * k * 0.25;
+}
+
 // Rounded-rect SDF
 float sdf(vec2 p, vec2 b, float r) {
     vec2 d = abs(p) - b + vec2(r);
@@ -20,10 +26,10 @@ float sdf(vec2 p, vec2 b, float r) {
 }
 
 // Finite-difference gradient of the rounded-rect SDF.
-// Naturally smooth at corners — no discontinuity at the interior diagonal.
-// Returns (gradient_vec, gradient_magnitude) so callers can use both.
-void sdfGrad(vec2 p, vec2 b, float r, out vec2 grad, out float gradMag) {
-    float eps = 0.5;
+// eps: sample distance. Small eps (0.5) gives a sharp precise gradient near the
+// boundary (good for rim highlights). Large eps (refractionBand * 0.5) smooths
+// the interior bisector transition, eliminating the hard-line corner artifact.
+void sdfGrad(vec2 p, vec2 b, float r, float eps, out vec2 grad, out float gradMag) {
     float gx = sdf(p + vec2(eps, 0.0), b, r) - sdf(p - vec2(eps, 0.0), b, r);
     float gy = sdf(p + vec2(0.0, eps), b, r) - sdf(p - vec2(0.0, eps), b, r);
     gradMag = length(vec2(gx, gy));

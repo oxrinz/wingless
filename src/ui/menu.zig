@@ -1382,7 +1382,11 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                     if (d.focusable.server().focused_toplevel) |cur_focused| {
                                         thumb_order[d.idx] = cur_focused.*;
                                     }
-                                    main.focus_toplevel(&d.focusable);
+                                    const live = switch (d.focusable) {
+                                        .xdg => |xdg| &xdg.focusable,
+                                        .xwayland => |xwl| &xwl.focusable,
+                                    };
+                                    main.focus_toplevel(live);
                                     ui.menu_open = false;
                                 }
                             }

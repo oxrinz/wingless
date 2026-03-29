@@ -8,7 +8,7 @@ const tests = @import("tests.zig");
 const ui = @import("ui.zig");
 const beacon = @import("ui/beacon.zig");
 const menu = @import("ui/menu.zig");
-const blur = @import("protocols/blur.zig");
+const blur = @import("protocols/glass.zig");
 
 const c = @import("c.zig").c;
 const gl = @import("c.zig").gl;
@@ -1808,7 +1808,7 @@ fn render_scene_buffer_iter(
                 const is_focused = focused != null and focused.?.* == .xdg and focused.?.xdg == t;
                 if (blur.fromSurface(main_surf)) |bd| {
                     if (bd.regions.items.len > 0) {
-                        ui.drawWindowBlurRegions(ctx.output, bd.regions.items, fsx, fsy, ctx.sw, ctx.sh);
+                        ui.drawWindowGlassRegions(ctx.output, bd.regions.items, fsx, fsy, ctx.sw, ctx.sh);
                     }
                 }
                 ui.drawWindowSurface(ctx.output, tex, fsx, fsy, sw, sh, clip_x, clip_y, clip_w, clip_h, ctx.sw, ctx.sh, true, is_focused);

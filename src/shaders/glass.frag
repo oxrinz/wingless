@@ -8,7 +8,7 @@ uniform float brightness;
 uniform float blurAmount;
 varying vec2 v_uv;
 
-const float interiorDarken = 0.5;
+const float interiorDarken = 0.6;
 
 void main() {
   vec2 fragCoord = v_uv * resolution;
@@ -28,9 +28,19 @@ void main() {
   vec3 glassColor = vec3(0.0);
 
   if (edge > 0.0) {
+    // Large eps smooths the interior bisector discontinuity (the "hard line
+    // from corners" artifact). Half the refraction band gives ~refractionBand
+    // px of blending — enough to hide the seam without softening the rim
+    // highlight.
     vec2 grad;
     float gradMag;
-    sdfGrad(glassCoord, size * 0.5, roundness, grad, gradMag);
+    sdfGrad(glassCoord, size * 0.5, roundness, refractionBand * 0.5, grad,
+            gradMag);
+
+    // Precise gradient for rim highlight (doesn't have the bisector problem).
+    vec2 rimGrad;
+    float rimGradMag;
+    sdfGrad(glassCoord, size * 0.5, roundness, 0.5, rimGrad, rimGradMag);
 
     float t = clamp(1.0 + panelSDF / (refractionBand * 2.0), 0.0, 1.0);
     float distortion = pow(t, 5.0);
@@ -40,7 +50,7 @@ void main() {
     glassColor = getBlurredColor(glassColorCoord, blurRadius) * (1.0 - shadow);
     glassColor *= 0.9;
 
-    vec2 hl = glassRimHighlight(panelSDF, grad, gradMag);
+    vec2 hl = glassRimHighlight(panelSDF, rimGrad, rimGradMag);
     glassColor += edge * (hl.x + hl.y);
 
     glassColor += vec3(brightness);

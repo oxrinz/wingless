@@ -7,7 +7,7 @@ const ui = @import("../ui.zig");
 const main = @import("../main.zig");
 
 const menu = @import("menu.zig");
-const blur_proto = @import("../protocols/blur.zig");
+const glass_proto = @import("../protocols/glass.zig");
 
 const WinglessOutput = main.WinglessOutput;
 const Font = ui.Font;
@@ -349,7 +349,7 @@ fn ensureBlurFbo(output: *WinglessOutput, w: c_int, h: c_int) void {
 // shader over each region using that snapshot — so the window draws on top of glass bg.
 // Uses drawQuadScene (y=0=top) and passes quadPos without y-flip, unlike the UI-overlay
 // drawGlassQuad which runs in Pass 2 where y=0=bottom.
-pub fn drawWindowBlurRegions(output: *WinglessOutput, regions: []*blur_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
+pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
     if (regions.len == 0) return;
     const glass = output.glass_background orelse return;
 
@@ -395,7 +395,7 @@ pub fn drawWindowBlurRegions(output: *WinglessOutput, regions: []*blur_proto.Blu
         gl.glUniform2f(glass.quad_pos_loc, rx, ry);
         gl.glUniform2f(glass.size_loc, rw, rh);
         gl.glUniform1f(glass.roundness, @as(f32, @floatFromInt(r.radius)) * ui.ui_scale);
-        gl.glUniform1f(glass.refraction_band_loc, @floatFromInt(r.refraction_band));
+        gl.glUniform1f(glass.refraction_band_loc, @as(f32, @floatFromInt(r.radius)) * @as(f32, @floatFromInt(r.refraction_band)) / 100.0 * ui.ui_scale);
         gl.glUniform1f(glass.blur_amount_loc, @as(f32, @floatFromInt(r.blur_amount)) / 100.0);
         const glass_pad = 300 * ui.ui_scale;
         drawQuadScene(output, rx - glass_pad, ry - glass_pad, rw + glass_pad * 2, rh + glass_pad * 2, screen_w, screen_h, glass.pos_loc);
@@ -488,7 +488,7 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
 // clip_x, clip_y, clip_w, clip_h: rounded clip rect (parent window for subsurfaces, self for main)
 // with_decorations: draw shadow + border only for the main surface
 pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, sy: f32, sw: f32, sh: f32, clip_x: f32, clip_y: f32, clip_w: f32, clip_h: f32, screen_w: f32, screen_h: f32, with_decorations: bool, is_focused: bool) void {
-    const roundness: f32 = 12.0 * ui.ui_scale;
+    const roundness: f32 = 20.0 * ui.ui_scale;
 
     gl.glEnable(c.GL_BLEND);
     gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);

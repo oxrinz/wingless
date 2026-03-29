@@ -772,9 +772,9 @@ pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, 
     rendering.drawWindowSurface(output, tex, sx, sy, sw, sh, clip_x, clip_y, clip_w, clip_h, screen_w, screen_h, with_decorations, is_focused);
 }
 
-const blur_proto = @import("protocols/blur.zig");
-pub fn drawWindowBlurRegions(output: *WinglessOutput, regions: []*blur_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
-    rendering.drawWindowBlurRegions(output, regions, sx, sy, screen_w, screen_h);
+const glass_proto = @import("protocols/glass.zig");
+pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
+    rendering.drawWindowGlassRegions(output, regions, sx, sy, screen_w, screen_h);
 }
 
 const bundled_power_png = @embedFile("assets/power.png");
@@ -1061,6 +1061,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         server.focused_toplevel.?.linkedToList(server.allocator) catch null
     else
         null;
+    defer if (focusables) |f| server.allocator.free(f);
     const focused_toplevel = if (menu.isActive()) server.focused_toplevel else null;
 
     // draw capture dim overlay before Clay so the toolbar floats on top
