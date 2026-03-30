@@ -6,11 +6,17 @@ Minimal Wayland compositor without sacrificing beauty
 ![Lines of code](https://img.shields.io/badge/lines_of_code-13662-blue) ![Functions](https://img.shields.io/badge/functions-257-blue)
 <!-- /stats -->
 
+## improvement vectors:
+- pointer protocol code
+- ui
+- common logic between menu beacon and screenshotting ui
+- output management
+- glass shaders
+
 ## todo:
 - Bluetooth in menu
 - Design language and client library
 - Multiple desktops
-- Screenshotting / screenrecording proper ui
 - Support multiple monitors
 - Don't render windows that are behind one another
 - Port to vulkan
@@ -23,6 +29,8 @@ Minimal Wayland compositor without sacrificing beauty
 - Menu window borders should be consistent regardless of window size
 - Add something that'd tell users if nm is not installed instead of silently failing
 - Notification system
+- Cursor visibility protocol
+- Menu button morphing
 
 ## done
 - Window switching
@@ -87,3 +95,6 @@ Minimal Wayland compositor without sacrificing beauty
 - Screenrecording
 - Region screenrecording
 - NetworkManager wifi
+- Screenshotting / screenrecording proper ui
+- Fix cursor constraints to work in cs2
+- Cursor setting

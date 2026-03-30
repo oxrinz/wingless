@@ -198,7 +198,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
                 zclay.UI()(.{
                     .id = .ID("BeaconSearchIcon"),
                     .layout = .{ .sizing = .{ .w = .fixed(34 * s), .h = .fixed(34 * s) } },
-                    .custom = .{ .custom_data = ui.mkIcon(allocator, "system-search-symbolic", placeholder_alpha * 180.0 / 255.0) },
+                    .custom = .{ .custom_data = ui.mkIconEx(allocator, "system-search-symbolic", placeholder_alpha * 180.0 / 255.0, 1.2) },
                 })({});
                 zclay.text("Search...", .{
                     .font_size = 26,
@@ -220,8 +220,8 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
     var command_array: std.ArrayList(*BeaconCommand) = .empty;
     for (std.enums.values(config.WinglessFunction)) |function| {
         const icon: ?[]const u8 = switch (function) {
-            .shutdown => "_power",
-            .reboot => "_restart",
+            .shutdown => "system-shutdown-symbolic",
+            .reboot => "system-reboot-symbolic",
             .toggle_beacon => "system-search-symbolic",
             .toggle_menu => "view-app-grid-symbolic",
             .close_focused => "application-exit-symbolic",
@@ -232,7 +232,7 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
             .volume_down => "audio-volume-low-symbolic",
             .volume_set => "audio-volume-medium-symbolic",
             .volume_mute => "audio-volume-muted-symbolic",
-            .snap_left, .snap_right => "focus-windows-symbolic",
+            .snap_left, .snap_right, .move_to_next_output => "focus-windows-symbolic",
             .screenshot, .screenshot_fullscreen => "camera-photo-symbolic",
             .record_toggle, .record_toggle_fullscreen => "media-record-symbolic",
             .launch_app => null,
@@ -307,7 +307,7 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
 
             if (name != null and exec != null) {
                 exec = std.mem.trimRight(u8, exec.?, " %uUfFiIck");
-                if (icon == null) icon = try allocator.dupe(u8, "application-x-executable");
+                if (icon == null) icon = try allocator.dupe(u8, "application-x-executable-symbolic");
 
                 const name_ptr = allocator.create([]const u8) catch @panic("out of memory");
                 name_ptr.* = exec.?;

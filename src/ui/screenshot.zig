@@ -3,6 +3,7 @@ const zclay = @import("zclay");
 const c = @import("../c.zig").c;
 const gl = @import("../c.zig").gl;
 const ui = @import("../ui.zig");
+const main = @import("../main.zig");
 const recording = @import("recording.zig");
 
 pub const CaptureMode = enum { screenshot, recording };
@@ -99,6 +100,7 @@ pub fn activateFullscreen() void {
     if (state != .idle) return;
     capture_mode = .screenshot;
     state = .capturing_fullscreen;
+    main.resetCursorToDefault();
 }
 
 pub fn activateRecordingRegion() void {
@@ -111,6 +113,7 @@ fn activateWithMode(mode: CaptureMode) void {
     state = .capturing;
     ui.menu_open = false;
     ui.beacon_open = false;
+    main.resetCursorToDefault();
 }
 
 pub fn onMouseButton(pressed: bool, x: f32, y: f32) bool {

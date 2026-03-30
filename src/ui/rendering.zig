@@ -165,12 +165,11 @@ fn drawQuadWithUvScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, 
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
-fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, _: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) void {
+fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, blob: anytype) void {
     const prog = output.glass_blob_prog orelse return;
 
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
-
     gl.glUseProgram(prog.prog);
     gl.glActiveTexture(gl.GL_TEXTURE0);
     gl.glBindTexture(attribs.target, attribs.tex);
@@ -181,27 +180,17 @@ fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: 
     gl.glUniform1i(prog.scene_loc, 0);
     gl.glUniform2f(prog.resolution_loc, screen_w, screen_h);
 
-    // Convert button centers: Clay coords (y from top) → GL screen coords (y from bottom)
-    const diag: f32 = 0.7071067811865476;
-    const cy_gl = screen_h - bb_y - radius;
-    const cx0 = bb_x + bb_w - radius;
-
-    // Pack 4 active circles into slots 0-3; slots 4-7 inactive (scale=0)
-    const centers = [16]f32{
-        cx0,                          cy_gl,
-        cx0 - spread * t1,            cy_gl + spread * 0.15 * t1,
-        cx0 - spread * diag * t2,     cy_gl - spread * diag * t2,
-        cx0 + spread * 0.15 * t3,     cy_gl - spread * t3,
-        cx0, cy_gl, cx0, cy_gl, cx0, cy_gl, cx0, cy_gl,
-    };
-    const scales = [8]f32{ scale0, scale1, scale2, scale3, 0.0, 0.0, 0.0, 0.0 };
-    const brights = [8]f32{ bright0, bright1, bright2, bright3, 0.0, 0.0, 0.0, 0.0 };
-
-    gl.glUniform2fv(prog.centers_loc, 8, &centers[0]);
-    gl.glUniform1fv(prog.scales_loc, 8, &scales[0]);
-    gl.glUniform1fv(prog.brights_loc, 8, &brights[0]);
-    gl.glUniform1f(prog.radius_loc, radius);
-    gl.glUniform1f(prog.morph_k_loc, radius * 1.2 * @max(t1, @max(t2, t3)));
+    gl.glUniform2fv(prog.centers_loc, 8, &blob.centers[0]);
+    gl.glUniform1fv(prog.scales_loc, 8, &blob.scales[0]);
+    gl.glUniform1fv(prog.brights_loc, 8, &blob.brights[0]);
+    gl.glUniform1fv(prog.widths_loc, 8, &blob.widths[0]);
+    gl.glUniform1fv(prog.heights_loc, 8, &blob.heights[0]);
+    gl.glUniform1f(prog.radius_loc, blob.radius);
+    gl.glUniform1f(prog.morph_k_loc, blob.morph_k);
+    gl.glUniform2f(prog.mask_center_loc, blob.mask_cx, blob.mask_cy);
+    gl.glUniform1f(prog.mask_half_ex_loc, blob.mask_half_ex);
+    gl.glUniform1f(prog.mask_half_ey_loc, blob.mask_half_ey);
+    gl.glUniform1f(prog.mask_radius_loc, blob.mask_r);
 
     const pad = 300.0 * ui.ui_scale;
     drawQuad(output, bb_x - pad, bb_y - pad, bb_w + pad * 2.0, bb_h + pad * 2.0, screen_w, screen_h, prog.pos_loc);
@@ -608,32 +597,9 @@ pub fn render(ctx: ui.RenderContext) void {
                     count += 1;
                 },
                 .glass_blob => |pcb| {
-                    const btn_size = pcb.radius * 2.0;
-                    const shadow_intensity = 0.01 * @min(0.5 * 100.0, btn_size);
-                    const diag: f32 = 0.7071067811865476;
-                    // cx/cy in Clay coords: center button anchored to right edge
-                    const cx0 = bb.x + bb.width - pcb.radius;
-                    const cy0 = bb.y + pcb.radius;
-                    if (count < ui.MAX_SHADOW_COUNT) {
-                        entries[count] = .{ .x = cx0 - pcb.radius, .y = cy0 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity };
-                        count += 1;
-                    }
-                    if (pcb.t1 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
-                        const cx1 = cx0 - pcb.spread * pcb.t1;
-                        const cy1 = cy0 - pcb.spread * 0.15 * pcb.t1;
-                        entries[count] = .{ .x = cx1 - pcb.radius, .y = cy1 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t1 };
-                        count += 1;
-                    }
-                    if (pcb.t2 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
-                        const cx2 = cx0 - pcb.spread * diag * pcb.t2;
-                        const cy2 = cy0 + pcb.spread * diag * pcb.t2;
-                        entries[count] = .{ .x = cx2 - pcb.radius, .y = cy2 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t2 };
-                        count += 1;
-                    }
-                    if (pcb.t3 > 0.02 and count < ui.MAX_SHADOW_COUNT) {
-                        const cx3 = cx0 + pcb.spread * 0.15 * pcb.t3;
-                        const cy3 = cy0 + pcb.spread * pcb.t3;
-                        entries[count] = .{ .x = cx3 - pcb.radius, .y = cy3 - pcb.radius, .w = btn_size, .h = btn_size, .roundness = pcb.radius, .intensity = shadow_intensity * pcb.t3 };
+                    if (pcb.shadow_w > 0.0) {
+                        const shadow_intensity = 0.01 * @min(0.5 * 100.0, pcb.shadow_r * 2.0);
+                        entries[count] = .{ .x = pcb.shadow_x, .y = pcb.shadow_y, .w = pcb.shadow_w, .h = pcb.shadow_h, .roundness = pcb.shadow_r, .intensity = shadow_intensity };
                         count += 1;
                     }
                 },
@@ -671,7 +637,7 @@ pub fn render(ctx: ui.RenderContext) void {
                 }
             },
             .glass_blob => |pcb| {
-                drawBlobQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, pcb.t, pcb.t1, pcb.t2, pcb.t3, pcb.radius, pcb.spread, pcb.bright0, pcb.bright1, pcb.bright2, pcb.bright3, pcb.scale0, pcb.scale1, pcb.scale2, pcb.scale3);
+                drawBlobQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, pcb);
             },
             else => {},
         }

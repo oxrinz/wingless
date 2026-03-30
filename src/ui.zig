@@ -32,6 +32,11 @@ pub var menu_open = false;
 pub var pointer_down: bool = false;
 pub var screen_width: f32 = 0;
 pub var screen_height: f32 = 0;
+/// Dimensions of whichever output the cursor is currently on — only written
+/// during that output's renderUI pass. Use this (not screen_height) for any
+/// pointer-coordinate math that must match the Clay layout coordinate space.
+pub var cursor_screen_width: f32 = 0;
+pub var cursor_screen_height: f32 = 0;
 pub var ui_scale: f32 = 1.0;
 pub var output_refresh_hz: u32 = 60;
 
@@ -79,8 +84,14 @@ pub const GlassBlobProgram = struct {
     centers_loc: c_int,
     scales_loc: c_int,
     brights_loc: c_int,
+    widths_loc: c_int,
+    heights_loc: c_int,
     radius_loc: c_int,
     morph_k_loc: c_int,
+    mask_center_loc: c_int,
+    mask_half_ex_loc: c_int,
+    mask_half_ey_loc: c_int,
+    mask_radius_loc: c_int,
 };
 
 pub const FillDir = enum(i32) {
@@ -211,13 +222,18 @@ pub const CustomData = union(enum) {
     glass_text: struct { text: []const u8, font_size: u16, bold: bool = false },
     rect: struct { roundness: f32, a: f32, r: f32 = 1.0, g: f32 = 1.0, b: f32 = 1.0 },
     spinner: struct { time: f32 },
+    // Generic SDF blob: raw rounded-rect/circle data. Centers in GL screen coords (y from bottom).
     glass_blob: struct {
-        t: f32,       // 0=collapsed, 1=expanded (background morph)
-        t1: f32, t2: f32, t3: f32, // per-button expansion states
-        radius: f32, // button radius
-        spread: f32, // center-to-center distance between buttons at t=1
-        bright0: f32, bright1: f32, bright2: f32, bright3: f32,
-        scale0: f32, scale1: f32, scale2: f32, scale3: f32,
+        centers: [16]f32,  // 8 x (x_gl, y_gl) pairs
+        scales: [8]f32,    // corner radius = radius * scales[i]
+        brights: [8]f32,
+        widths: [8]f32,    // half-extent X beyond corner radius (0 = circle)
+        heights: [8]f32,   // half-extent Y beyond corner radius (0 = circle)
+        radius: f32,
+        morph_k: f32,
+        // Shadow hint: bounding rect for the whole blob (Clay coords)
+        shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32,
+        mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32,
     },
 };
 
@@ -274,11 +290,36 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
     return d;
 }
 
-pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
+// Build a glass_blob from raw data. Centers must be in GL screen coords (y from bottom).
+pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, brights: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass_blob = .{ .t = t, .t1 = t1, .t2 = t2, .t3 = t3, .radius = radius, .spread = spread, .bright0 = bright0, .bright1 = bright1, .bright2 = bright2, .bright3 = bright3, .scale0 = scale0, .scale1 = scale1, .scale2 = scale2, .scale3 = scale3 } };
+    d.* = .{ .glass_blob = .{ .centers = centers, .scales = scales, .brights = brights, .widths = widths, .heights = heights, .radius = radius, .morph_k = morph_k, .shadow_x = shadow_x, .shadow_y = shadow_y, .shadow_w = shadow_w, .shadow_h = shadow_h, .shadow_r = shadow_r, .mask_cx = mask_cx, .mask_cy = mask_cy, .mask_half_ex = mask_half_ex, .mask_half_ey = mask_half_ey, .mask_r = mask_r } };
     return d;
+}
+
+// Convenience wrapper for the power cluster (4 circles in radial arrangement).
+// bx/by: Clay offset for the cluster center button (bx = x from right, by = y from top).
+pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bx: f32, by: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
+    const diag: f32 = 0.7071067811865476;
+    const cx0 = screen_width + bx - radius;
+    const cy0 = screen_height - by - radius;
+    const centers = [16]f32{
+        cx0,                          cy0,
+        cx0 - spread * t1,            cy0 + spread * 0.15 * t1,
+        cx0 - spread * diag * t2,     cy0 - spread * diag * t2,
+        cx0 + spread * 0.15 * t3,     cy0 - spread * t3,
+        cx0, cy0, cx0, cy0, cx0, cy0, cx0, cy0,
+    };
+    const scales_arr = [8]f32{ scale0, scale1, scale2, scale3, 0, 0, 0, 0 };
+    const brights_arr = [8]f32{ bright0, bright1, bright2, bright3, 0, 0, 0, 0 };
+    const widths_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    const btn_size = radius * 2.0;
+    const bb_size = btn_size + spread * t;
+    const shadow_x_clay = screen_width + bx - bb_size;
+    const shadow_y_clay = by;
+    return mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, radius * 1.2 * @max(t1, @max(t2, t3)), shadow_x_clay, shadow_y_clay, bb_size, bb_size, radius, 0, 0, 0, 0, 0);
 }
 
 pub fn textSize(text: []const u8, font_size: u16) zclay.Dimensions {
@@ -322,17 +363,20 @@ pub fn mkRectColor(roundness: f32, r: f32, g: f32, b: f32, a: f32) *anyopaque {
     return d;
 }
 
-fn getIcon(allocator: std.mem.Allocator, name: []const u8) ?Icon {
-    if (icon_cache.get(name)) |cached| return cached;
+fn getIcon(allocator: std.mem.Allocator, name: []const u8, stroke: f32) ?Icon {
+    const cache_key = if (stroke > 0.0) std.fmt.allocPrint(allocator, "{s}:s{d}", .{ name, stroke }) catch name else name;
+    defer if (stroke > 0.0) allocator.free(cache_key);
+
+    if (icon_cache.get(cache_key)) |cached| return cached;
     const path = (resolveIconPath(allocator, name) catch {
         if (icon_index_ready.load(.acquire)) {
-            const key = allocator.dupe(u8, name) catch return null;
+            const key = allocator.dupe(u8, cache_key) catch return null;
             icon_cache.put(key, null) catch @panic("fuck");
         }
         return null;
     }) orelse {
         if (icon_index_ready.load(.acquire)) {
-            const key = allocator.dupe(u8, name) catch return null;
+            const key = allocator.dupe(u8, cache_key) catch return null;
             icon_cache.put(key, null) catch @panic("fuck");
         }
         return null;
@@ -348,33 +392,37 @@ fn getIcon(allocator: std.mem.Allocator, name: []const u8) ?Icon {
     }.do;
 
     const png: []u8 = if (std.mem.endsWith(u8, path, ".svg")) blk: {
-        break :blk svgToPng(allocator, path, name) orelse {
-            cache_null(allocator, name);
+        break :blk svgToPng(allocator, path, name, stroke) orelse {
+            cache_null(allocator, cache_key);
             return null;
         };
     } else blk: {
         const file = std.fs.openFileAbsolute(path, .{}) catch {
-            cache_null(allocator, name);
+            cache_null(allocator, cache_key);
             return null;
         };
         defer file.close();
         break :blk file.readToEndAlloc(allocator, 256 * 1024) catch {
-            cache_null(allocator, name);
+            cache_null(allocator, cache_key);
             return null;
         };
     };
     defer allocator.free(png);
 
     const icon = loadIconFromPng(png);
-    const key = allocator.dupe(u8, name) catch return icon;
+    const key = allocator.dupe(u8, cache_key) catch return icon;
     icon_cache.put(key, @as(?Icon, icon)) catch {};
     return icon;
 }
 
 pub fn mkIcon(allocator: std.mem.Allocator, name: []const u8, alpha: f32) *anyopaque {
+    return mkIconEx(allocator, name, alpha, 0.0);
+}
+
+pub fn mkIconEx(allocator: std.mem.Allocator, name: []const u8, alpha: f32, stroke: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .icon = .{ .icon = getIcon(allocator, name) orelse default_icon, .alpha = alpha } };
+    d.* = .{ .icon = .{ .icon = getIcon(allocator, name, stroke) orelse default_icon, .alpha = alpha } };
     return d;
 }
 
@@ -475,7 +523,10 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
 
 pub fn toggleBeacon() void {
     if (beacon_open == true) beacon.beacon_buffer.clearRetainingCapacity();
-    if (menu_open == false and !screenshot.isActive()) beacon_open = !beacon_open;
+    if (menu_open == false and !screenshot.isActive()) {
+        beacon_open = !beacon_open;
+        if (beacon_open) main.resetCursorToDefault();
+    }
 }
 
 pub fn ensurePrograms(out: *WinglessOutput) void {
@@ -659,8 +710,14 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .centers_loc = gl.glGetUniformLocation(prog, "centers[0]"),
             .scales_loc = gl.glGetUniformLocation(prog, "scales[0]"),
             .brights_loc = gl.glGetUniformLocation(prog, "brights[0]"),
+            .widths_loc = gl.glGetUniformLocation(prog, "widths[0]"),
+            .heights_loc = gl.glGetUniformLocation(prog, "heights[0]"),
             .radius_loc = gl.glGetUniformLocation(prog, "radius"),
             .morph_k_loc = gl.glGetUniformLocation(prog, "morphK"),
+            .mask_center_loc = gl.glGetUniformLocation(prog, "maskCenter"),
+            .mask_half_ex_loc = gl.glGetUniformLocation(prog, "maskHalfEx"),
+            .mask_half_ey_loc = gl.glGetUniformLocation(prog, "maskHalfEy"),
+            .mask_radius_loc = gl.glGetUniformLocation(prog, "maskRadius"),
         };
     }
 }
@@ -777,12 +834,6 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
     rendering.drawWindowGlassRegions(output, regions, sx, sy, screen_w, screen_h);
 }
 
-const bundled_power_png = @embedFile("assets/power.png");
-const bundled_restart_png = @embedFile("assets/restart.png");
-const bundled_wifi_png = @embedFile("assets/wifi.png");
-const bundled_bluetooth_png = @embedFile("assets/bluetooth.png");
-const bundled_sleep_png = @embedFile("assets/sleep.png");
-
 pub fn initUI(allocator: std.mem.Allocator) !void {
     const font_json = @embedFile("assets/font.json");
     const font_png = @embedFile("assets/font.png");
@@ -791,12 +842,6 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
-
-    try icon_cache.put("_power", @as(?Icon, loadIconFromPng(bundled_power_png)));
-    try icon_cache.put("_restart", @as(?Icon, loadIconFromPng(bundled_restart_png)));
-    try icon_cache.put("_wifi", @as(?Icon, loadIconFromPng(bundled_wifi_png)));
-    try icon_cache.put("_bluetooth", @as(?Icon, loadIconFromPng(bundled_bluetooth_png)));
-    try icon_cache.put("_sleep", @as(?Icon, loadIconFromPng(bundled_sleep_png)));
 
     volume_slider.init();
 
@@ -835,7 +880,7 @@ fn preloadThread() void {
         const path = (resolveIconPath(alloc, name) catch continue) orelse continue;
         defer alloc.free(path);
         const png: []u8 = if (std.mem.endsWith(u8, path, ".svg")) blk: {
-            break :blk svgToPng(alloc, path, name) orelse continue;
+            break :blk svgToPng(alloc, path, name, 0.0) orelse continue;
         } else blk: {
             const file = std.fs.openFileAbsolute(path, .{}) catch continue;
             defer file.close();
@@ -857,22 +902,31 @@ fn preloadThread() void {
 }
 
 var default_icon_set: bool = false;
-const symbolic_css_path = "/tmp/wingless-symbolic.css";
-var symbolic_css_written: bool = false;
 
-fn svgToPng(allocator: std.mem.Allocator, svg_path: []const u8, icon_name: []const u8) ?[]u8 {
+fn svgToPng(allocator: std.mem.Allocator, svg_path: []const u8, icon_name: []const u8, stroke: f32) ?[]u8 {
     const is_symbolic = std.mem.endsWith(u8, icon_name, "-symbolic") or
         std.mem.indexOf(u8, svg_path, "symbolic") != null;
-    if (is_symbolic and !symbolic_css_written) {
-        const f = std.fs.createFileAbsolute(symbolic_css_path, .{}) catch return null;
-        f.writeAll("* { fill: white !important; color: white !important; stroke: white; stroke-width: 1.2px; }") catch {};
+    if (is_symbolic) {
+        const css_path = std.fmt.allocPrint(allocator, "/tmp/wingless-symbolic-s{d}.css", .{stroke}) catch return null;
+        defer allocator.free(css_path);
+        const f = std.fs.createFileAbsolute(css_path, .{}) catch return null;
+        if (stroke > 0.0) {
+            const css = std.fmt.allocPrint(allocator, "* {{ fill: white !important; color: white !important; stroke: white; stroke-width: {d}px; }}", .{stroke}) catch {
+                f.close();
+                return null;
+            };
+            defer allocator.free(css);
+            f.writeAll(css) catch {};
+        } else {
+            f.writeAll("* { fill: white !important; color: white !important; }") catch {};
+        }
         f.close();
-        symbolic_css_written = true;
+        const argv = &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", "--stylesheet", css_path, svg_path };
+        const result = std.process.Child.run(.{ .allocator = allocator, .argv = argv }) catch return null;
+        allocator.free(result.stderr);
+        return result.stdout;
     }
-    const argv = if (is_symbolic)
-        &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", "--stylesheet", symbolic_css_path, svg_path }
-    else
-        &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", svg_path };
+    const argv = &[_][]const u8{ "rsvg-convert", "-w", "512", "-h", "512", "--format", "png", svg_path };
     const result = std.process.Child.run(.{ .allocator = allocator, .argv = argv }) catch return null;
     allocator.free(result.stderr);
     return result.stdout;
@@ -880,7 +934,7 @@ fn svgToPng(allocator: std.mem.Allocator, svg_path: []const u8, icon_name: []con
 
 pub fn flushPendingIcons() void {
     if (!default_icon_set and icon_index_ready.load(.acquire)) {
-        if (getIcon(std.heap.page_allocator, "application-x-executable")) |ic| {
+        if (getIcon(std.heap.page_allocator, "application-x-executable-symbolic", 0.0)) |ic| {
             default_icon = ic;
         }
         default_icon_set = true;
@@ -930,7 +984,8 @@ fn iconPathPriority(path: []const u8) u8 {
     return 4; // unknown fixed size
 }
 
-fn indexIconDir(allocator: std.mem.Allocator, base: []const u8) void {
+// fallback_only: if true, skip icons already in the index (used for non-WhiteSur dirs)
+fn indexIconDir(allocator: std.mem.Allocator, base: []const u8, fallback_only: bool) void {
     var dir = std.fs.openDirAbsolute(base, .{ .iterate = true }) catch return;
     defer dir.close();
     var walker = dir.walk(allocator) catch return;
@@ -943,8 +998,13 @@ fn indexIconDir(allocator: std.mem.Allocator, base: []const u8) void {
         if (!is_png and !is_svg) continue;
         const icon_name = entry.basename[0 .. entry.basename.len - ext.len];
         const full = std.fs.path.join(allocator, &.{ base, entry.path }) catch continue;
-        const new_prio = iconPathPriority(full);
         if (icon_path_index.getPtr(icon_name)) |existing| {
+            if (fallback_only) {
+                // WhiteSur already has this icon, don't replace it
+                allocator.free(full);
+                continue;
+            }
+            const new_prio = iconPathPriority(full);
             const old_prio = iconPathPriority(existing.*);
             const upgrade = new_prio > old_prio or
                 (new_prio == old_prio and is_png and std.mem.endsWith(u8, existing.*, ".svg"));
@@ -964,11 +1024,11 @@ fn buildIconIndex(allocator: std.mem.Allocator) void {
     icon_path_index = std.StringHashMap([]const u8).init(allocator);
     const home = std.process.getEnvVarOwned(allocator, "HOME") catch "";
     defer if (home.len > 0) allocator.free(home);
-    const themes = [_][]const u8{ "WhiteSur-dark", "hicolor", "breeze-dark" };
+    const whitesur_themes = [_][]const u8{ "WhiteSur-dark", "WhiteSur" };
+    const fallback_themes = [_][]const u8{"hicolor"};
     const user_bases = if (home.len > 0) [_][]const u8{
         ".local/share/icons",
         ".icons",
-        // Flatpak user installs
         ".local/share/flatpak/exports/share/icons",
     } else [_][]const u8{ "", "", "" };
     const sys_dirs = [_][]const u8{
@@ -976,30 +1036,49 @@ fn buildIconIndex(allocator: std.mem.Allocator) void {
         "/var/lib/flatpak/exports/share/icons",
         "/usr/local/share/icons",
     };
+
+    // Pass 1: WhiteSur only — best size wins within WhiteSur
     if (home.len > 0) {
         for (user_bases) |ub| {
             if (ub.len == 0) continue;
-            for (themes) |t| {
+            for (whitesur_themes) |t| {
                 const d = std.fs.path.join(allocator, &.{ home, ub, t }) catch continue;
                 defer allocator.free(d);
-                indexIconDir(allocator, d);
+                indexIconDir(allocator, d, false);
             }
-            // also index flat (no theme subdir) for app-specific icons
-            const flat = std.fs.path.join(allocator, &.{ home, ub }) catch continue;
-            defer allocator.free(flat);
-            indexIconDir(allocator, flat);
         }
     }
     for (sys_dirs) |sd| {
-        for (themes) |t| {
+        for (whitesur_themes) |t| {
             const d = std.fs.path.join(allocator, &.{ sd, t }) catch continue;
             defer allocator.free(d);
-            indexIconDir(allocator, d);
+            indexIconDir(allocator, d, false);
         }
-        // flat icons directly in the dir (e.g. /usr/share/icons/zen-browser.png)
-        indexIconDir(allocator, sd);
     }
-    indexIconDir(allocator, "/usr/share/pixmaps");
+
+    // Pass 2: hicolor + flat dirs as fallback — only fills icons missing from WhiteSur
+    if (home.len > 0) {
+        for (user_bases) |ub| {
+            if (ub.len == 0) continue;
+            for (fallback_themes) |t| {
+                const d = std.fs.path.join(allocator, &.{ home, ub, t }) catch continue;
+                defer allocator.free(d);
+                indexIconDir(allocator, d, true);
+            }
+            const flat = std.fs.path.join(allocator, &.{ home, ub }) catch continue;
+            defer allocator.free(flat);
+            indexIconDir(allocator, flat, true);
+        }
+    }
+    for (sys_dirs) |sd| {
+        for (fallback_themes) |t| {
+            const d = std.fs.path.join(allocator, &.{ sd, t }) catch continue;
+            defer allocator.free(d);
+            indexIconDir(allocator, d, true);
+        }
+        indexIconDir(allocator, sd, true);
+    }
+    indexIconDir(allocator, "/usr/share/pixmaps", true);
 }
 
 fn debugFill() void {
@@ -1012,15 +1091,13 @@ fn debugFill() void {
     })({});
 }
 
-pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int) !void {
+pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c_int, is_cursor_output: bool) !void {
     if (!initialized) {
         try initUI(std.heap.page_allocator);
         initialized = true;
     }
 
-    flushPendingIcons();
-
-    const dt = getDeltaSeconds();
+    if (is_cursor_output) flushPendingIcons();
 
     if (output.gl_vbo == 0) gl.glGenBuffers(1, &output.gl_vbo);
     if (output.gl_vao == 0) gl.glGenBuffers(1, &output.gl_vao);
@@ -1037,11 +1114,15 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         if (hz > 0) output_refresh_hz = hz;
     }
 
-    // animate state
-    beacon.tick(dt);
-    menu.tick(dt);
-    volume_slider.tick(dt);
-    screenshot.tick(dt);
+    // animate state once per frame on the cursor output; lerp(a,b,dt*k) is
+    // already frame-rate independent so no accumulator needed
+    if (is_cursor_output) {
+        const dt = @min(getDeltaSeconds(), 1.0 / 30.0); // cap to avoid spiral-of-death on hickups
+        beacon.tick(dt);
+        menu.tick(dt);
+        volume_slider.tick(dt);
+        screenshot.tick(dt);
+    }
 
     // gl state
     gl.glDisable(c.GL_SCISSOR_TEST);
@@ -1054,47 +1135,53 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     if (scene_tex == null) @panic("no tex");
     defer c.wlr_texture_destroy(scene_tex);
 
-    // these are for the menu
-    // collect focusables before the clay layout block
-    // the layout blocks, so any fallible work must happen here.
-    const focusables = if (server.focused_toplevel != null and menu.isActive())
-        server.focused_toplevel.?.linkedToList(server.allocator) catch null
-    else
-        null;
-    defer if (focusables) |f| server.allocator.free(f);
-    const focused_toplevel = if (menu.isActive()) server.focused_toplevel else null;
+    if (is_cursor_output) {
+        // these are for the menu
+        // collect focusables before the clay layout block
+        // the layout blocks, so any fallible work must happen here.
+        const focusables = if (server.focused_toplevel != null and menu.isActive())
+            server.focused_toplevel.?.linkedToList(server.allocator) catch null
+        else
+            null;
+        defer if (focusables) |f| server.allocator.free(f);
+        const focused_toplevel = if (menu.isActive()) server.focused_toplevel else null;
 
-    // draw capture dim overlay before Clay so the toolbar floats on top
-    screenshot.renderBackground(w, h);
+        // draw capture dim overlay before Clay so the toolbar floats on top
+        screenshot.renderBackground(w, h);
 
-    // layout
-    custom_pool_idx = 0;
-    zclay.setLayoutDimensions(.{ .w = screen_width, .h = screen_height });
-    zclay.beginLayout();
+        // lock in the cursor output dimensions — used for pointer coordinate math
+        cursor_screen_width = screen_width;
+        cursor_screen_height = screen_height;
 
-    // root container
-    zclay.UI()(.{
-        .id = .ID("Screen"),
-        .layout = .{
-            .sizing = .grow,
-            .child_alignment = .{ .x = .center, .y = .center },
-        },
-    })({
-        beacon.layout(server.allocator);
-        menu.layout(focused_toplevel, focusables);
-        menu.layoutPowerCluster();
-        volume_slider.layout();
-        screenshot.layoutToolbar();
-    });
+        // layout
+        custom_pool_idx = 0;
+        zclay.setLayoutDimensions(.{ .w = screen_width, .h = screen_height });
+        zclay.beginLayout();
 
-    rendering.render(.{
-        .output = output,
-        .screen_width = screen_width,
-        .screen_height = screen_height,
-        .scene_tex = @ptrCast(scene_tex.?),
-        .font = &glass_font,
-    });
+        // root container
+        zclay.UI()(.{
+            .id = .ID("Screen"),
+            .layout = .{
+                .sizing = .grow,
+                .child_alignment = .{ .x = .center, .y = .center },
+            },
+        })({
+            beacon.layout(server.allocator);
+            menu.layout(focused_toplevel, focusables);
+            menu.layoutPowerCluster();
+            volume_slider.layout();
+            screenshot.layoutToolbar();
+        });
 
-    screenshot.onFrame(w, h);
-    recording.onFrame(w, h);
+        rendering.render(.{
+            .output = output,
+            .screen_width = screen_width,
+            .screen_height = screen_height,
+            .scene_tex = @ptrCast(scene_tex.?),
+            .font = &glass_font,
+        });
+
+        screenshot.onFrame(w, h);
+        recording.onFrame(w, h);
+    }
 }

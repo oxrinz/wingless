@@ -20,6 +20,7 @@ pub const WinglessFunction = enum {
 
     snap_left,
     snap_right,
+    move_to_next_output,
 
     screenshot,
     screenshot_fullscreen,
@@ -119,7 +120,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     }
 
     // keybinds
-    var keybinds = try allocator.alloc(Keybind, 15);
+    var keybinds = try allocator.alloc(Keybind, 16);
     keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
     keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
     keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
@@ -135,6 +136,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     keybinds[12] = .{ .key = c.XKB_KEY_s, .function = .screenshot, .modifier = .super_shift };
     keybinds[13] = .{ .key = c.XKB_KEY_r, .function = .record_toggle_fullscreen };
     keybinds[14] = .{ .key = c.XKB_KEY_r, .function = .record_toggle, .modifier = .super_shift };
+    keybinds[15] = .{ .key = c.XKB_KEY_m, .function = .move_to_next_output, .modifier = .super_shift };
 
     config.keybinds = keybinds;
 

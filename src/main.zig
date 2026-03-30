@@ -15,6 +15,13 @@ const gl = @import("c.zig").gl;
 
 const activeTag = std.meta.activeTag;
 
+pub var g_server: ?*WinglessServer = null;
+
+pub fn resetCursorToDefault() void {
+    const server = g_server orelse return;
+    c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+}
+
 pub const Focusable = union(enum) {
     xdg: *WinglessToplevel,
     xwayland: *WinglessXwayland,
@@ -123,8 +130,12 @@ pub const WinglessServer = struct {
     scene_layout: *c.wlr_scene_output_layout = undefined,
 
     output_layout: *c.wlr_output_layout = undefined,
+    output_layout_change: c.wl_listener = undefined,
     outputs: c.wl_list = undefined,
     new_output: c.wl_listener = undefined,
+    output_manager: *c.wlr_output_manager_v1 = undefined,
+    output_manager_apply: c.wl_listener = undefined,
+    output_manager_test: c.wl_listener = undefined,
 
     on_client: c.wl_listener = undefined,
 
@@ -148,6 +159,7 @@ pub const WinglessServer = struct {
     seat: *c.wlr_seat = undefined,
 
     request_start_drag: c.wl_listener = undefined,
+    request_set_cursor: c.wl_listener = undefined,
     request_set_selection: c.wl_listener = undefined,
 
     active_drag: ?*c.wlr_drag = null,
@@ -155,6 +167,7 @@ pub const WinglessServer = struct {
     drag_destroy: c.wl_listener = undefined,
 
     pointer_constraints: *c.wlr_pointer_constraints_v1 = undefined,
+    relative_pointer_manager: *c.wlr_relative_pointer_manager_v1 = undefined,
     new_constraint: c.wl_listener = undefined,
     active_constraint: ?*c.wlr_pointer_constraint_v1 = null,
     active_constraint_destroy: c.wl_listener = undefined,
@@ -197,7 +210,15 @@ pub const WinglessServer = struct {
         _ = c.wlr_linux_dmabuf_v1_create_with_renderer(server.display, 4, server.renderer);
 
         server.output_layout = c.wlr_output_layout_create(server.display);
-        _ = c.wlr_output_manager_v1_create(server.display);
+        server.output_layout_change = .{ .link = undefined, .notify = output_layout_change };
+        c.wl_signal_add(&server.output_layout.events.change, &server.output_layout_change);
+
+        server.output_manager = c.wlr_output_manager_v1_create(server.display) orelse return error.OutputManagerFailed;
+        server.output_manager_apply = .{ .link = undefined, .notify = output_manager_apply };
+        server.output_manager_test = .{ .link = undefined, .notify = output_manager_test };
+        c.wl_signal_add(&server.output_manager.events.apply, &server.output_manager_apply);
+        c.wl_signal_add(&server.output_manager.events.@"test", &server.output_manager_test);
+
         _ = c.wlr_xdg_output_manager_v1_create(server.display, server.output_layout);
 
         c.wl_list_init(&server.outputs);
@@ -250,10 +271,14 @@ pub const WinglessServer = struct {
 
         c.wl_signal_add(&server.seat.events.request_start_drag, &server.request_start_drag);
 
+        server.request_set_cursor = .{ .link = undefined, .notify = seat_request_set_cursor };
+        c.wl_signal_add(&server.seat.events.request_set_cursor, &server.request_set_cursor);
+
         server.request_set_selection = .{ .link = undefined, .notify = seat_request_set_selection };
         c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
 
         server.pointer_constraints = c.wlr_pointer_constraints_v1_create(server.display) orelse return error.PointerConstraintsFailed;
+        server.relative_pointer_manager = c.wlr_relative_pointer_manager_v1_create(server.display) orelse return error.RelativePointerManagerFailed;
         server.new_constraint = .{ .link = undefined, .notify = server_new_constraint };
         c.wl_signal_add(&server.pointer_constraints.events.new_constraint, &server.new_constraint);
 
@@ -419,6 +444,27 @@ pub const WinglessOutput = struct {
         c.wl_list_remove(&self.request_state.link);
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.link);
+
+        // Free GL resources (EGL context is global to renderer, not per-output)
+        if (self.gl_vbo != 0) gl.glDeleteBuffers(1, &self.gl_vbo);
+        if (self.gl_vao != 0) gl.glDeleteBuffers(1, &self.gl_vao);
+        if (self.blur_fbo != 0) gl.glDeleteFramebuffers(1, &self.blur_fbo);
+        if (self.blur_tex != 0) gl.glDeleteTextures(1, &self.blur_tex);
+        if (self.blur_snapshot_tex != 0) gl.glDeleteTextures(1, &self.blur_snapshot_tex);
+        if (self.image) |p| gl.glDeleteProgram(p.prog);
+        if (self.window) |p| gl.glDeleteProgram(p.prog);
+        if (self.fill) |p| gl.glDeleteProgram(p.prog);
+        if (self.round_fill) |p| gl.glDeleteProgram(p.prog);
+        if (self.spinner) |p| gl.glDeleteProgram(p.prog);
+        if (self.blur) |p| gl.glDeleteProgram(p.prog);
+        if (self.shadow) |p| gl.glDeleteProgram(p.prog);
+        if (self.glass_background) |p| gl.glDeleteProgram(p.prog);
+        if (self.glass_text) |p| gl.glDeleteProgram(p.prog);
+        if (self.text) |p| gl.glDeleteProgram(p.prog);
+        if (self.glass_blob_prog) |p| gl.glDeleteProgram(p.prog);
+        if (self.scene_buffer) |b| c.wlr_buffer_drop(b);
+
+        c.wlr_output_layout_remove(self.server.output_layout, self.output);
     }
 };
 
@@ -717,6 +763,25 @@ fn drag_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wl_list_remove(&server.drag_destroy.link);
 }
 
+fn seat_request_set_cursor(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_set_cursor", listener)));
+    const event: *c.wlr_seat_pointer_request_set_cursor_event = @ptrCast(@alignCast(data.?));
+
+    // Only honor cursor requests from the focused client
+    const focused_client = server.seat.pointer_state.focused_client;
+    if (focused_client != event.seat_client) return;
+
+    // Don't let clients override cursor while compositor UI is active
+    if (ui.menu_open or ui.beacon_open or ui.screenshot.isActive()) return;
+
+    // If pointer is locked, keep cursor hidden
+    if (server.active_constraint) |constraint| {
+        if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) return;
+    }
+
+    c.wlr_cursor_set_surface(server.cursor, event.surface, event.hotspot_x, event.hotspot_y);
+}
+
 fn seat_request_set_selection(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_set_selection", listener)));
     const event: *c.wlr_seat_request_set_selection_event = @ptrCast(@alignCast(data.?));
@@ -820,7 +885,8 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
     if (!xwl.xsurface.override_redirect) {
-        const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
+        const o = c.wlr_output_layout_output_at(xwl.server.output_layout, xwl.server.cursor.x, xwl.server.cursor.y) orelse
+            c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
         var w: c_int = 0;
         var h: c_int = 0;
@@ -921,11 +987,13 @@ fn xdg_toplevel_request_fullscreen(listener: [*c]c.wl_listener, data: ?*anyopaqu
         var ow: c_int = 0;
         var oh: c_int = 0;
         c.wlr_output_effective_resolution(o, &ow, &oh);
+        var out_box: c.wlr_box = undefined;
+        c.wlr_output_layout_get_box(toplevel.server.output_layout, o, &out_box);
         _ = c.wlr_xdg_toplevel_set_size(xdg_toplevel, ow, oh);
         _ = c.wlr_xdg_toplevel_set_fullscreen(xdg_toplevel, true);
-        toplevel.x = 0;
-        toplevel.y = 0;
-        c.wlr_scene_node_set_position(&toplevel.scene_tree.node, 0, 0);
+        toplevel.x = out_box.x;
+        toplevel.y = out_box.y;
+        c.wlr_scene_node_set_position(&toplevel.scene_tree.node, toplevel.x, toplevel.y);
         toplevel.is_fullscreen = true;
     } else if (!wants_fullscreen and toplevel.is_fullscreen) {
         _ = c.wlr_xdg_toplevel_set_fullscreen(xdg_toplevel, false);
@@ -1127,6 +1195,16 @@ fn desktop_active_toplevel(server: *WinglessServer, lx: f64, ly: f64, surface: *
     return @ptrCast(@alignCast(tree.node.data));
 }
 
+fn cursorLocalPos(server: *WinglessServer) struct { x: f32, y: f32 } {
+    const output_at = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y);
+    if (output_at != null) {
+        var box: c.wlr_box = undefined;
+        c.wlr_output_layout_get_box(server.output_layout, output_at, &box);
+        return .{ .x = @floatCast(server.cursor.x - @as(f64, @floatFromInt(box.x))), .y = @floatCast(server.cursor.y - @as(f64, @floatFromInt(box.y))) };
+    }
+    return .{ .x = @floatCast(server.cursor.x), .y = @floatCast(server.cursor.y) };
+}
+
 // TODO: cleanup
 fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     const seat = server.seat;
@@ -1134,12 +1212,22 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
 
-    if (ui.screenshot.onMouseMotion(@floatCast(server.cursor.x), @floatCast(server.cursor.y))) return;
+    {
+        const lpos = cursorLocalPos(server);
+        if (ui.initialized) ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
+        ui.volume_slider.onCursorMove(lpos.x, lpos.y);
+    }
 
-    if (ui.initialized) ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
-    ui.volume_slider.onCursorMove(@floatCast(server.cursor.x), @floatCast(server.cursor.y));
+    if (ui.menu_open or ui.beacon_open) {
+        update_pointer_constraint(server, null);
+        return;
+    }
 
-    if (ui.menu_open) return;
+    if (ui.screenshot.isActive()) {
+        update_pointer_constraint(server, null);
+        _ = ui.screenshot.onMouseMotion(@floatCast(server.cursor.x), @floatCast(server.cursor.y));
+        return;
+    }
 
     if (server.cursor_mode == .move) {
         const t = server.grabbed_toplevel.?;
@@ -1202,15 +1290,26 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
         }
     }
 
+    // For locked pointer, return immediately — the surface lookup via desktop_active_toplevel
+    // may return a sub-surface that doesn't match the constraint's registered surface, which
+    // would cause update_pointer_constraint to incorrectly deactivate the lock. Relative motion
+    // is already forwarded in server_cursor_motion via wlr_relative_pointer_manager_v1.
+    if (server.active_constraint) |constraint| {
+        if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) return;
+    }
+
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
     // Update active pointer constraint based on surface under pointer
     update_pointer_constraint(server, surface);
 
-    // For confined pointer, enforce the constraint region
+    // For confined pointer, enforce the constraint region.
+    // An empty region means "whole surface" per the protocol spec — skip enforcement in that case.
     if (server.active_constraint) |constraint| {
         if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_CONFINED) {
-            if (c.pixman_region32_contains_point(&constraint.region, @intFromFloat(sx), @intFromFloat(sy), null) == 0) {
+            if (c.pixman_region32_not_empty(&constraint.region) != 0 and
+                c.pixman_region32_contains_point(&constraint.region, @intFromFloat(sx), @intFromFloat(sy), null) == 0)
+            {
                 c.wlr_cursor_warp_closest(server.cursor, null, server.last_cursor_x, server.last_cursor_y);
                 return;
             }
@@ -1242,15 +1341,33 @@ fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     server.last_cursor_x = server.cursor.x;
     server.last_cursor_y = server.cursor.y;
 
+    const overlay_open = ui.menu_open or ui.beacon_open or ui.screenshot.isActive();
+
+    // Always forward relative motion to any listening clients (independent of constraints)
+    if (!overlay_open) {
+        c.wlr_relative_pointer_manager_v1_send_relative_motion(
+            server.relative_pointer_manager,
+            server.seat,
+            @as(u64, event.time_msec) * 1000,
+            event.delta_x,
+            event.delta_y,
+            event.unaccel_dx,
+            event.unaccel_dy,
+        );
+    }
+
+    // For locked pointer: cursor stays frozen; let overlay lift the lock if needed
     if (server.active_constraint) |constraint| {
         if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
-            process_cursor_motion(server, event.time_msec);
+            if (overlay_open) {
+                c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
+                process_cursor_motion(server, event.time_msec);
+            }
             return;
         }
     }
 
     c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
-
     process_cursor_motion(server, event.time_msec);
 }
 
@@ -1289,7 +1406,8 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     // always feed Clay pointer state so toolbar buttons work during capture overlay
     if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive() or ui.screenshot.isActive())) {
         ui.pointer_down = event.state == c.WLR_BUTTON_PRESSED;
-        ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
+        const lpos = cursorLocalPos(server);
+        ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
         ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
     }
 
@@ -1376,6 +1494,10 @@ fn update_pointer_constraint(server: *WinglessServer, surface: [*c]c.wlr_surface
         c.wl_list_remove(&server.active_constraint_destroy.link);
         c.wlr_pointer_constraint_v1_send_deactivated(old);
         server.active_constraint = null;
+        // Restore cursor when unlocking
+        if (old.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+            c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+        }
     }
 
     if (new_constraint) |nc| {
@@ -1383,6 +1505,10 @@ fn update_pointer_constraint(server: *WinglessServer, surface: [*c]c.wlr_surface
         server.active_constraint_destroy = .{ .link = undefined, .notify = constraint_destroy_notify };
         c.wl_signal_add(&nc.events.destroy, &server.active_constraint_destroy);
         c.wlr_pointer_constraint_v1_send_activated(nc);
+        // Hide cursor when locking
+        if (nc.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+            c.wlr_cursor_set_surface(server.cursor, null, 0, 0);
+        }
     }
 }
 
@@ -1440,11 +1566,13 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                     var ow: c_int = 0;
                     var oh: c_int = 0;
                     c.wlr_output_effective_resolution(o, &ow, &oh);
+                    var fs_box: c.wlr_box = undefined;
+                    c.wlr_output_layout_get_box(server.output_layout, o, &fs_box);
                     _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, ow, oh);
                     _ = c.wlr_xdg_toplevel_set_fullscreen(t.xdg_toplevel, true);
-                    t.x = 0;
-                    t.y = 0;
-                    c.wlr_scene_node_set_position(&t.scene_tree.node, 0, 0);
+                    t.x = fs_box.x;
+                    t.y = fs_box.y;
+                    c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
                     t.is_fullscreen = true;
                 }
             }
@@ -1531,6 +1659,42 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
             }
             t.y = out_box.y + margin;
             _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, half_w, h);
+            c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
+        },
+        .move_to_next_output => {
+            const focused = server.focused_toplevel orelse return;
+            if (focused.* != .xdg) return;
+            const t = focused.xdg;
+            // find current output
+            const cur_out = c.wlr_output_layout_output_at(server.output_layout, @floatFromInt(t.x), @floatFromInt(t.y));
+            // walk the output list to find the next one after cur_out, wrapping around
+            var next_out: ?*c.wlr_output = null;
+            var found_cur = false;
+            var link = server.outputs.next;
+            while (link != &server.outputs) : (link = link.*.next) {
+                const wo: *WinglessOutput = @ptrCast(@alignCast(link));
+                if (found_cur) { next_out = wo.output; break; }
+                if (wo.output == cur_out) found_cur = true;
+            }
+            if (next_out == null and server.outputs.next != &server.outputs) {
+                const wo: *WinglessOutput = @ptrCast(@alignCast(server.outputs.next));
+                if (wo.output != cur_out) next_out = wo.output;
+            }
+            const target_out = next_out orelse return;
+            var target_box: c.wlr_box = undefined;
+            c.wlr_output_layout_get_box(server.output_layout, target_out, &target_box);
+            if (t.is_fullscreen) {
+                var ow: c_int = 0;
+                var oh: c_int = 0;
+                c.wlr_output_effective_resolution(target_out, &ow, &oh);
+                _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, ow, oh);
+                t.x = target_box.x;
+                t.y = target_box.y;
+            } else {
+                const margin = 10;
+                t.x = target_box.x + margin;
+                t.y = target_box.y + margin;
+            }
             c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
         },
     }
@@ -1864,6 +2028,8 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     if (c.wlr_renderer_begin_buffer_pass(server.renderer, output.scene_buffer.?, null)) |pass| {
         // GL context is active after begin_buffer_pass; compile programs if needed
         ui.ensurePrograms(output);
+        if (output.gl_vbo == 0) gl.glGenBuffers(1, &output.gl_vbo);
+        if (output.gl_vao == 0) gl.glGenBuffers(1, &output.gl_vao);
 
         // background via GL into scene_buffer so glass shaders can refract it
         const sw: f32 = @floatFromInt(w);
@@ -1900,10 +2066,14 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
             .blend_mode = c.WLR_RENDER_BLEND_MODE_PREMULTIPLIED,
         });
 
-        ui.renderUI(server, output, w, h) catch @panic("Failed to render ui");
-        // deliver pressed_this_frame to Clay callbacks, then clear so it doesn't repeat
-        ui.zclay.setPointerState(.{ .x = @floatCast(server.cursor.x), .y = ui.screen_height - @as(f32, @floatCast(server.cursor.y)) }, ui.pointer_down);
-        ui.pointer_down = false;
+        const cursor_on_output = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y) == output.output;
+        ui.renderUI(server, output, w, h, cursor_on_output) catch @panic("Failed to render ui");
+        // deliver pressed_this_frame to Clay callbacks on the cursor output, then clear
+        if (cursor_on_output) {
+            const lpos = cursorLocalPos(server);
+            ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
+            ui.pointer_down = false;
+        }
 
         c.wlr_output_add_software_cursors_to_render_pass(output.output, out_pass, null);
         _ = c.wlr_render_pass_submit(out_pass);
@@ -1912,9 +2082,13 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     _ = c.wlr_output_commit_state(output.output, &state);
 
-    // keep requesting frames while animated UI is active
+    // keep requesting frames on ALL outputs while animated UI is active
     if (ui.volume_slider.isActive() or ui.menu_open or ui.beacon_open or ui.screenshot.isActive() or ui.recording.isRecording()) {
-        c.wlr_output_schedule_frame(output.output);
+        var link = server.outputs.next;
+        while (link != &server.outputs) : (link = link.*.next) {
+            const o: *WinglessOutput = @ptrCast(@alignCast(link));
+            c.wlr_output_schedule_frame(o.output);
+        }
     }
 
     var now: c.timespec = undefined;
@@ -1923,8 +2097,9 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 }
 
 fn output_request_state(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
-    _ = data;
+    const output: *WinglessOutput = @ptrCast(@as(*allowzero WinglessOutput, @fieldParentPtr("request_state", listener)));
+    const event: *c.wlr_output_event_request_state = @ptrCast(@alignCast(data.?));
+    _ = c.wlr_output_commit_state(output.output, event.state);
 }
 
 fn output_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -1965,6 +2140,69 @@ fn server_new_output(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c
     const l_output = c.wlr_output_layout_add_auto(server.output_layout, wlr_output);
     const scene_output = c.wlr_scene_output_create(server.scene, wlr_output);
     c.wlr_scene_output_layout_add_output(server.scene_layout, l_output, scene_output);
+
+    update_output_manager_config(server);
+}
+
+fn update_output_manager_config(server: *WinglessServer) void {
+    const cfg = c.wlr_output_configuration_v1_create() orelse return;
+    var link = server.outputs.next;
+    while (link != &server.outputs) : (link = link.*.next) {
+        const o: *WinglessOutput = @ptrCast(@alignCast(link));
+        _ = c.wlr_output_configuration_head_v1_create(cfg, o.output);
+    }
+    c.wlr_output_manager_v1_set_configuration(server.output_manager, cfg);
+}
+
+fn output_layout_change(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("output_layout_change", listener)));
+    update_output_manager_config(server);
+}
+
+fn output_manager_apply(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("output_manager_apply", listener)));
+    const cfg: *c.wlr_output_configuration_v1 = @ptrCast(@alignCast(data.?));
+
+    var states_len: usize = 0;
+    const states = c.wlr_output_configuration_v1_build_state(cfg, &states_len);
+    defer if (states != null) std.c.free(states);
+
+    var ok = false;
+    if (states != null) {
+        ok = c.wlr_backend_commit(server.backend, states, states_len);
+    }
+
+    if (ok) {
+        var head_link = cfg.heads.next;
+        while (head_link != &cfg.heads) : (head_link = head_link.*.next) {
+            const head: *c.wlr_output_configuration_head_v1 = @ptrCast(@as(*allowzero c.wlr_output_configuration_head_v1, @fieldParentPtr("link", head_link)));
+            if (head.state.enabled) {
+                _ = c.wlr_output_layout_add(server.output_layout, head.state.output, head.state.x, head.state.y);
+            } else {
+                c.wlr_output_layout_remove(server.output_layout, head.state.output);
+            }
+        }
+        c.wlr_output_configuration_v1_send_succeeded(cfg);
+    } else {
+        c.wlr_output_configuration_v1_send_failed(cfg);
+    }
+    update_output_manager_config(server);
+}
+
+fn output_manager_test(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("output_manager_test", listener)));
+    const cfg: *c.wlr_output_configuration_v1 = @ptrCast(@alignCast(data.?));
+
+    var states_len: usize = 0;
+    const states = c.wlr_output_configuration_v1_build_state(cfg, &states_len);
+    defer if (states != null) std.c.free(states);
+
+    if (states != null and c.wlr_backend_test(server.backend, states, states_len)) {
+        c.wlr_output_configuration_v1_send_succeeded(cfg);
+    } else {
+        c.wlr_output_configuration_v1_send_failed(cfg);
+    }
 }
 
 pub fn main() !void {
@@ -1973,6 +2211,7 @@ pub fn main() !void {
     const conf = try config.getConfig(allocator);
 
     var server = try WinglessServer.init(conf);
+    g_server = server;
 
     const socket = c.wl_display_add_socket_auto(server.display);
     _ = c.wlr_backend_start(server.backend);

@@ -31,6 +31,8 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_xdg_output_v1.h");
     @cInclude("wlr/types/wlr_linux_dmabuf_v1.h");
     @cInclude("wlr/types/wlr_pointer_constraints_v1.h");
+    @cInclude("wlr/types/wlr_relative_pointer_v1.h");
+    @cInclude("wlr/types/wlr_output_management_v1.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/xwayland.h");
     @cInclude("wayland-server-core.h");
