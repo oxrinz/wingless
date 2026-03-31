@@ -65,7 +65,7 @@ vec2 glassRimHighlight(float d, vec2 grad, float gradMag) {
     vec2 lightDir = normalize(vec2(-0.35, -0.45));
     float ndlTL = max(dot(-grad, lightDir), 0.0);
     float ndlBR = max(dot(-grad, -lightDir), 0.0);
-    float hlTL = rimBand * falloff * pow(ndlTL, 4.0) * hlFade;
-    float hlBR = rimBand * falloff * pow(ndlBR, 4.0) * hlFade;
+    float hlTL = rimBand * falloff * (pow(ndlTL, 5.0) * 1.5 + pow(ndlTL, 12.0) * 1.8) * hlFade;
+    float hlBR = rimBand * falloff * (pow(ndlBR, 5.0) * 1.5 + pow(ndlBR, 12.0) * 1.8) * hlFade;
     return vec2(hlTL, hlBR);
 }

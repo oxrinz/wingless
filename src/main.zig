@@ -551,19 +551,7 @@ const WinglessToplevel = struct {
 
     pub fn insert(self: *WinglessToplevel) void {
         const me: *Focusable = &self.focusable;
-
-        if (self.server.focused_toplevel) |f| {
-            const next = f.getNext();
-
-            me.setPrev(f);
-            me.setNext(next);
-
-            f.setNext(me);
-            next.setPrev(me);
-        } else {
-            self.prev = me;
-            self.next = me;
-        }
+        toplevelInsert(me);
     }
 
     pub fn remove(self: *WinglessToplevel) void {
@@ -604,6 +592,21 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.request_resize.link);
     }
 };
+
+fn toplevelInsert(me: *Focusable) void {
+    if (me.server().focused_toplevel) |f| {
+        const next = f.getNext();
+
+        me.setPrev(f);
+        me.setNext(next);
+
+        f.setNext(me);
+        next.setPrev(me);
+    } else {
+        me.setPrev(me);
+        me.setNext(me);
+    }
+}
 
 const WinglessXwayland = struct {
     focusable: Focusable,
@@ -657,22 +660,9 @@ const WinglessXwayland = struct {
         return toplevel;
     }
 
-    // TODO: merge with WinglessToplevel
     pub fn insert(self: *WinglessXwayland) void {
         const me: *Focusable = &self.focusable;
-
-        if (self.server.focused_toplevel) |f| {
-            const next = f.getNext();
-
-            me.setPrev(f);
-            me.setNext(next);
-
-            f.setNext(me);
-            next.setPrev(me);
-        } else {
-            self.prev = me;
-            self.next = me;
-        }
+        toplevelInsert(me);
     }
 
     pub fn remove(self: *WinglessXwayland) void {
@@ -773,14 +763,14 @@ fn seat_request_set_cursor(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("request_set_cursor", listener)));
     const event: *c.wlr_seat_pointer_request_set_cursor_event = @ptrCast(@alignCast(data.?));
 
-    // Only honor cursor requests from the focused client
+    // only honor cursor requests from the focused client
     const focused_client = server.seat.pointer_state.focused_client;
     if (focused_client != event.seat_client) return;
 
-    // Don't let clients override cursor while compositor UI is active
+    // don't let clients override cursor while compositor UI is active
     if (ui.menu_open or ui.beacon_open or ui.screenshot.isActive()) return;
 
-    // If pointer is locked, keep cursor hidden
+    // if pointer is locked, keep cursor hidden
     if (server.active_constraint) |constraint| {
         if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) return;
     }
@@ -807,24 +797,19 @@ fn seat_request_start_drag(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     }
 
     c.wlr_seat_start_pointer_drag(server.seat, event.drag, event.serial);
-    //c.wlr_seat_start_drag(server.seat, event.drag, event.serial);
     server.active_drag = event.drag;
     c.wl_signal_add(&drag.events.destroy, &server.drag_destroy);
 }
 
 fn tab_next(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
-
     const toplevel = server.focused_toplevel.?.getNext();
-
     focus_toplevel(toplevel);
 }
 
 fn tab_prev(server: *WinglessServer) void {
     if (server.focused_toplevel == null) return;
-
     const toplevel = server.focused_toplevel.?.getPrev();
-
     focus_toplevel(toplevel);
 }
 
@@ -834,19 +819,6 @@ pub fn focus_toplevel(focusable: *Focusable) void {
     const seat = server.seat;
 
     if (server.focused_toplevel != null and server.focused_toplevel.?.cmp(focusable)) {
-        // Even when already focused, re-activate XWayland: the game may have gone black because
-        // another X11 window raised itself above it in X11's stacking order (separate from the
-        // Wayland scene z-order), causing a VisibilityNotify that told the game it's occluded.
-        if (focusable.* == .xwayland) {
-            const xwl = focusable.xwayland;
-            c.wlr_xwayland_surface_activate(xwl.xsurface, true);
-            if (!xwl.xsurface.override_redirect)
-                c.wlr_xwayland_surface_restack(xwl.xsurface, null, c.XCB_STACK_MODE_ABOVE);
-            if (c.wlr_seat_get_keyboard(seat)) |kbd| {
-                const wlr_kbd: *c.wlr_keyboard = kbd;
-                c.wlr_seat_keyboard_notify_enter(seat, xwl.xsurface.surface, @ptrCast(&wlr_kbd.keycodes), wlr_kbd.num_keycodes, &wlr_kbd.modifiers);
-            }
-        }
         return;
     }
 
@@ -909,9 +881,6 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
-    // Reset linked-list pointers in case remove() was called during a prior unmap cycle
-    xwl.next = &xwl.focusable;
-    xwl.prev = &xwl.focusable;
 
     if (!xwl.xsurface.override_redirect) {
         xwl.scene_tree.?.node.data = xwl;
@@ -1741,7 +1710,10 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
             var link = server.outputs.next;
             while (link != &server.outputs) : (link = link.*.next) {
                 const wo: *WinglessOutput = @ptrCast(@alignCast(link));
-                if (found_cur) { next_out = wo.output; break; }
+                if (found_cur) {
+                    next_out = wo.output;
+                    break;
+                }
                 if (wo.output == cur_out) found_cur = true;
             }
             if (next_out == null and server.outputs.next != &server.outputs) {

@@ -396,7 +396,22 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
 
 const ShadowEntry = struct { x: f32, y: f32, w: f32, h: f32, roundness: f32, intensity: f32 };
 
-fn uploadShadowUniforms(prog: ui.ShadowProgram, entries: []const ShadowEntry, screen_h: f32, y_flip: bool) void {
+const BlobShadowEntry = struct {
+    centers: [16]f32,
+    scales: [8]f32,
+    widths: [8]f32,
+    heights: [8]f32,
+    radius: f32,
+    morph_k: f32,
+    intensity: f32,
+    mask_cx: f32,
+    mask_cy: f32,
+    mask_half_ex: f32,
+    mask_half_ey: f32,
+    mask_radius: f32,
+};
+
+fn uploadShadowUniforms(prog: ui.ShadowProgram, entries: []const ShadowEntry, blobs: []const BlobShadowEntry, screen_h: f32, y_flip: bool) void {
     for (0..ui.MAX_SHADOW_COUNT) |i| {
         if (i < entries.len) {
             const e = entries[i];
@@ -412,6 +427,48 @@ fn uploadShadowUniforms(prog: ui.ShadowProgram, entries: []const ShadowEntry, sc
             gl.glUniform1f(prog.intensity_locs[i], 0);
         }
     }
+
+    var flat_centers: [ui.MAX_BLOB_COUNT * 8 * 2]f32 = [_]f32{0} ** (ui.MAX_BLOB_COUNT * 8 * 2);
+    var flat_scales: [ui.MAX_BLOB_COUNT * 8]f32 = [_]f32{0} ** (ui.MAX_BLOB_COUNT * 8);
+    var flat_widths: [ui.MAX_BLOB_COUNT * 8]f32 = [_]f32{0} ** (ui.MAX_BLOB_COUNT * 8);
+    var flat_heights: [ui.MAX_BLOB_COUNT * 8]f32 = [_]f32{0} ** (ui.MAX_BLOB_COUNT * 8);
+    var flat_radius: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+    var flat_morph_k: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+    var flat_intensity: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+    var flat_mask_center: [ui.MAX_BLOB_COUNT * 2]f32 = [_]f32{0} ** (ui.MAX_BLOB_COUNT * 2);
+    var flat_mask_half_ex: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+    var flat_mask_half_ey: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+    var flat_mask_radius: [ui.MAX_BLOB_COUNT]f32 = [_]f32{0} ** ui.MAX_BLOB_COUNT;
+
+    for (blobs, 0..) |b, bi| {
+        for (0..8) |i| {
+            flat_centers[(bi * 8 + i) * 2] = b.centers[i * 2];
+            flat_centers[(bi * 8 + i) * 2 + 1] = b.centers[i * 2 + 1];
+            flat_scales[bi * 8 + i] = b.scales[i];
+            flat_widths[bi * 8 + i] = b.widths[i];
+            flat_heights[bi * 8 + i] = b.heights[i];
+        }
+        flat_radius[bi] = b.radius;
+        flat_morph_k[bi] = b.morph_k;
+        flat_intensity[bi] = b.intensity;
+        flat_mask_center[bi * 2] = b.mask_cx;
+        flat_mask_center[bi * 2 + 1] = b.mask_cy;
+        flat_mask_half_ex[bi] = b.mask_half_ex;
+        flat_mask_half_ey[bi] = b.mask_half_ey;
+        flat_mask_radius[bi] = b.mask_radius;
+    }
+
+    gl.glUniform2fv(prog.blob_centers_loc, ui.MAX_BLOB_COUNT * 8, &flat_centers[0]);
+    gl.glUniform1fv(prog.blob_scales_loc, ui.MAX_BLOB_COUNT * 8, &flat_scales[0]);
+    gl.glUniform1fv(prog.blob_widths_loc, ui.MAX_BLOB_COUNT * 8, &flat_widths[0]);
+    gl.glUniform1fv(prog.blob_heights_loc, ui.MAX_BLOB_COUNT * 8, &flat_heights[0]);
+    gl.glUniform1fv(prog.blob_radius_loc, ui.MAX_BLOB_COUNT, &flat_radius[0]);
+    gl.glUniform1fv(prog.blob_morph_k_loc, ui.MAX_BLOB_COUNT, &flat_morph_k[0]);
+    gl.glUniform1fv(prog.blob_intensity_loc, ui.MAX_BLOB_COUNT, &flat_intensity[0]);
+    gl.glUniform2fv(prog.blob_mask_center_loc, ui.MAX_BLOB_COUNT, &flat_mask_center[0]);
+    gl.glUniform1fv(prog.blob_mask_half_ex_loc, ui.MAX_BLOB_COUNT, &flat_mask_half_ex[0]);
+    gl.glUniform1fv(prog.blob_mask_half_ey_loc, ui.MAX_BLOB_COUNT, &flat_mask_half_ey[0]);
+    gl.glUniform1fv(prog.blob_mask_radius_loc, ui.MAX_BLOB_COUNT, &flat_mask_radius[0]);
 }
 
 // Scene-buffer-pass: single window shadow (no y-flip, padded quad)
@@ -419,7 +476,7 @@ fn drawWindowShadowScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32
     const prog = output.shadow orelse return;
     gl.glUseProgram(prog.prog);
     gl.glUniform2f(prog.resolution_loc, screen_w, screen_h);
-    uploadShadowUniforms(prog, &.{.{ .x = x, .y = y, .w = w, .h = h, .roundness = roundness, .intensity = intensity }}, screen_h, false);
+    uploadShadowUniforms(prog, &.{.{ .x = x, .y = y, .w = w, .h = h, .roundness = roundness, .intensity = intensity }}, &.{}, screen_h, false);
     const pad: f32 = 200 * ui.ui_scale;
     drawQuadScene(output, x - pad, y - pad, w + pad * 2, h + pad * 2, screen_w, screen_h, prog.pos_loc);
 }
@@ -572,14 +629,16 @@ pub fn render(ctx: ui.RenderContext) void {
     {
         var entries: [ui.MAX_SHADOW_COUNT]ShadowEntry = undefined;
         var count: usize = 0;
+        var blob_entries: [ui.MAX_BLOB_COUNT]BlobShadowEntry = undefined;
+        var blob_count: usize = 0;
 
         for (render_cmds) |cmd| {
-            if (count >= ui.MAX_SHADOW_COUNT) break;
             if (cmd.command_type != .custom) continue;
             const cd: *ui.CustomData = @ptrCast(@alignCast(cmd.render_data.custom.custom_data));
             const bb = cmd.bounding_box;
             switch (cd.*) {
                 .glass => |g| {
+                    if (count >= ui.MAX_SHADOW_COUNT) continue;
                     const x, const y, const w, const h = if (g.animated) blk: {
                         const cx = bb.x + bb.width * 0.5;
                         const cy = bb.y + bb.height * 0.5;
@@ -589,6 +648,7 @@ pub fn render(ctx: ui.RenderContext) void {
                     count += 1;
                 },
                 .shadow => |sh| {
+                    if (count >= ui.MAX_SHADOW_COUNT) continue;
                     const x, const y, const w, const h = if (sh.animated) blk: {
                         const cx = bb.x + bb.width * 0.5;
                         const cy = bb.y + bb.height * 0.5;
@@ -598,21 +658,33 @@ pub fn render(ctx: ui.RenderContext) void {
                     count += 1;
                 },
                 .glass_blob => |pcb| {
-                    if (pcb.shadow_w > 0.0) {
-                        const shadow_intensity = 0.01 * @min(0.5 * 100.0, pcb.shadow_r * 2.0);
-                        entries[count] = .{ .x = pcb.shadow_x, .y = pcb.shadow_y, .w = pcb.shadow_w, .h = pcb.shadow_h, .roundness = pcb.shadow_r, .intensity = shadow_intensity };
-                        count += 1;
-                    }
+                    if (blob_count >= ui.MAX_BLOB_COUNT) continue;
+                    const intensity = 0.01 * @min(0.5 * 100.0, pcb.radius * 2.0);
+                    blob_entries[blob_count] = .{
+                        .centers = pcb.centers,
+                        .scales = pcb.scales,
+                        .widths = pcb.widths,
+                        .heights = pcb.heights,
+                        .radius = pcb.radius,
+                        .morph_k = pcb.morph_k,
+                        .intensity = intensity,
+                        .mask_cx = pcb.mask_cx,
+                        .mask_cy = pcb.mask_cy,
+                        .mask_half_ex = pcb.mask_half_ex,
+                        .mask_half_ey = pcb.mask_half_ey,
+                        .mask_radius = pcb.mask_r,
+                    };
+                    blob_count += 1;
                 },
                 else => {},
             }
         }
 
-        if (count > 0) {
+        if (count > 0 or blob_count > 0) {
             if (ctx.output.shadow) |prog| {
                 gl.glUseProgram(prog.prog);
                 gl.glUniform2f(prog.resolution_loc, ctx.screen_width, ctx.screen_height);
-                uploadShadowUniforms(prog, entries[0..count], ctx.screen_height, true);
+                uploadShadowUniforms(prog, entries[0..count], blob_entries[0..blob_count], ctx.screen_height, true);
                 drawQuad(ctx.output, 0, 0, ctx.screen_width, ctx.screen_height, ctx.screen_width, ctx.screen_height, prog.pos_loc);
             }
         }

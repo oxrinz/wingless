@@ -200,6 +200,37 @@ var bt_item_cb: [max_net_hover]BtItemCb = undefined;
 var bt_item_hover: [max_net_hover]bool = [_]bool{false} ** max_net_hover;
 var bt_item_hover_bright: [max_net_hover]f32 = [_]f32{0.0} ** max_net_hover;
 
+const max_audio_entries = 8;
+const AudioEntry = struct {
+    name: [128]u8 = [_]u8{0} ** 128,
+    name_len: usize = 0,
+    desc: [128]u8 = [_]u8{0} ** 128,
+    desc_len: usize = 0,
+    is_default: bool = false,
+};
+
+var speaker_entries: [max_audio_entries]AudioEntry = [_]AudioEntry{.{}} ** max_audio_entries;
+var speaker_count: usize = 0;
+var speaker_mutex: std.Thread.Mutex = .{};
+var speaker_fetching: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
+var speaker_snapshot: [max_audio_entries]AudioEntry = [_]AudioEntry{.{}} ** max_audio_entries;
+var speaker_snapshot_count: usize = 0;
+
+var mic_entries: [max_audio_entries]AudioEntry = [_]AudioEntry{.{}} ** max_audio_entries;
+var mic_count: usize = 0;
+var mic_mutex: std.Thread.Mutex = .{};
+var mic_fetching: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
+var mic_snapshot: [max_audio_entries]AudioEntry = [_]AudioEntry{.{}} ** max_audio_entries;
+var mic_snapshot_count: usize = 0;
+
+const AudioItemCb = struct { idx: usize, is_speaker: bool };
+var speaker_item_cb: [max_net_hover]AudioItemCb = undefined;
+var speaker_item_hover: [max_net_hover]bool = [_]bool{false} ** max_net_hover;
+var speaker_item_hover_bright: [max_net_hover]f32 = [_]f32{0.0} ** max_net_hover;
+var mic_item_cb: [max_net_hover]AudioItemCb = undefined;
+var mic_item_hover: [max_net_hover]bool = [_]bool{false} ** max_net_hover;
+var mic_item_hover_bright: [max_net_hover]f32 = [_]f32{0.0} ** max_net_hover;
+
 var clock_buf: [16]u8 = undefined;
 var clock_str: []u8 = clock_buf[0..0];
 
@@ -208,8 +239,8 @@ var date_str: []u8 = date_buf[0..0];
 
 // this is public only because of the fullscreen blur
 pub var menu_state: f32 = 0;
-// btn_states[0]=Power, [1]=Reboot, [2]=BT, [3]=WiFi, [4]=Capture, [5]=Rickroll (right to left)
-var btn_states: [6]f32 = [_]f32{0} ** 6;
+// btn_states[0]=Power, [1]=Reboot, [2]=BT, [3]=WiFi, [4]=Capture, [5]=Rickroll, [6]=Speaker, [7]=Mic (right to left)
+var btn_states: [8]f32 = [_]f32{0} ** 8;
 
 var capture_hover: bool = false;
 var capture_hover_brightness: f32 = 0.05;
@@ -218,6 +249,22 @@ var capture_hover_scale: f32 = 1.0;
 var rickroll_hover: bool = false;
 var rickroll_hover_brightness: f32 = 0.05;
 var rickroll_hover_scale: f32 = 1.0;
+
+var speaker_open: bool = false;
+var speaker_panel_state: f32 = 0.0;
+var speaker_hover: bool = false;
+var speaker_hover_brightness: f32 = 0.05;
+var speaker_hover_scale: f32 = 1.0;
+var speaker_circle_grow: f32 = 0.0;
+var speaker_panel_full_h: f32 = 54.0;
+
+var mic_open: bool = false;
+var mic_panel_state: f32 = 0.0;
+var mic_hover: bool = false;
+var mic_hover_brightness: f32 = 0.05;
+var mic_hover_scale: f32 = 1.0;
+var mic_circle_grow: f32 = 0.0;
+var mic_panel_full_h: f32 = 54.0;
 
 const max_thumbs = 16;
 var thumb_hover: [max_thumbs]bool = [_]bool{false} ** max_thumbs;
@@ -673,6 +720,126 @@ fn fetchBtThread() void {
     }
 }
 
+fn fetchAudioThread(is_speaker: bool) void {
+    const fetching = if (is_speaker) &speaker_fetching else &mic_fetching;
+    defer fetching.store(false, .release);
+    const alloc = std.heap.page_allocator;
+
+    // Get default device name
+    var def_buf: [256]u8 = [_]u8{0} ** 256;
+    var def_name: []const u8 = "";
+    {
+        const cmd = if (is_speaker) &[_][]const u8{ "pactl", "get-default-sink" } else &[_][]const u8{ "pactl", "get-default-source" };
+        var child = std.process.Child.init(cmd, alloc);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+        child.spawn() catch {};
+        if (child.stdout) |stdout| {
+            const out = stdout.readToEndAlloc(alloc, 4096) catch "";
+            defer alloc.free(out);
+            const trimmed = std.mem.trim(u8, out, " \n\r\t");
+            const l = @min(trimmed.len, def_buf.len - 1);
+            @memcpy(def_buf[0..l], trimmed[0..l]);
+            def_name = def_buf[0..l];
+        }
+        _ = child.wait() catch {};
+    }
+
+    const list_cmd = if (is_speaker)
+        &[_][]const u8{ "pactl", "list", "sinks" }
+    else
+        &[_][]const u8{ "pactl", "list", "sources" };
+    var child = std.process.Child.init(list_cmd, alloc);
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Ignore;
+    child.spawn() catch return;
+    const stdout_data = if (child.stdout) |s| s.readToEndAlloc(alloc, 128 * 1024) catch "" else "";
+    defer alloc.free(stdout_data);
+    _ = child.wait() catch {};
+
+    var entries: [max_audio_entries]AudioEntry = [_]AudioEntry{.{}} ** max_audio_entries;
+    var count: usize = 0;
+    var cur_name_buf: [128]u8 = [_]u8{0} ** 128;
+    var cur_desc_buf: [128]u8 = [_]u8{0} ** 128;
+    var cur_name: []u8 = cur_name_buf[0..0];
+    var cur_desc: []u8 = cur_desc_buf[0..0];
+    var in_block = false;
+    var is_monitor = false;
+
+    const block_prefix = if (is_speaker) "Sink #" else "Source #";
+    var lines = std.mem.splitScalar(u8, stdout_data, '\n');
+    while (lines.next()) |raw_line| {
+        const line = std.mem.trimLeft(u8, raw_line, " \t");
+        if (std.mem.startsWith(u8, line, block_prefix)) {
+            if (in_block and cur_name.len > 0 and !is_monitor and count < max_audio_entries) {
+                entries[count].is_default = std.mem.eql(u8, cur_name, def_name);
+                const nl = @min(cur_name.len, 127);
+                @memcpy(entries[count].name[0..nl], cur_name[0..nl]);
+                entries[count].name_len = nl;
+                const dl = @min(cur_desc.len, 127);
+                @memcpy(entries[count].desc[0..dl], cur_desc[0..dl]);
+                entries[count].desc_len = dl;
+                count += 1;
+            }
+            in_block = true;
+            is_monitor = false;
+            cur_name = cur_name_buf[0..0];
+            cur_desc = cur_desc_buf[0..0];
+        } else if (in_block and std.mem.startsWith(u8, line, "Name: ")) {
+            const v = std.mem.trim(u8, line[6..], " \t\r");
+            if (!is_speaker and std.mem.indexOf(u8, v, ".monitor") != null) is_monitor = true;
+            const l = @min(v.len, cur_name_buf.len - 1);
+            @memcpy(cur_name_buf[0..l], v[0..l]);
+            cur_name = cur_name_buf[0..l];
+        } else if (in_block and std.mem.startsWith(u8, line, "Description: ")) {
+            const v = std.mem.trim(u8, line[13..], " \t\r");
+            const l = @min(v.len, cur_desc_buf.len - 1);
+            @memcpy(cur_desc_buf[0..l], v[0..l]);
+            cur_desc = cur_desc_buf[0..l];
+        }
+    }
+    if (in_block and cur_name.len > 0 and !is_monitor and count < max_audio_entries) {
+        entries[count].is_default = std.mem.eql(u8, cur_name, def_name);
+        const nl = @min(cur_name.len, 127);
+        @memcpy(entries[count].name[0..nl], cur_name[0..nl]);
+        entries[count].name_len = nl;
+        const dl = @min(cur_desc.len, 127);
+        @memcpy(entries[count].desc[0..dl], cur_desc[0..dl]);
+        entries[count].desc_len = dl;
+        count += 1;
+    }
+
+    if (is_speaker) {
+        speaker_mutex.lock();
+        @memcpy(speaker_entries[0..count], entries[0..count]);
+        speaker_count = count;
+        speaker_mutex.unlock();
+    } else {
+        mic_mutex.lock();
+        @memcpy(mic_entries[0..count], entries[0..count]);
+        mic_count = count;
+        mic_mutex.unlock();
+    }
+}
+
+fn refreshSpeakers() void {
+    if (speaker_fetching.swap(true, .acquire)) return;
+    const t = std.Thread.spawn(.{}, fetchAudioThread, .{true}) catch {
+        speaker_fetching.store(false, .release);
+        return;
+    };
+    t.detach();
+}
+
+fn refreshMic() void {
+    if (mic_fetching.swap(true, .acquire)) return;
+    const t = std.Thread.spawn(.{}, fetchAudioThread, .{false}) catch {
+        mic_fetching.store(false, .release);
+        return;
+    };
+    t.detach();
+}
+
 pub fn toggleMenu() void {
     if (ui.beacon_open == false and !ui.screenshot.isActive()) {
         ui.menu_open = !ui.menu_open;
@@ -707,12 +874,16 @@ pub fn tick(dt: f32) void {
         if (btn_states[2] > 0.3) btn_states[3] = @min(1.0, lerp(btn_states[3], 1.0, bs));
         if (btn_states[3] > 0.3) btn_states[4] = @min(1.0, lerp(btn_states[4], 1.0, bs));
         if (btn_states[4] > 0.3) btn_states[5] = @min(1.0, lerp(btn_states[5], 1.0, bs));
+        if (btn_states[5] > 0.3) btn_states[6] = @min(1.0, lerp(btn_states[6], 1.0, bs));
+        if (btn_states[6] > 0.3) btn_states[7] = @min(1.0, lerp(btn_states[7], 1.0, bs));
     } else {
         btn_states[0] = @max(0.0, lerp(btn_states[0], 0.0, bs));
         if (btn_states[0] < 0.7) btn_states[2] = @max(0.0, lerp(btn_states[2], 0.0, bs));
         if (btn_states[2] < 0.7) btn_states[3] = @max(0.0, lerp(btn_states[3], 0.0, bs));
         if (btn_states[3] < 0.7) btn_states[4] = @max(0.0, lerp(btn_states[4], 0.0, bs));
         if (btn_states[4] < 0.7) btn_states[5] = @max(0.0, lerp(btn_states[5], 0.0, bs));
+        if (btn_states[5] < 0.7) btn_states[6] = @max(0.0, lerp(btn_states[6], 0.0, bs));
+        if (btn_states[6] < 0.7) btn_states[7] = @max(0.0, lerp(btn_states[7], 0.0, bs));
     }
 
     const ts = c.time(null);
@@ -767,49 +938,85 @@ pub fn tick(dt: f32) void {
     anim_time += dt;
     wifi_panel_state = lerp(wifi_panel_state, if (wifi_open) 1.0 else 0.0, dt * 8.0);
     bt_panel_state = lerp(bt_panel_state, if (bt_open) 1.0 else 0.0, dt * 8.0);
+    speaker_panel_state = lerp(speaker_panel_state, if (speaker_open) 1.0 else 0.0, dt * 8.0);
+    mic_panel_state = lerp(mic_panel_state, if (mic_open) 1.0 else 0.0, dt * 8.0);
 
-    // Staggered per-circle grow: whichever button opened leads, others follow with offset
+    // Staggered per-circle grow: opened button leads, others follow proportional to distance.
+    // Button positions (right-to-left): bt=0, wifi=1, cap=2, rickroll=3, speaker=4, mic=5
     {
-        const open_state = @max(bt_panel_state, wifi_panel_state);
-        const stagger: f32 = 0.18; // how far behind (in open_state units) followers start
+        const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
+        const stagger: f32 = 0.18;
         const spd = dt * 9.0;
+        const sg = stagger;
         if (bt_open) {
-            bt_circle_grow = lerp(bt_circle_grow, open_state, spd);
-            wifi_circle_grow = lerp(wifi_circle_grow, @max(0.0, open_state - stagger), spd);
-            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - stagger * 2.0), spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - stagger * 3.0), spd);
+            bt_circle_grow     = lerp(bt_circle_grow,       open_state,                        spd);
+            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
+            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg * 4.0),  spd);
+            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 5.0),  spd);
         } else if (wifi_open) {
-            wifi_circle_grow = lerp(wifi_circle_grow, open_state, spd);
-            bt_circle_grow = lerp(bt_circle_grow, @max(0.0, open_state - stagger), spd);
-            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - stagger * 2.0), spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - stagger * 3.0), spd);
+            // wifi pos=1: bt=1 right, cap=1 left, rickroll=2, speaker=3, mic=4
+            wifi_circle_grow   = lerp(wifi_circle_grow,     open_state,                        spd);
+            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg),        spd);
+            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg),        spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg * 3.0),  spd);
+            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 4.0),  spd);
+        } else if (speaker_open) {
+            // speaker pos=4: mic=1 left, rickroll=1 right, cap=2, wifi=3, bt=4
+            speaker_circle_grow = lerp(speaker_circle_grow, open_state,                        spd);
+            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg),        spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg),      spd);
+            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
+            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 3.0),  spd);
+            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 4.0),  spd);
+        } else if (mic_open) {
+            // mic pos=5: speaker=1, rickroll=2, cap=3, wifi=4, bt=5
+            mic_circle_grow    = lerp(mic_circle_grow,      open_state,                        spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg),        spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
+            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 4.0),  spd);
+            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 5.0),  spd);
         } else {
-            bt_circle_grow = lerp(bt_circle_grow, 0.0, spd);
-            wifi_circle_grow = lerp(wifi_circle_grow, 0.0, spd);
-            cap_circle_grow = lerp(cap_circle_grow, 0.0, spd);
+            bt_circle_grow     = lerp(bt_circle_grow,       0.0, spd);
+            wifi_circle_grow   = lerp(wifi_circle_grow,     0.0, spd);
+            cap_circle_grow    = lerp(cap_circle_grow,      0.0, spd);
             rickroll_circle_grow = lerp(rickroll_circle_grow, 0.0, spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, 0.0, spd);
+            mic_circle_grow    = lerp(mic_circle_grow,      0.0, spd);
         }
     }
 
     // Top cluster blob: animate morph_k and bounding box height
-    const any_open_state = @max(bt_panel_state, wifi_panel_state);
+    const any_open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
     top_cluster_morph_k = lerp(top_cluster_morph_k, @max(15.0, any_open_state * 80.0) * ui.ui_scale, dt * 10.0);
     {
         const s = ui.ui_scale;
         const item_h: f32 = 38 * s;
         const pad: f32 = 14 * s;
         const list_vis: usize = @min(wifi_snapshot_count, 6);
-        // pw mode: label (16s) + gap (8s) + input (54s) = 78s
         const target_list_h: f32 = if (wifi_pw_mode) item_h + 24 * s else if (list_vis == 0) item_h else @as(f32, @floatFromInt(list_vis)) * item_h;
         wifi_panel_full_h = lerp(wifi_panel_full_h, pad * 2 + target_list_h, dt * 25.0);
 
-        // Top cluster bounding box height: tallest of BT/WiFi panels when open
-        const bt_item_h: f32 = 54 * s;
+        const dev_item_h: f32 = 54 * s;
         const bt_list_vis: usize = @min(bt_snapshot_count, 6);
-        const bt_list_h: f32 = if (bt_list_vis == 0) bt_item_h else @as(f32, @floatFromInt(bt_list_vis)) * bt_item_h;
+        const bt_list_h: f32 = if (bt_list_vis == 0) dev_item_h else @as(f32, @floatFromInt(bt_list_vis)) * dev_item_h;
         const bt_full_h: f32 = pad * 2 + bt_list_h;
+
+        const sp_list_vis: usize = @min(speaker_snapshot_count, 6);
+        const sp_list_h: f32 = if (sp_list_vis == 0) dev_item_h else @as(f32, @floatFromInt(sp_list_vis)) * dev_item_h;
+        speaker_panel_full_h = lerp(speaker_panel_full_h, pad * 2 + sp_list_h, dt * 25.0);
+
+        const mc_list_vis: usize = @min(mic_snapshot_count, 6);
+        const mc_list_h: f32 = if (mc_list_vis == 0) dev_item_h else @as(f32, @floatFromInt(mc_list_vis)) * dev_item_h;
+        mic_panel_full_h = lerp(mic_panel_full_h, pad * 2 + mc_list_h, dt * 25.0);
+
         const target_blob_h: f32 = if (bt_open or bt_panel_state > 0.01) bt_full_h
             else if (wifi_open or wifi_panel_state > 0.01) wifi_panel_full_h
+            else if (speaker_open or speaker_panel_state > 0.01) speaker_panel_full_h
+            else if (mic_open or mic_panel_state > 0.01) mic_panel_full_h
             else 54 * s;
         top_cluster_blob_h = lerp(top_cluster_blob_h, target_blob_h, dt * 10.0);
     }
@@ -838,10 +1045,16 @@ pub fn tick(dt: f32) void {
     capture_hover_scale = lerp(capture_hover_scale, if (capture_hover) 1.06 else 1.0, speed);
     rickroll_hover_brightness = lerp(rickroll_hover_brightness, if (rickroll_hover) 0.18 else 0.05, speed);
     rickroll_hover_scale = lerp(rickroll_hover_scale, if (rickroll_hover) 1.06 else 1.0, speed);
+    speaker_hover_brightness = lerp(speaker_hover_brightness, if (speaker_hover and speaker_panel_state < 0.05) 0.18 else 0.05, speed);
+    speaker_hover_scale = lerp(speaker_hover_scale, if (speaker_hover and speaker_panel_state < 0.05) 1.06 else 1.0, speed);
+    mic_hover_brightness = lerp(mic_hover_brightness, if (mic_hover and mic_panel_state < 0.05) 0.18 else 0.05, speed);
+    mic_hover_scale = lerp(mic_hover_scale, if (mic_hover and mic_panel_state < 0.05) 1.06 else 1.0, speed);
     wifi_hover = false;
     bt_hover = false;
     capture_hover = false;
     rickroll_hover = false;
+    speaker_hover = false;
+    mic_hover = false;
 
     // close panel on click outside
     const pressed_this_frame = ui.pointer_down and !prev_pointer_down;
@@ -853,6 +1066,8 @@ pub fn tick(dt: f32) void {
             wifi_pw_show = false;
         }
         if (bt_open and !zclay.pointerOver(zclay.ElementId.ID("BtBtn")) and !zclay.pointerOver(zclay.ElementId.ID("BtPanel"))) bt_open = false;
+        if (speaker_open and !zclay.pointerOver(zclay.ElementId.ID("SpeakerBtn")) and !zclay.pointerOver(zclay.ElementId.ID("SpeakerPanel"))) speaker_open = false;
+        if (mic_open and !zclay.pointerOver(zclay.ElementId.ID("MicBtn")) and !zclay.pointerOver(zclay.ElementId.ID("MicPanel"))) mic_open = false;
         // Close the power cluster if clicking outside all its buttons
         if (cluster_open and
             !zclay.pointerOver(zclay.ElementId.ID("ClusterBtnCenter")) and
@@ -873,17 +1088,23 @@ pub fn tick(dt: f32) void {
         wifi_item_hover[i] = false;
         bt_item_hover_bright[i] = lerp(bt_item_hover_bright[i], if (bt_item_hover[i]) 0.09 else 0.0, speed);
         bt_item_hover[i] = false;
+        speaker_item_hover_bright[i] = lerp(speaker_item_hover_bright[i], if (speaker_item_hover[i]) 0.09 else 0.0, speed);
+        speaker_item_hover[i] = false;
+        mic_item_hover_bright[i] = lerp(mic_item_hover_bright[i], if (mic_item_hover[i]) 0.09 else 0.0, speed);
+        mic_item_hover[i] = false;
     }
     if (!ui.menu_open and menu_state < 0.01) {
         wifi_open = false;
         wifi_pw_mode = false;
         wifi_pw_len = 0;
         bt_open = false;
+        speaker_open = false;
+        mic_open = false;
     }
 }
 
 pub fn isActive() bool {
-    return ui.menu_open or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001 or btn_states[5] > 0.0001;
+    return ui.menu_open or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001 or btn_states[5] > 0.0001 or btn_states[6] > 0.0001 or btn_states[7] > 0.0001;
 }
 
 pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
@@ -934,15 +1155,16 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     });
 
     const top_y = ui.screen_height - 40.0 * s;
-    const btn_y = [4]f32{
+    const btn_y = [6]f32{
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]),
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]),
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]),
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[6]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[7]),
     };
 
-
-    const open_state = @max(bt_panel_state, wifi_panel_state);
+    const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
     const icon_alpha = std.math.clamp(1.0 - open_state / 0.3, 0.0, 1.0);
     const mask_overhang = 10.0 * s;
 
@@ -958,56 +1180,85 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         const bt_full_h: f32 = bt_pad_f * 2 + bt_list_h;
 
         // GL coords: y from bottom of screen — each button has its own animated Y
-        const bt_cy_gl = (ui.screen_height - btn_y[0]) + radius;
-        const wifi_cy_gl = (ui.screen_height - btn_y[1]) + radius;
-        const cap_cy_gl = (ui.screen_height - btn_y[2]) + radius;
+        const bt_cy_gl       = (ui.screen_height - btn_y[0]) + radius;
+        const wifi_cy_gl     = (ui.screen_height - btn_y[1]) + radius;
+        const cap_cy_gl      = (ui.screen_height - btn_y[2]) + radius;
         const rickroll_cy_gl = (ui.screen_height - btn_y[3]) + radius;
+        const speaker_cy_gl  = (ui.screen_height - btn_y[4]) + radius;
+        const mic_cy_gl      = (ui.screen_height - btn_y[5]) + radius;
 
         // Circles stay at their button centers and grow radially (scale) to fill the mask.
-        const bt_cx_gl = ui.screen_width - 40.0 * s - radius;
-
-        const wifi_right_x = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s;
-        const wifi_cx_gl = wifi_right_x - radius;
-
-        const cap_cx_gl = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - radius;
-        const rickroll_cx_gl = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - radius;
+        // Each button is 54px wide with 12px gap: step = 66px per position.
+        const bt_cx_gl       = ui.screen_width - 40.0 * s - radius;
+        const wifi_cx_gl     = bt_cx_gl - 66.0 * s;
+        const cap_cx_gl      = bt_cx_gl - 132.0 * s;
+        const rickroll_cx_gl = bt_cx_gl - 198.0 * s;
+        const speaker_cx_gl  = bt_cx_gl - 264.0 * s;
+        const mic_cx_gl      = bt_cx_gl - 330.0 * s;
 
         const centers = [16]f32{
-            bt_cx_gl, bt_cy_gl, wifi_cx_gl, wifi_cy_gl,
-            cap_cx_gl, cap_cy_gl, rickroll_cx_gl, rickroll_cy_gl,
-            0, 0, 0, 0, 0, 0, 0, 0,
+            bt_cx_gl,      bt_cy_gl,
+            wifi_cx_gl,    wifi_cy_gl,
+            cap_cx_gl,     cap_cy_gl,
+            rickroll_cx_gl, rickroll_cy_gl,
+            speaker_cx_gl, speaker_cy_gl,
+            mic_cx_gl,     mic_cy_gl,
+            0, 0, 0, 0,
         };
-        // Mask: panel shape, slightly overhanging top and right past BT button boundary.
-        const opened_h = if (bt_panel_state >= wifi_panel_state) bt_full_h else wifi_panel_full_h;
 
-        // Max scale per circle: circle radius must reach the farthest mask corner
-        // exactly when that circle's grow value peaks (accounting for stagger).
-        // bt/wifi peak at cg = 0.82, cap at 0.64, rickroll at 0.46.
-        // Formula: max_scale = (diag - radius) / (cg_max * radius) + 1
+        // Mask: panel shape — picks tallest open panel height
+        const opened_h_candidates = [4]f32{ bt_full_h, wifi_panel_full_h, speaker_panel_full_h, mic_panel_full_h };
+        const opened_h_states = [4]f32{ bt_panel_state, wifi_panel_state, speaker_panel_state, mic_panel_state };
+        var opened_h: f32 = bt_full_h;
+        var max_ps: f32 = 0.0;
+        for (opened_h_candidates, opened_h_states) |h, ps| {
+            if (ps > max_ps) { max_ps = ps; opened_h = h; }
+        }
+
+        // Max scale: each circle's radius must reach the farthest mask corner at its peak grow value.
+        // All circles calibrated for 0.82 peak (1-step follower). Leaders overshoot slightly — fine.
+        // bt/wifi/cap/rickroll: farthest corner is the opposite horizontal edge of mask.
+        // speaker/mic: farthest corner is the mask right edge (they're further left than panel center).
         const vert_dist = opened_h - mask_overhang - radius;
-        const bt_diag = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
-        const wifi_diag = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
-        const cap_diag = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
-        const rickroll_diag = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
-        const bt_max_scale = @max(1.5, (bt_diag - radius) / (0.82 * radius) + 1.0);
-        const wifi_max_scale = @max(1.5, (wifi_diag - radius) / (0.82 * radius) + 1.0);
-        const cap_max_scale = @max(1.5, (cap_diag - radius) / (0.64 * radius) + 1.0);
-        const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.46 * radius) + 1.0);
-        const bt_scale = lerp(1.0, bt_max_scale, bt_circle_grow);
-        const wifi_scale = lerp(1.0, wifi_max_scale, wifi_circle_grow);
-        const cap_scale = lerp(1.0, cap_max_scale, cap_circle_grow);
+        const mask_right_dist = 40.0 * s - radius; // from mask right edge to bt center (small)
+        const bt_diag        = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
+        const wifi_diag      = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
+        const cap_diag       = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
+        const rickroll_diag  = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
+        // speaker/mic are left of the panel; their farthest corner is the panel right edge
+        const speaker_h_dist = (264.0 * s) - mask_right_dist; // horiz dist to right edge
+        const mic_h_dist     = (330.0 * s) - mask_right_dist;
+        const speaker_diag   = @sqrt(speaker_h_dist * speaker_h_dist + vert_dist * vert_dist);
+        const mic_diag       = @sqrt(mic_h_dist * mic_h_dist + vert_dist * vert_dist);
+        const bt_max_scale       = @max(1.5, (bt_diag       - radius) / (0.82 * radius) + 1.0);
+        const wifi_max_scale     = @max(1.5, (wifi_diag     - radius) / (0.82 * radius) + 1.0);
+        const cap_max_scale      = @max(1.5, (cap_diag      - radius) / (0.82 * radius) + 1.0);
+        const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.82 * radius) + 1.0);
+        const speaker_max_scale  = @max(1.5, (speaker_diag  - radius) / (0.82 * radius) + 1.0);
+        const mic_max_scale      = @max(1.5, (mic_diag      - radius) / (0.82 * radius) + 1.0);
+        const bt_scale       = lerp(1.0, bt_max_scale,       bt_circle_grow);
+        const wifi_scale     = lerp(1.0, wifi_max_scale,     wifi_circle_grow);
+        const cap_scale      = lerp(1.0, cap_max_scale,      cap_circle_grow);
         const rickroll_scale = lerp(1.0, rickroll_max_scale, rickroll_circle_grow);
-        const scales_arr = [8]f32{ bt_hover_scale * bt_scale, wifi_hover_scale * wifi_scale, capture_hover_scale * cap_scale, rickroll_hover_scale * rickroll_scale, 0, 0, 0, 0 };
-        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, 0, 0, 0, 0 };
-        const widths_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        const speaker_scale  = lerp(1.0, speaker_max_scale,  speaker_circle_grow);
+        const mic_scale      = lerp(1.0, mic_max_scale,      mic_circle_grow);
+        const scales_arr = [8]f32{
+            bt_hover_scale * bt_scale,       wifi_hover_scale * wifi_scale,
+            capture_hover_scale * cap_scale, rickroll_hover_scale * rickroll_scale,
+            speaker_hover_scale * speaker_scale, mic_hover_scale * mic_scale,
+            0, 0,
+        };
+        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, speaker_hover_brightness, mic_hover_brightness, 0, 0 };
+        const widths_arr  = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        const mask_r = radius;
+        const mask_r  = radius;
         const mask_ex = panel_half_w - radius + mask_overhang / 2.0;
         const mask_ey = @max(opened_h / 2.0 - radius, 0.0);
         const mask_cx_gl = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
         const mask_cy_gl = (ui.screen_height - btn_y[0]) + radius + @max(opened_h / 2.0 - radius, 0.0) - mask_overhang;
 
-        const blob_bb_w = 300.0 * s;
+        // Bounding box must cover all 6 buttons (mic is leftmost at ~357px from right edge)
+        const blob_bb_w = 400.0 * s;
         const blob_bb_h = top_cluster_blob_h;
 
         zclay.UI()(.{
@@ -1021,6 +1272,76 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             .custom = .{ .custom_data = ui.mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, top_cluster_morph_k, 0, 0, 0, 0, 0, open_state, mask_cx_gl, mask_cy_gl, mask_ex, mask_ey, mask_r) },
         })({});
     }
+
+    // Generic device-list panel renderer — used by BT, Speaker, Mic
+    const GenericItem = struct { label: []const u8, is_active: bool };
+    const ItemHoverFn = *const fn (zclay.ElementId, zclay.PointerData, ?*anyopaque) callconv(.c) void;
+    const renderDeviceListPanel = struct {
+        fn call(
+            comptime panel_id: []const u8,
+            panel_state: f32,
+            full_h: f32,
+            offset_x: f32,
+            btn_y_val: f32,
+            sc: f32,
+            mo: f32,
+            fetching: bool,
+            empty_text: []const u8,
+            vis: usize,
+            item_hover_bright: []const f32,
+            items: []const GenericItem,
+            hover_cb: ItemHoverFn,
+            cb_ptrs: [*]?*anyopaque,
+        ) void {
+            if (panel_state < 0.01) return;
+            const item_h: f32 = 54 * sc;
+            const pad: f32 = 14 * sc;
+            const panel_pad: u16 = @intFromFloat(pad);
+            zclay.UI()(.{
+                .id = .ID(panel_id),
+                .floating = .{
+                    .attach_to = .to_root,
+                    .attach_points = .{ .element = .right_bottom, .parent = .right_top },
+                    .offset = .{ .x = offset_x + mo, .y = btn_y_val + mo },
+                },
+                .layout = .{
+                    .direction = .top_to_bottom,
+                    .sizing = .{ .w = .fixed(300 * sc + mo), .h = .fixed(full_h) },
+                    .child_alignment = .{ .x = .left, .y = .top },
+                    .padding = .{ .top = panel_pad, .bottom = panel_pad, .left = panel_pad, .right = panel_pad },
+                },
+            })({
+                const alpha = std.math.clamp((panel_state - 0.25) / 0.35, 0.0, 1.0);
+                if (alpha > 0.01) {
+                    if (vis == 0) {
+                        const label: []const u8 = if (fetching) "Scanning..." else empty_text;
+                        const fsz: u16 = @intFromFloat(14 * sc);
+                        zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140.0 * alpha } });
+                    } else {
+                        for (0..vis) |i| {
+                            const item = &items[i];
+                            const item_px: u16 = @intFromFloat(10 * sc);
+                            zclay.UI()(.{
+                                .id = .IDI(panel_id ++ "Item", @intCast(i)),
+                                .layout = .{
+                                    .direction = .left_to_right,
+                                    .sizing = .{ .w = .grow, .h = .fixed(item_h) },
+                                    .child_alignment = .{ .x = .left, .y = .center },
+                                    .padding = .{ .left = item_px, .right = item_px },
+                                    .child_gap = @as(u16, @intFromFloat(8 * sc)),
+                                },
+                                .custom = .{ .custom_data = ui.mkRect(8 * sc, item_hover_bright[i] * alpha) },
+                            })({
+                                zclay.cdefs.Clay_OnHover(hover_cb, cb_ptrs[i]);
+                                const fsz: u16 = @intFromFloat(14 * sc);
+                                zclay.text(item.label, .{ .font_size = fsz, .color = if (item.is_active) .{ 255, 255, 255, 255.0 * alpha } else .{ 255, 255, 255, 200.0 * alpha } });
+                            });
+                        }
+                    }
+                }
+            });
+        }
+    }.call;
 
     // Bluetooth button (morphs into panel on click)
     // Bluetooth button: static 54x54 hit area, never moves
@@ -1496,6 +1817,186 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                 })({});
             }
         });
+    }
+
+    // Speaker button
+    if (open_state < 0.4) {
+        const speaker_r = 27 * s;
+        const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        zclay.UI()(.{
+            .id = .ID("SpeakerBtn"),
+            .floating = .{
+                .attach_to = .to_root,
+                .attach_points = .{ .element = .right_bottom, .parent = .right_top },
+                .offset = .{ .x = speaker_offset_x, .y = btn_y[4] },
+            },
+            .layout = .{
+                .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
+                .child_alignment = .{ .x = .center, .y = .center },
+                .direction = .top_to_bottom,
+                .child_gap = @intFromFloat(4 * s),
+            },
+            .custom = .{ .custom_data = ui.mkRect(speaker_r, speaker_hover_brightness) },
+        })({
+            zclay.cdefs.Clay_OnHover(struct {
+                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
+                    speaker_hover = true;
+                    if (ptr_data.state == .pressed_this_frame) {
+                        if (!speaker_open) {
+                            speaker_open = true;
+                            bt_open = false;
+                            wifi_open = false;
+                            mic_open = false;
+                            refreshSpeakers();
+                        } else {
+                            speaker_open = false;
+                        }
+                    }
+                }
+            }.callback, null);
+            if (icon_alpha > 0.01) {
+                zclay.UI()(.{
+                    .id = .ID("SpeakerIcon"),
+                    .layout = .{ .sizing = .{ .w = .fixed(32 * s * speaker_hover_scale), .h = .fixed(32 * s * speaker_hover_scale) } },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "audio-speakers-symbolic", icon_alpha) },
+                })({});
+            }
+        });
+    }
+    // Speaker panel
+    {
+        if (speaker_panel_state > 0.005) {
+            speaker_mutex.lock();
+            speaker_snapshot_count = speaker_count;
+            if (speaker_count > 0) @memcpy(speaker_snapshot[0..speaker_count], speaker_entries[0..speaker_count]);
+            speaker_mutex.unlock();
+        }
+        const speaker_vis: usize = @min(speaker_snapshot_count, max_audio_entries);
+        var speaker_items: [max_audio_entries]GenericItem = undefined;
+        for (0..speaker_vis) |i| {
+            const e = &speaker_snapshot[i];
+            speaker_item_cb[i] = .{ .idx = i, .is_speaker = true };
+            speaker_items[i] = .{ .label = e.desc[0..e.desc_len], .is_active = e.is_default };
+        }
+        var speaker_cb_ptrs: [max_audio_entries]?*anyopaque = undefined;
+        for (0..speaker_vis) |i| speaker_cb_ptrs[i] = &speaker_item_cb[i];
+        const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        renderDeviceListPanel(
+            "SpeakerPanel",
+            speaker_panel_state,
+            speaker_panel_full_h,
+            speaker_offset_x + mask_overhang,
+            btn_y[4] + mask_overhang,
+            s,
+            mask_overhang,
+            speaker_fetching.load(.acquire),
+            "No outputs",
+            speaker_vis,
+            &speaker_item_hover_bright,
+            speaker_items[0..speaker_vis],
+            struct {
+                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
+                    const d: *AudioItemCb = @ptrCast(@alignCast(user_data.?));
+                    speaker_item_hover[d.idx] = true;
+                    if (ptr_data.state == .pressed_this_frame) {
+                        const e = &speaker_snapshot[d.idx];
+                        main.spawnCmd(&[_][]const u8{ "pactl", "set-default-sink", e.name[0..e.name_len] });
+                        for (0..speaker_snapshot_count) |k| speaker_snapshot[k].is_default = (k == d.idx);
+                    }
+                }
+            }.callback,
+            &speaker_cb_ptrs,
+        );
+    }
+
+    // Mic button
+    if (open_state < 0.4) {
+        const mic_r = 27 * s;
+        const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        zclay.UI()(.{
+            .id = .ID("MicBtn"),
+            .floating = .{
+                .attach_to = .to_root,
+                .attach_points = .{ .element = .right_bottom, .parent = .right_top },
+                .offset = .{ .x = mic_offset_x, .y = btn_y[5] },
+            },
+            .layout = .{
+                .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
+                .child_alignment = .{ .x = .center, .y = .center },
+                .direction = .top_to_bottom,
+                .child_gap = @intFromFloat(4 * s),
+            },
+            .custom = .{ .custom_data = ui.mkRect(mic_r, mic_hover_brightness) },
+        })({
+            zclay.cdefs.Clay_OnHover(struct {
+                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
+                    mic_hover = true;
+                    if (ptr_data.state == .pressed_this_frame) {
+                        if (!mic_open) {
+                            mic_open = true;
+                            bt_open = false;
+                            wifi_open = false;
+                            speaker_open = false;
+                            refreshMic();
+                        } else {
+                            mic_open = false;
+                        }
+                    }
+                }
+            }.callback, null);
+            if (icon_alpha > 0.01) {
+                zclay.UI()(.{
+                    .id = .ID("MicIcon"),
+                    .layout = .{ .sizing = .{ .w = .fixed(32 * s * mic_hover_scale), .h = .fixed(32 * s * mic_hover_scale) } },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "audio-input-microphone-symbolic", icon_alpha) },
+                })({});
+            }
+        });
+    }
+    // Mic panel
+    {
+        if (mic_panel_state > 0.005) {
+            mic_mutex.lock();
+            mic_snapshot_count = mic_count;
+            if (mic_count > 0) @memcpy(mic_snapshot[0..mic_count], mic_entries[0..mic_count]);
+            mic_mutex.unlock();
+        }
+        const mic_vis: usize = @min(mic_snapshot_count, max_audio_entries);
+        var mic_items: [max_audio_entries]GenericItem = undefined;
+        for (0..mic_vis) |i| {
+            const e = &mic_snapshot[i];
+            mic_item_cb[i] = .{ .idx = i, .is_speaker = false };
+            mic_items[i] = .{ .label = e.desc[0..e.desc_len], .is_active = e.is_default };
+        }
+        var mic_cb_ptrs: [max_audio_entries]?*anyopaque = undefined;
+        for (0..mic_vis) |i| mic_cb_ptrs[i] = &mic_item_cb[i];
+        const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        renderDeviceListPanel(
+            "MicPanel",
+            mic_panel_state,
+            mic_panel_full_h,
+            mic_offset_x + mask_overhang,
+            btn_y[5] + mask_overhang,
+            s,
+            mask_overhang,
+            mic_fetching.load(.acquire),
+            "No inputs",
+            mic_vis,
+            &mic_item_hover_bright,
+            mic_items[0..mic_vis],
+            struct {
+                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
+                    const d: *AudioItemCb = @ptrCast(@alignCast(user_data.?));
+                    mic_item_hover[d.idx] = true;
+                    if (ptr_data.state == .pressed_this_frame) {
+                        const e = &mic_snapshot[d.idx];
+                        main.spawnCmd(&[_][]const u8{ "pactl", "set-default-source", e.name[0..e.name_len] });
+                        for (0..mic_snapshot_count) |k| mic_snapshot[k].is_default = (k == d.idx);
+                    }
+                }
+            }.callback,
+            &mic_cb_ptrs,
+        );
     }
 
     // focs = all windows except the currently focused one — exactly what we want to show

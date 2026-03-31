@@ -8,7 +8,7 @@ Minimal Wayland compositor without sacrificing beauty
 
 ## improvement vectors:
 - pointer protocol code
-- ui
+- menu ui
 - common logic between menu beacon and screenshotting ui
 - output management
 - glass shaders
@@ -24,13 +24,13 @@ Minimal Wayland compositor without sacrificing beauty
 - Figure out which protocols obs is missing
 - wf-recorder shows everything brighter than what it actually is in discord?
 - Settings app
-- Figure out icons properly
 - Different glass refraction styles
 - Menu window borders should be consistent regardless of window size
 - Add something that'd tell users if nm is not installed instead of silently failing
 - Notification system
 - Frostpunk black when tabbing back in bug
 - Sound IO settings
+- Better rim highlighting
 
 ## done
 - Window switching
@@ -103,3 +103,4 @@ Minimal Wayland compositor without sacrificing beauty
 - Support multiple monitors
 - Rick roll
 - Resize request protocol
+- Figure out icons properly

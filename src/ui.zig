@@ -142,6 +142,7 @@ pub const SpinnerProgram = struct {
 };
 
 pub const MAX_SHADOW_COUNT: usize = 16;
+pub const MAX_BLOB_COUNT: usize = 4;
 
 pub const ShadowProgram = struct {
     prog: c_uint,
@@ -151,6 +152,18 @@ pub const ShadowProgram = struct {
     size_locs: [MAX_SHADOW_COUNT]c_int,
     roundness_locs: [MAX_SHADOW_COUNT]c_int,
     intensity_locs: [MAX_SHADOW_COUNT]c_int,
+    // blob shadow
+    blob_centers_loc: c_int,
+    blob_scales_loc: c_int,
+    blob_widths_loc: c_int,
+    blob_heights_loc: c_int,
+    blob_radius_loc: c_int,
+    blob_morph_k_loc: c_int,
+    blob_intensity_loc: c_int,
+    blob_mask_center_loc: c_int,
+    blob_mask_half_ex_loc: c_int,
+    blob_mask_half_ey_loc: c_int,
+    blob_mask_radius_loc: c_int,
 };
 
 pub const BlurProgram = struct {
@@ -610,6 +623,17 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .size_locs = undefined,
             .roundness_locs = undefined,
             .intensity_locs = undefined,
+            .blob_centers_loc = gl.glGetUniformLocation(prog, "blobCenters[0]"),
+            .blob_scales_loc = gl.glGetUniformLocation(prog, "blobScales[0]"),
+            .blob_widths_loc = gl.glGetUniformLocation(prog, "blobWidths[0]"),
+            .blob_heights_loc = gl.glGetUniformLocation(prog, "blobHeights[0]"),
+            .blob_radius_loc = gl.glGetUniformLocation(prog, "blobRadius[0]"),
+            .blob_morph_k_loc = gl.glGetUniformLocation(prog, "blobMorphK[0]"),
+            .blob_intensity_loc = gl.glGetUniformLocation(prog, "blobIntensity[0]"),
+            .blob_mask_center_loc = gl.glGetUniformLocation(prog, "blobMaskCenter[0]"),
+            .blob_mask_half_ex_loc = gl.glGetUniformLocation(prog, "blobMaskHalfEx[0]"),
+            .blob_mask_half_ey_loc = gl.glGetUniformLocation(prog, "blobMaskHalfEy[0]"),
+            .blob_mask_radius_loc = gl.glGetUniformLocation(prog, "blobMaskRadius[0]"),
         };
         var name_buf: [32]u8 = undefined;
         for (0..MAX_SHADOW_COUNT) |i| {
