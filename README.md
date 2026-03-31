@@ -29,8 +29,8 @@ Minimal Wayland compositor without sacrificing beauty
 - Add something that'd tell users if nm is not installed instead of silently failing
 - Notification system
 - Frostpunk black when tabbing back in bug
-- Sound IO settings
-- Better rim highlighting
+- Moving windows from one monitor to another in menu
+- Menu showing windows only specific to that screen
 
 ## done
 - Window switching
@@ -104,3 +104,5 @@ Minimal Wayland compositor without sacrificing beauty
 - Rick roll
 - Resize request protocol
 - Figure out icons properly
+- Sound IO settings
+- Better rim highlighting

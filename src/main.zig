@@ -881,6 +881,9 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
+    // reset linked-list pointers in case remove() was called during a prior unmap cycle
+    xwl.next = &xwl.focusable;
+    xwl.prev = &xwl.focusable;
 
     if (!xwl.xsurface.override_redirect) {
         xwl.scene_tree.?.node.data = xwl;
@@ -1373,7 +1376,7 @@ fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
     const overlay_open = ui.menu_open or ui.beacon_open or ui.screenshot.isActive();
 
-    // Always forward relative motion to any listening clients (independent of constraints)
+    // always forward relative motion to any listening clients (independent of constraints)
     if (!overlay_open) {
         c.wlr_relative_pointer_manager_v1_send_relative_motion(
             server.relative_pointer_manager,
@@ -1456,7 +1459,12 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     // Super+LMB = move, Super+RMB = resize
     if (event.state == c.WLR_BUTTON_PRESSED and hit_toplevel != null) {
         const t = hit_toplevel.?;
-        focus_toplevel(&t.focusable);
+        // Don't call focus_toplevel for XWayland surfaces that have a parent window
+        // (transient popups, context menus). Doing so deactivates the parent via
+        // wlr_xwayland_surface_activate(parent, false), causing apps like Steam to
+        // dismiss their own popups when they receive an X11 deactivation event.
+        const is_xwl_child = t.focusable == .xwayland and t.focusable.xwayland.xsurface.parent != null;
+        if (!is_xwl_child) focus_toplevel(&t.focusable);
         if (t.focusable == .xwayland) {
             _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
             return;
@@ -1490,7 +1498,10 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
         }
     }
 
-    if (surface != null) {
+    // Only update pointer focus for managed toplevels. Override-redirect XWayland popups
+    // (hit_toplevel == null) must not trigger pointer_leave on their parent — that causes
+    // X11 apps to dismiss the popup. XWayland's own grab mechanism routes button events.
+    if (surface != null and hit_toplevel != null) {
         c.wlr_seat_pointer_notify_enter(server.seat, surface, sx, sy);
     }
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);

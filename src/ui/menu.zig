@@ -866,24 +866,24 @@ pub fn tick(dt: f32) void {
         if (cluster_sub_states[1] < 0.5) cluster_sub_states[2] = @max(0.0, lerp(cluster_sub_states[2], 0.0, css));
     }
 
-    // Stagger power cluster, BT, WiFi, Capture buttons
+    // Stagger: BT, WiFi, Speaker, Mic, Cap, Rickroll (panel buttons first, then utility)
     const bs = dt * 12.0;
     if (ui.menu_open) {
         btn_states[0] = @min(1.0, lerp(btn_states[0], 1.0, bs));
         if (btn_states[0] > 0.3) btn_states[2] = @min(1.0, lerp(btn_states[2], 1.0, bs));
         if (btn_states[2] > 0.3) btn_states[3] = @min(1.0, lerp(btn_states[3], 1.0, bs));
-        if (btn_states[3] > 0.3) btn_states[4] = @min(1.0, lerp(btn_states[4], 1.0, bs));
-        if (btn_states[4] > 0.3) btn_states[5] = @min(1.0, lerp(btn_states[5], 1.0, bs));
-        if (btn_states[5] > 0.3) btn_states[6] = @min(1.0, lerp(btn_states[6], 1.0, bs));
+        if (btn_states[3] > 0.3) btn_states[6] = @min(1.0, lerp(btn_states[6], 1.0, bs));
         if (btn_states[6] > 0.3) btn_states[7] = @min(1.0, lerp(btn_states[7], 1.0, bs));
+        if (btn_states[7] > 0.3) btn_states[4] = @min(1.0, lerp(btn_states[4], 1.0, bs));
+        if (btn_states[4] > 0.3) btn_states[5] = @min(1.0, lerp(btn_states[5], 1.0, bs));
     } else {
         btn_states[0] = @max(0.0, lerp(btn_states[0], 0.0, bs));
         if (btn_states[0] < 0.7) btn_states[2] = @max(0.0, lerp(btn_states[2], 0.0, bs));
         if (btn_states[2] < 0.7) btn_states[3] = @max(0.0, lerp(btn_states[3], 0.0, bs));
-        if (btn_states[3] < 0.7) btn_states[4] = @max(0.0, lerp(btn_states[4], 0.0, bs));
-        if (btn_states[4] < 0.7) btn_states[5] = @max(0.0, lerp(btn_states[5], 0.0, bs));
-        if (btn_states[5] < 0.7) btn_states[6] = @max(0.0, lerp(btn_states[6], 0.0, bs));
+        if (btn_states[3] < 0.7) btn_states[6] = @max(0.0, lerp(btn_states[6], 0.0, bs));
         if (btn_states[6] < 0.7) btn_states[7] = @max(0.0, lerp(btn_states[7], 0.0, bs));
+        if (btn_states[7] < 0.7) btn_states[4] = @max(0.0, lerp(btn_states[4], 0.0, bs));
+        if (btn_states[4] < 0.7) btn_states[5] = @max(0.0, lerp(btn_states[5], 0.0, bs));
     }
 
     const ts = c.time(null);
@@ -942,50 +942,51 @@ pub fn tick(dt: f32) void {
     mic_panel_state = lerp(mic_panel_state, if (mic_open) 1.0 else 0.0, dt * 8.0);
 
     // Staggered per-circle grow: opened button leads, others follow proportional to distance.
-    // Button positions (right-to-left): bt=0, wifi=1, cap=2, rickroll=3, speaker=4, mic=5
+    // Button positions (right-to-left): bt=0, wifi=1, speaker=2, mic=3, cap=4, rickroll=5
     {
         const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
         const stagger: f32 = 0.18;
         const spd = dt * 9.0;
         const sg = stagger;
         if (bt_open) {
-            bt_circle_grow     = lerp(bt_circle_grow,       open_state,                        spd);
-            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
-            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
-            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg * 4.0),  spd);
-            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 5.0),  spd);
+            // bt pos=0: wifi=1, speaker=2, mic=3, cap=4, rickroll=5
+            bt_circle_grow       = lerp(bt_circle_grow,       open_state,                        spd);
+            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
+            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg * 2.0),  spd);
+            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
+            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 4.0),  spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 5.0),  spd);
         } else if (wifi_open) {
-            // wifi pos=1: bt=1 right, cap=1 left, rickroll=2, speaker=3, mic=4
-            wifi_circle_grow   = lerp(wifi_circle_grow,     open_state,                        spd);
-            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg),        spd);
-            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg),        spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
-            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg * 3.0),  spd);
-            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 4.0),  spd);
+            // wifi pos=1: bt=1, speaker=1, mic=2, cap=3, rickroll=4
+            wifi_circle_grow     = lerp(wifi_circle_grow,     open_state,                        spd);
+            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg),        spd);
+            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg),        spd);
+            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
+            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 4.0),  spd);
         } else if (speaker_open) {
-            // speaker pos=4: mic=1 left, rickroll=1 right, cap=2, wifi=3, bt=4
-            speaker_circle_grow = lerp(speaker_circle_grow, open_state,                        spd);
-            mic_circle_grow    = lerp(mic_circle_grow,      @max(0.0, open_state - sg),        spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg),      spd);
-            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
-            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 3.0),  spd);
-            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 4.0),  spd);
+            // speaker pos=2: wifi=1, mic=1, bt=2, cap=2, rickroll=3
+            speaker_circle_grow  = lerp(speaker_circle_grow,  open_state,                        spd);
+            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
+            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg),        spd);
+            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 2.0),  spd);
+            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 3.0),  spd);
         } else if (mic_open) {
-            // mic pos=5: speaker=1, rickroll=2, cap=3, wifi=4, bt=5
-            mic_circle_grow    = lerp(mic_circle_grow,      open_state,                        spd);
-            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg),        spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
-            cap_circle_grow    = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
-            wifi_circle_grow   = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 4.0),  spd);
-            bt_circle_grow     = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 5.0),  spd);
+            // mic pos=3: speaker=1, cap=1, wifi=2, rickroll=2, bt=3
+            mic_circle_grow      = lerp(mic_circle_grow,      open_state,                        spd);
+            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg),        spd);
+            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg),        spd);
+            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 2.0),  spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0),  spd);
+            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 3.0),  spd);
         } else {
-            bt_circle_grow     = lerp(bt_circle_grow,       0.0, spd);
-            wifi_circle_grow   = lerp(wifi_circle_grow,     0.0, spd);
-            cap_circle_grow    = lerp(cap_circle_grow,      0.0, spd);
+            bt_circle_grow       = lerp(bt_circle_grow,       0.0, spd);
+            wifi_circle_grow     = lerp(wifi_circle_grow,     0.0, spd);
+            speaker_circle_grow  = lerp(speaker_circle_grow,  0.0, spd);
+            mic_circle_grow      = lerp(mic_circle_grow,      0.0, spd);
+            cap_circle_grow      = lerp(cap_circle_grow,      0.0, spd);
             rickroll_circle_grow = lerp(rickroll_circle_grow, 0.0, spd);
-            speaker_circle_grow = lerp(speaker_circle_grow, 0.0, spd);
-            mic_circle_grow    = lerp(mic_circle_grow,      0.0, spd);
         }
     }
 
@@ -1156,12 +1157,12 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 
     const top_y = ui.screen_height - 40.0 * s;
     const btn_y = [6]f32{
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]),
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]),
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]),
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]),
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[6]),
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[7]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]), // BT
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]), // WiFi
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[6]), // Speaker (3rd in stagger)
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[7]), // Mic    (4th)
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]), // Cap    (5th)
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]), // Rickroll (6th)
     };
 
     const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
@@ -1182,27 +1183,28 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         // GL coords: y from bottom of screen — each button has its own animated Y
         const bt_cy_gl       = (ui.screen_height - btn_y[0]) + radius;
         const wifi_cy_gl     = (ui.screen_height - btn_y[1]) + radius;
-        const cap_cy_gl      = (ui.screen_height - btn_y[2]) + radius;
-        const rickroll_cy_gl = (ui.screen_height - btn_y[3]) + radius;
-        const speaker_cy_gl  = (ui.screen_height - btn_y[4]) + radius;
-        const mic_cy_gl      = (ui.screen_height - btn_y[5]) + radius;
+        const speaker_cy_gl  = (ui.screen_height - btn_y[2]) + radius;
+        const mic_cy_gl      = (ui.screen_height - btn_y[3]) + radius;
+        const cap_cy_gl      = (ui.screen_height - btn_y[4]) + radius;
+        const rickroll_cy_gl = (ui.screen_height - btn_y[5]) + radius;
 
         // Circles stay at their button centers and grow radially (scale) to fill the mask.
         // Each button is 54px wide with 12px gap: step = 66px per position.
+        // Order right-to-left: bt=0, wifi=1, speaker=2, mic=3, cap=4, rickroll=5
         const bt_cx_gl       = ui.screen_width - 40.0 * s - radius;
         const wifi_cx_gl     = bt_cx_gl - 66.0 * s;
-        const cap_cx_gl      = bt_cx_gl - 132.0 * s;
-        const rickroll_cx_gl = bt_cx_gl - 198.0 * s;
-        const speaker_cx_gl  = bt_cx_gl - 264.0 * s;
-        const mic_cx_gl      = bt_cx_gl - 330.0 * s;
+        const speaker_cx_gl  = bt_cx_gl - 132.0 * s;
+        const mic_cx_gl      = bt_cx_gl - 198.0 * s;
+        const cap_cx_gl      = bt_cx_gl - 264.0 * s;
+        const rickroll_cx_gl = bt_cx_gl - 330.0 * s;
 
         const centers = [16]f32{
-            bt_cx_gl,      bt_cy_gl,
-            wifi_cx_gl,    wifi_cy_gl,
-            cap_cx_gl,     cap_cy_gl,
+            bt_cx_gl,       bt_cy_gl,
+            wifi_cx_gl,     wifi_cy_gl,
+            speaker_cx_gl,  speaker_cy_gl,
+            mic_cx_gl,      mic_cy_gl,
+            cap_cx_gl,      cap_cy_gl,
             rickroll_cx_gl, rickroll_cy_gl,
-            speaker_cx_gl, speaker_cy_gl,
-            mic_cx_gl,     mic_cy_gl,
             0, 0, 0, 0,
         };
 
@@ -1217,47 +1219,61 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 
         // Max scale: each circle's radius must reach the farthest mask corner at its peak grow value.
         // All circles calibrated for 0.82 peak (1-step follower). Leaders overshoot slightly — fine.
-        // bt/wifi/cap/rickroll: farthest corner is the opposite horizontal edge of mask.
-        // speaker/mic: farthest corner is the mask right edge (they're further left than panel center).
+        // bt/wifi/speaker/mic: farthest corner is the opposite horizontal edge of mask.
+        // cap/rickroll: further left than panel center; farthest corner is the panel right edge.
         const vert_dist = opened_h - mask_overhang - radius;
-        const mask_right_dist = 40.0 * s - radius; // from mask right edge to bt center (small)
+        const mask_right_dist = 40.0 * s - radius; // horiz dist from bt center to mask right edge (small)
         const bt_diag        = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
         const wifi_diag      = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
-        const cap_diag       = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
-        const rickroll_diag  = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
-        // speaker/mic are left of the panel; their farthest corner is the panel right edge
-        const speaker_h_dist = (264.0 * s) - mask_right_dist; // horiz dist to right edge
-        const mic_h_dist     = (330.0 * s) - mask_right_dist;
-        const speaker_diag   = @sqrt(speaker_h_dist * speaker_h_dist + vert_dist * vert_dist);
-        const mic_diag       = @sqrt(mic_h_dist * mic_h_dist + vert_dist * vert_dist);
+        const speaker_diag   = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
+        const mic_diag       = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
+        // cap/rickroll are left of the panel; their farthest corner is the panel right edge
+        const cap_h_dist      = (264.0 * s) - mask_right_dist;
+        const rickroll_h_dist = (330.0 * s) - mask_right_dist;
+        const cap_diag        = @sqrt(cap_h_dist * cap_h_dist + vert_dist * vert_dist);
+        const rickroll_diag   = @sqrt(rickroll_h_dist * rickroll_h_dist + vert_dist * vert_dist);
         const bt_max_scale       = @max(1.5, (bt_diag       - radius) / (0.82 * radius) + 1.0);
         const wifi_max_scale     = @max(1.5, (wifi_diag     - radius) / (0.82 * radius) + 1.0);
-        const cap_max_scale      = @max(1.5, (cap_diag      - radius) / (0.82 * radius) + 1.0);
-        const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.82 * radius) + 1.0);
         const speaker_max_scale  = @max(1.5, (speaker_diag  - radius) / (0.82 * radius) + 1.0);
         const mic_max_scale      = @max(1.5, (mic_diag      - radius) / (0.82 * radius) + 1.0);
+        const cap_max_scale      = @max(1.5, (cap_diag      - radius) / (0.82 * radius) + 1.0);
+        const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.82 * radius) + 1.0);
         const bt_scale       = lerp(1.0, bt_max_scale,       bt_circle_grow);
         const wifi_scale     = lerp(1.0, wifi_max_scale,     wifi_circle_grow);
-        const cap_scale      = lerp(1.0, cap_max_scale,      cap_circle_grow);
-        const rickroll_scale = lerp(1.0, rickroll_max_scale, rickroll_circle_grow);
         const speaker_scale  = lerp(1.0, speaker_max_scale,  speaker_circle_grow);
         const mic_scale      = lerp(1.0, mic_max_scale,      mic_circle_grow);
+        const cap_scale      = lerp(1.0, cap_max_scale,      cap_circle_grow);
+        const rickroll_scale = lerp(1.0, rickroll_max_scale, rickroll_circle_grow);
         const scales_arr = [8]f32{
-            bt_hover_scale * bt_scale,       wifi_hover_scale * wifi_scale,
-            capture_hover_scale * cap_scale, rickroll_hover_scale * rickroll_scale,
+            bt_hover_scale * bt_scale,           wifi_hover_scale * wifi_scale,
             speaker_hover_scale * speaker_scale, mic_hover_scale * mic_scale,
+            capture_hover_scale * cap_scale,     rickroll_hover_scale * rickroll_scale,
             0, 0,
         };
-        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, speaker_hover_brightness, mic_hover_brightness, 0, 0 };
+        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, speaker_hover_brightness, mic_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, 0, 0 };
         const widths_arr  = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        const mask_r  = radius;
-        const mask_ex = panel_half_w - radius + mask_overhang / 2.0;
-        const mask_ey = @max(opened_h / 2.0 - radius, 0.0);
-        const mask_cx_gl = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
-        const mask_cy_gl = (ui.screen_height - btn_y[0]) + radius + @max(opened_h / 2.0 - radius, 0.0) - mask_overhang;
+        // No mask while buttons are sliding in — circles slide freely.
+        // When a panel opens the mask activates; reveal=mix(buttons,mask,0.005)≈buttons so no pop.
+        const mask_r: f32 = if (open_state > 0.005) radius else 0.0;
+        // Idle: pill exactly encasing all 6 button circles (bt_cx to rickroll_cx ± radius)
+        // bt_cx = screen_w - 40s - radius, rickroll_cx = bt_cx - 330s => span = 384s, half = 192s
+        const idle_cx  = ui.screen_width - 40.0 * s - 192.0 * s;
+        const idle_ex  = 192.0 * s - radius;
+        const idle_ey: f32 = 0.0;
+        const idle_cy  = (ui.screen_height - btn_y[0]) + radius;
+        // Open: panel rect at the right side (all panels anchor here)
+        const open_cx  = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
+        const open_ex  = panel_half_w - radius + mask_overhang / 2.0;
+        const open_ey  = @max(opened_h / 2.0 - radius, 0.0);
+        const open_cy  = (ui.screen_height - btn_y[0]) + radius + open_ey - mask_overhang;
+        // Lerp mask shape between idle cluster pill and open panel rect
+        const mask_ex    = lerp(idle_ex, open_ex, open_state);
+        const mask_ey    = lerp(idle_ey, open_ey, open_state);
+        const mask_cx_gl = lerp(idle_cx, open_cx, open_state);
+        const mask_cy_gl = lerp(idle_cy, open_cy, open_state);
 
-        // Bounding box must cover all 6 buttons (mic is leftmost at ~357px from right edge)
+        // Bounding box must cover all 6 buttons (rickroll is leftmost at ~357px from right edge)
         const blob_bb_w = 400.0 * s;
         const blob_bb_h = top_cluster_blob_h;
 
@@ -1335,6 +1351,18 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 zclay.cdefs.Clay_OnHover(hover_cb, cb_ptrs[i]);
                                 const fsz: u16 = @intFromFloat(14 * sc);
                                 zclay.text(item.label, .{ .font_size = fsz, .color = if (item.is_active) .{ 255, 255, 255, 255.0 * alpha } else .{ 255, 255, 255, 200.0 * alpha } });
+                                if (item.is_active) {
+                                    zclay.UI()(.{
+                                        .id = .IDI(panel_id ++ "ActiveSpacer", @intCast(i)),
+                                        .layout = .{ .sizing = .{ .w = .grow, .h = .fixed(1) } },
+                                    })({});
+                                    const dot_sz: f32 = 7 * sc;
+                                    zclay.UI()(.{
+                                        .id = .IDI(panel_id ++ "ActiveDot", @intCast(i)),
+                                        .layout = .{ .sizing = .{ .w = .fixed(dot_sz), .h = .fixed(dot_sz) } },
+                                        .custom = .{ .custom_data = ui.mkRect(dot_sz / 2.0, 0.55 * alpha) },
+                                    })({});
+                                }
                             });
                         }
                     }
@@ -1734,14 +1762,13 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         const is_rec = recording.isRecording();
         const cap_r = 27 * s;
         const cap_btn_w: f32 = 54 * s;
-        // Capture fixed: right edge always at screen_w - 40 - 54 - 12 - 54 - 12 (not pushed by BT/WiFi)
-        const cap_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        const cap_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         zclay.UI()(.{
             .id = .ID("CaptureBtn"),
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = cap_offset_x, .y = btn_y[2] },
+                .offset = .{ .x = cap_offset_x, .y = btn_y[4] },
             },
             .layout = .{
                 .sizing = .{ .w = .fixed(cap_btn_w), .h = .fixed(54 * s) },
@@ -1776,13 +1803,13 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     // Rickroll button (settings icon, opens browser)
     if (open_state < 0.4) {
         const rr_r = 27 * s;
-        const rr_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        const rr_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         zclay.UI()(.{
             .id = .ID("RickrollBtn"),
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = rr_offset_x, .y = btn_y[3] },
+                .offset = .{ .x = rr_offset_x, .y = btn_y[5] },
             },
             .layout = .{
                 .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
@@ -1822,13 +1849,13 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     // Speaker button
     if (open_state < 0.4) {
         const speaker_r = 27 * s;
-        const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         zclay.UI()(.{
             .id = .ID("SpeakerBtn"),
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = speaker_offset_x, .y = btn_y[4] },
+                .offset = .{ .x = speaker_offset_x, .y = btn_y[2] },
             },
             .layout = .{
                 .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
@@ -1880,13 +1907,12 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         }
         var speaker_cb_ptrs: [max_audio_entries]?*anyopaque = undefined;
         for (0..speaker_vis) |i| speaker_cb_ptrs[i] = &speaker_item_cb[i];
-        const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         renderDeviceListPanel(
             "SpeakerPanel",
             speaker_panel_state,
             speaker_panel_full_h,
-            speaker_offset_x + mask_overhang,
-            btn_y[4] + mask_overhang,
+            -40 * s,
+            btn_y[0],
             s,
             mask_overhang,
             speaker_fetching.load(.acquire),
@@ -1902,6 +1928,9 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                         const e = &speaker_snapshot[d.idx];
                         main.spawnCmd(&[_][]const u8{ "pactl", "set-default-sink", e.name[0..e.name_len] });
                         for (0..speaker_snapshot_count) |k| speaker_snapshot[k].is_default = (k == d.idx);
+                        speaker_mutex.lock();
+                        for (0..speaker_count) |k| speaker_entries[k].is_default = (k == d.idx);
+                        speaker_mutex.unlock();
                     }
                 }
             }.callback,
@@ -1912,13 +1941,13 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     // Mic button
     if (open_state < 0.4) {
         const mic_r = 27 * s;
-        const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         zclay.UI()(.{
             .id = .ID("MicBtn"),
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = mic_offset_x, .y = btn_y[5] },
+                .offset = .{ .x = mic_offset_x, .y = btn_y[3] },
             },
             .layout = .{
                 .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
@@ -1970,13 +1999,12 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         }
         var mic_cb_ptrs: [max_audio_entries]?*anyopaque = undefined;
         for (0..mic_vis) |i| mic_cb_ptrs[i] = &mic_item_cb[i];
-        const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
         renderDeviceListPanel(
             "MicPanel",
             mic_panel_state,
             mic_panel_full_h,
-            mic_offset_x + mask_overhang,
-            btn_y[5] + mask_overhang,
+            -40 * s,
+            btn_y[0],
             s,
             mask_overhang,
             mic_fetching.load(.acquire),
@@ -1992,6 +2020,9 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                         const e = &mic_snapshot[d.idx];
                         main.spawnCmd(&[_][]const u8{ "pactl", "set-default-source", e.name[0..e.name_len] });
                         for (0..mic_snapshot_count) |k| mic_snapshot[k].is_default = (k == d.idx);
+                        mic_mutex.lock();
+                        for (0..mic_count) |k| mic_entries[k].is_default = (k == d.idx);
+                        mic_mutex.unlock();
                     }
                 }
             }.callback,
