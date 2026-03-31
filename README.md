@@ -3,7 +3,7 @@
 Minimal Wayland compositor without sacrificing beauty
 
 <!-- stats -->
-![Lines of code](https://img.shields.io/badge/lines_of_code-15858-blue) ![UI lines](https://img.shields.io/badge/ui_lines-7892-blue) ![Functions](https://img.shields.io/badge/functions-279-blue)
+![Lines of code](https://img.shields.io/badge/lines_of_code-15910-blue) ![UI lines](https://img.shields.io/badge/ui_lines-7938-blue) ![Functions](https://img.shields.io/badge/functions-279-blue)
 <!-- /stats -->
 
 ## improvement vectors:
