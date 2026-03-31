@@ -497,6 +497,7 @@ const WinglessToplevel = struct {
     surface_destroy: c.wl_listener,
     request_fullscreen: c.wl_listener,
     request_move: c.wl_listener,
+    request_resize: c.wl_listener,
 
     pub fn init(server: *WinglessServer, xdg_toplevel: *c.wlr_xdg_toplevel) !*WinglessToplevel {
         const toplevel = try server.allocator.create(WinglessToplevel);
@@ -517,6 +518,7 @@ const WinglessToplevel = struct {
             .surface_destroy = .{ .link = undefined, .notify = xdg_toplevel_surface_destroy },
             .request_fullscreen = .{ .link = undefined, .notify = xdg_toplevel_request_fullscreen },
             .request_move = .{ .link = undefined, .notify = xdg_toplevel_request_move },
+            .request_resize = .{ .link = undefined, .notify = xdg_toplevel_request_resize },
         };
 
         {
@@ -531,6 +533,7 @@ const WinglessToplevel = struct {
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.destroy, &toplevel.destroy);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_fullscreen, &toplevel.request_fullscreen);
             c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_move, &toplevel.request_move);
+            c.wl_signal_add(&toplevel.xdg_toplevel.?.events.request_resize, &toplevel.request_resize);
         }
 
         toplevel.scene_tree.node.data = toplevel;
@@ -598,6 +601,7 @@ const WinglessToplevel = struct {
         c.wl_list_remove(&self.destroy.link);
         c.wl_list_remove(&self.request_fullscreen.link);
         c.wl_list_remove(&self.request_move.link);
+        c.wl_list_remove(&self.request_resize.link);
     }
 };
 
@@ -616,6 +620,7 @@ const WinglessXwayland = struct {
     request_configure: c.wl_listener,
     request_activate: c.wl_listener,
     map: c.wl_listener,
+    unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
     surface_destroy: c.wl_listener,
@@ -636,6 +641,7 @@ const WinglessXwayland = struct {
         toplevel.request_activate = .{ .link = undefined, .notify = xwayland_request_activate };
 
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
+        toplevel.unmap = .{ .link = undefined, .notify = xwayland_surface_unmap };
         toplevel.commit = .{ .link = undefined, .notify = xdg_toplevel_commit };
         toplevel.destroy = .{ .link = undefined, .notify = xwayland_destroy };
         toplevel.surface_destroy = .{ .link = undefined, .notify = xwayland_surface_destroy };
@@ -827,7 +833,22 @@ pub fn focus_toplevel(focusable: *Focusable) void {
 
     const seat = server.seat;
 
-    if (server.focused_toplevel != null and server.focused_toplevel.?.cmp(focusable)) return;
+    if (server.focused_toplevel != null and server.focused_toplevel.?.cmp(focusable)) {
+        // Even when already focused, re-activate XWayland: the game may have gone black because
+        // another X11 window raised itself above it in X11's stacking order (separate from the
+        // Wayland scene z-order), causing a VisibilityNotify that told the game it's occluded.
+        if (focusable.* == .xwayland) {
+            const xwl = focusable.xwayland;
+            c.wlr_xwayland_surface_activate(xwl.xsurface, true);
+            if (!xwl.xsurface.override_redirect)
+                c.wlr_xwayland_surface_restack(xwl.xsurface, null, c.XCB_STACK_MODE_ABOVE);
+            if (c.wlr_seat_get_keyboard(seat)) |kbd| {
+                const wlr_kbd: *c.wlr_keyboard = kbd;
+                c.wlr_seat_keyboard_notify_enter(seat, xwl.xsurface.surface, @ptrCast(&wlr_kbd.keycodes), wlr_kbd.num_keycodes, &wlr_kbd.modifiers);
+            }
+        }
+        return;
+    }
 
     // deactivate old surfaces
     if (seat.keyboard_state.focused_surface != null) {
@@ -855,7 +876,11 @@ pub fn focus_toplevel(focusable: *Focusable) void {
                 if (t.base.*.initialized) _ = c.wlr_xdg_toplevel_set_activated(t, true);
             }
         },
-        .xwayland => |xwl| c.wlr_xwayland_surface_activate(xwl.xsurface, true),
+        .xwayland => |xwl| {
+            c.wlr_xwayland_surface_activate(xwl.xsurface, true);
+            if (!xwl.xsurface.override_redirect)
+                c.wlr_xwayland_surface_restack(xwl.xsurface, null, c.XCB_STACK_MODE_ABOVE);
+        },
     }
 
     // set keyboard focus
@@ -884,7 +909,12 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     xwl.scene_tree = c.wlr_scene_tree_create(&xwl.server.scene.tree);
     _ = c.wlr_scene_surface_create(xwl.scene_tree, xwl.xsurface.surface);
 
+    // Reset linked-list pointers in case remove() was called during a prior unmap cycle
+    xwl.next = &xwl.focusable;
+    xwl.prev = &xwl.focusable;
+
     if (!xwl.xsurface.override_redirect) {
+        xwl.scene_tree.?.node.data = xwl;
         const o = c.wlr_output_layout_output_at(xwl.server.output_layout, xwl.server.cursor.x, xwl.server.cursor.y) orelse
             c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
@@ -920,9 +950,11 @@ fn xdg_toplevel_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
             var ow: c_int = 0;
             var oh: c_int = 0;
             c.wlr_output_effective_resolution(output, &ow, &oh);
+            var out_box: c.wlr_box = undefined;
+            c.wlr_output_layout_get_box(server.output_layout, output, &out_box);
             const geo = toplevel.xdg_toplevel.?.base.*.geometry;
-            toplevel.x = @divTrunc(ow - geo.width, 2);
-            toplevel.y = @divTrunc(oh - geo.height, 2);
+            toplevel.x = out_box.x + @divTrunc(ow - geo.width, 2);
+            toplevel.y = out_box.y + @divTrunc(oh - geo.height, 2);
             c.wlr_scene_node_set_position(&toplevel.scene_tree.node, toplevel.x, toplevel.y);
         }
     }
@@ -947,13 +979,6 @@ fn xdg_toplevel_commit(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
         const xdg_surface: *c.wlr_xdg_surface = xdg_toplevel.base;
         blur.commitSurface(xdg_surface.surface);
         if (xdg_surface.initial_commit) {
-            const wlr_surface: *c.wlr_xdg_surface = toplevel.xdg_toplevel.?.base;
-            const surface: *c.wlr_surface = wlr_surface.surface;
-            const sx = surface.current.dx;
-            const sy = surface.current.dy;
-            const o = c.wlr_output_layout_output_at(toplevel.server.output_layout, @floatFromInt(sx), @floatFromInt(sy)) orelse @panic("nope");
-
-            _ = o;
             _ = c.wlr_xdg_toplevel_set_size(toplevel.xdg_toplevel, 0, 0);
         }
     }
@@ -1021,6 +1046,21 @@ fn xdg_toplevel_request_move(listener: [*c]c.wl_listener, data: ?*anyopaque) cal
     server.drag_from_client = true;
 }
 
+fn xdg_toplevel_request_resize(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const event: *c.wlr_xdg_toplevel_resize_event = @ptrCast(@alignCast(data.?));
+    const toplevel: *WinglessToplevel = @ptrCast(@as(*allowzero WinglessToplevel, @fieldParentPtr("request_resize", listener)));
+    if (toplevel.is_fullscreen) return;
+    const server = toplevel.server;
+    const geo = toplevel.xdg_toplevel.?.base.*.geometry;
+    server.cursor_mode = .resize;
+    server.grabbed_toplevel = toplevel;
+    server.grab_x = server.cursor.x;
+    server.grab_y = server.cursor.y;
+    server.grab_geo = .{ .x = toplevel.x, .y = toplevel.y, .width = geo.width, .height = geo.height };
+    server.resize_edges = event.edges;
+    server.drag_from_client = true;
+}
+
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
     const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
@@ -1038,6 +1078,7 @@ fn xwayland_surface_associate(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     const surface: *c.wlr_surface = @ptrCast(xwl.xsurface.surface);
 
     c.wl_signal_add(&surface.events.map, &xwl.map);
+    c.wl_signal_add(&surface.events.unmap, &xwl.unmap);
     c.wl_signal_add(&surface.events.destroy, &xwl.surface_destroy);
 }
 
@@ -1062,10 +1103,21 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
     }
 }
 
+fn xwayland_surface_unmap(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("unmap", listener)));
+    if (xwl.scene_tree) |tree| {
+        c.wlr_scene_node_destroy(&tree.node);
+        xwl.scene_tree = null;
+    }
+    xwl.remove();
+}
+
 fn xwayland_request_activate(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_activate", listener)));
-    _ = xwl;
+    if (xwl.scene_tree == null) return;
+    focus_toplevel(&xwl.focusable);
 }
 
 fn xwayland_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -1082,6 +1134,7 @@ fn xwayland_surface_destroy(listener: [*c]c.wl_listener, data: ?*anyopaque) call
     const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("surface_destroy", listener)));
 
     c.wl_list_remove(&xwl.map.link);
+    c.wl_list_remove(&xwl.unmap.link);
     c.wl_list_remove(&xwl.surface_destroy.link);
 
     xwl.remove();
@@ -1225,7 +1278,8 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
 
     if (ui.screenshot.isActive()) {
         update_pointer_constraint(server, null);
-        _ = ui.screenshot.onMouseMotion(@floatCast(server.cursor.x), @floatCast(server.cursor.y));
+        const ss_lpos = cursorLocalPos(server);
+        _ = ui.screenshot.onMouseMotion(ss_lpos.x, ss_lpos.y);
         return;
     }
 
@@ -1243,8 +1297,15 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
             c.wlr_output_layout_get_box(server.output_layout, output_at, &out_box);
             const geo = t.xdg_toplevel.?.base.*.geometry;
             const margin = 10;
-            new_x = @max(out_box.x + margin, @min(new_x, out_box.x + out_box.width - geo.width - margin));
-            new_y = @max(out_box.y + margin, @min(new_y, out_box.y + out_box.height - geo.height - margin));
+            const max_w = out_box.width - margin * 2;
+            const max_h = out_box.height - margin * 2;
+            if (geo.width > max_w or geo.height > max_h) {
+                _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, @min(geo.width, max_w), @min(geo.height, max_h));
+            }
+            const eff_w = @min(geo.width, max_w);
+            const eff_h = @min(geo.height, max_h);
+            new_x = @max(out_box.x + margin, @min(new_x, out_box.x + out_box.width - eff_w - margin));
+            new_y = @max(out_box.y + margin, @min(new_y, out_box.y + out_box.height - eff_h - margin));
 
             t.x = new_x;
             t.y = new_y;
@@ -1411,7 +1472,10 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
         ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
     }
 
-    if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, @floatCast(server.cursor.x), @floatCast(server.cursor.y))) return;
+    {
+        const ss_lpos = cursorLocalPos(server);
+        if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, ss_lpos.x, ss_lpos.y)) return;
+    }
 
     if (ui.menu_open) return;
 
@@ -1424,6 +1488,10 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     if (event.state == c.WLR_BUTTON_PRESSED and hit_toplevel != null) {
         const t = hit_toplevel.?;
         focus_toplevel(&t.focusable);
+        if (t.focusable == .xwayland) {
+            _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+            return;
+        }
         const wlr_kb = c.wlr_seat_get_keyboard(server.seat);
         const mods = if (wlr_kb != null) c.wlr_keyboard_get_modifiers(wlr_kb) else 0;
         if (mods & c.WLR_MODIFIER_LOGO != 0) {
@@ -1692,10 +1760,22 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
                 t.y = target_box.y;
             } else {
                 const margin = 10;
+                const geo = t.xdg_toplevel.?.base.*.geometry;
+                const max_w = target_box.width - margin * 2;
+                const max_h = target_box.height - margin * 2;
+                if (geo.width > max_w or geo.height > max_h) {
+                    _ = c.wlr_xdg_toplevel_set_size(t.xdg_toplevel, @min(geo.width, max_w), @min(geo.height, max_h));
+                }
                 t.x = target_box.x + margin;
                 t.y = target_box.y + margin;
             }
             c.wlr_scene_node_set_position(&t.scene_tree.node, t.x, t.y);
+            // warp cursor to the moved window and wake both outputs
+            const cx: f64 = @as(f64, @floatFromInt(t.x)) + 100;
+            const cy: f64 = @as(f64, @floatFromInt(t.y)) + 100;
+            _ = c.wlr_cursor_warp(server.cursor, null, cx, cy);
+            process_cursor_motion(server, 0);
+            c.wlr_output_schedule_frame(target_out);
         },
     }
 }
@@ -1937,6 +2017,12 @@ fn render_scene_buffer_iter(
     const ctx: *SceneRenderCtx = @ptrCast(@alignCast(data.?));
     const scene_buf: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_buf_bad.?));
 
+    // sx/sy are layout-global coords; convert to output-local
+    var out_box: c.wlr_box = undefined;
+    c.wlr_output_layout_get_box(ctx.output.server.output_layout, ctx.output.output, &out_box);
+    const lsx = sx - out_box.x;
+    const lsy = sy - out_box.y;
+
     const ss = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
     const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.*.surface) orelse return;
 
@@ -1954,13 +2040,13 @@ fn render_scene_buffer_iter(
 
     // Non-fullscreen XDG toplevel: use GL with rounded corners
     if (toplevel) |t| {
-        if (!t.is_fullscreen and t.xdg_toplevel != null) {
+        if (t.focusable == .xdg and !t.is_fullscreen and t.xdg_toplevel != null) {
             const xdg_base: *c.wlr_xdg_surface = @ptrCast(t.xdg_toplevel.?.base);
             const main_surf: *c.wlr_surface = @ptrCast(xdg_base.surface);
             const sw: f32 = if (scene_buf.dst_width > 0) @floatFromInt(scene_buf.dst_width) else @floatFromInt(tex.*.width);
             const sh: f32 = if (scene_buf.dst_height > 0) @floatFromInt(scene_buf.dst_height) else @floatFromInt(tex.*.height);
-            const fsx: f32 = @floatFromInt(sx);
-            const fsy: f32 = @floatFromInt(sy);
+            const fsx: f32 = @floatFromInt(lsx);
+            const fsy: f32 = @floatFromInt(lsy);
             if (ss.*.surface == main_surf) {
                 // clip to xdg geometry (actual visible content, excludes client-side margins)
                 const geo = xdg_base.geometry;
@@ -1983,8 +2069,8 @@ fn render_scene_buffer_iter(
     }
 
     const dst = c.wlr_box{
-        .x = sx,
-        .y = sy,
+        .x = lsx,
+        .y = lsy,
         .width = scene_buf.dst_width,
         .height = scene_buf.dst_height,
     };

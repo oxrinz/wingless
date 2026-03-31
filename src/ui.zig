@@ -88,6 +88,7 @@ pub const GlassBlobProgram = struct {
     heights_loc: c_int,
     radius_loc: c_int,
     morph_k_loc: c_int,
+    open_state_loc: c_int,
     mask_center_loc: c_int,
     mask_half_ex_loc: c_int,
     mask_half_ey_loc: c_int,
@@ -233,6 +234,7 @@ pub const CustomData = union(enum) {
         morph_k: f32,
         // Shadow hint: bounding rect for the whole blob (Clay coords)
         shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32,
+        open_state: f32,
         mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32,
     },
 };
@@ -291,10 +293,10 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
 }
 
 // Build a glass_blob from raw data. Centers must be in GL screen coords (y from bottom).
-pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, brights: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
+pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, brights: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, open_state: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass_blob = .{ .centers = centers, .scales = scales, .brights = brights, .widths = widths, .heights = heights, .radius = radius, .morph_k = morph_k, .shadow_x = shadow_x, .shadow_y = shadow_y, .shadow_w = shadow_w, .shadow_h = shadow_h, .shadow_r = shadow_r, .mask_cx = mask_cx, .mask_cy = mask_cy, .mask_half_ex = mask_half_ex, .mask_half_ey = mask_half_ey, .mask_r = mask_r } };
+    d.* = .{ .glass_blob = .{ .centers = centers, .scales = scales, .brights = brights, .widths = widths, .heights = heights, .radius = radius, .morph_k = morph_k, .shadow_x = shadow_x, .shadow_y = shadow_y, .shadow_w = shadow_w, .shadow_h = shadow_h, .shadow_r = shadow_r, .open_state = open_state, .mask_cx = mask_cx, .mask_cy = mask_cy, .mask_half_ex = mask_half_ex, .mask_half_ey = mask_half_ey, .mask_r = mask_r } };
     return d;
 }
 
@@ -319,7 +321,7 @@ pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, 
     const bb_size = btn_size + spread * t;
     const shadow_x_clay = screen_width + bx - bb_size;
     const shadow_y_clay = by;
-    return mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, radius * 1.2 * @max(t1, @max(t2, t3)), shadow_x_clay, shadow_y_clay, bb_size, bb_size, radius, 0, 0, 0, 0, 0);
+    return mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, radius * 1.2 * @max(t1, @max(t2, t3)), shadow_x_clay, shadow_y_clay, bb_size, bb_size, radius, 0.0, 0, 0, 0, 0, 0);
 }
 
 pub fn textSize(text: []const u8, font_size: u16) zclay.Dimensions {
@@ -714,6 +716,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .heights_loc = gl.glGetUniformLocation(prog, "heights[0]"),
             .radius_loc = gl.glGetUniformLocation(prog, "radius"),
             .morph_k_loc = gl.glGetUniformLocation(prog, "morphK"),
+            .open_state_loc = gl.glGetUniformLocation(prog, "openState"),
             .mask_center_loc = gl.glGetUniformLocation(prog, "maskCenter"),
             .mask_half_ex_loc = gl.glGetUniformLocation(prog, "maskHalfEx"),
             .mask_half_ey_loc = gl.glGetUniformLocation(prog, "maskHalfEy"),

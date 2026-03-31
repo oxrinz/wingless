@@ -86,6 +86,7 @@ var top_cluster_morph_k: f32 = 0.0; // smooth union parameter
 var bt_circle_grow: f32 = 0.0;
 var wifi_circle_grow: f32 = 0.0;
 var cap_circle_grow: f32 = 0.0;
+var rickroll_circle_grow: f32 = 0.0;
 
 const no_action: usize = std.math.maxInt(usize);
 var wifi_action_idx: usize = no_action;
@@ -207,12 +208,16 @@ var date_str: []u8 = date_buf[0..0];
 
 // this is public only because of the fullscreen blur
 pub var menu_state: f32 = 0;
-// btn_states[0]=Power, [1]=Reboot, [2]=BT, [3]=WiFi, [4]=Capture (right to left)
-var btn_states: [5]f32 = [_]f32{0} ** 5;
+// btn_states[0]=Power, [1]=Reboot, [2]=BT, [3]=WiFi, [4]=Capture, [5]=Rickroll (right to left)
+var btn_states: [6]f32 = [_]f32{0} ** 6;
 
 var capture_hover: bool = false;
 var capture_hover_brightness: f32 = 0.05;
 var capture_hover_scale: f32 = 1.0;
+
+var rickroll_hover: bool = false;
+var rickroll_hover_brightness: f32 = 0.05;
+var rickroll_hover_scale: f32 = 1.0;
 
 const max_thumbs = 16;
 var thumb_hover: [max_thumbs]bool = [_]bool{false} ** max_thumbs;
@@ -701,11 +706,13 @@ pub fn tick(dt: f32) void {
         if (btn_states[0] > 0.3) btn_states[2] = @min(1.0, lerp(btn_states[2], 1.0, bs));
         if (btn_states[2] > 0.3) btn_states[3] = @min(1.0, lerp(btn_states[3], 1.0, bs));
         if (btn_states[3] > 0.3) btn_states[4] = @min(1.0, lerp(btn_states[4], 1.0, bs));
+        if (btn_states[4] > 0.3) btn_states[5] = @min(1.0, lerp(btn_states[5], 1.0, bs));
     } else {
         btn_states[0] = @max(0.0, lerp(btn_states[0], 0.0, bs));
         if (btn_states[0] < 0.7) btn_states[2] = @max(0.0, lerp(btn_states[2], 0.0, bs));
         if (btn_states[2] < 0.7) btn_states[3] = @max(0.0, lerp(btn_states[3], 0.0, bs));
         if (btn_states[3] < 0.7) btn_states[4] = @max(0.0, lerp(btn_states[4], 0.0, bs));
+        if (btn_states[4] < 0.7) btn_states[5] = @max(0.0, lerp(btn_states[5], 0.0, bs));
     }
 
     const ts = c.time(null);
@@ -770,14 +777,17 @@ pub fn tick(dt: f32) void {
             bt_circle_grow = lerp(bt_circle_grow, open_state, spd);
             wifi_circle_grow = lerp(wifi_circle_grow, @max(0.0, open_state - stagger), spd);
             cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - stagger * 2.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - stagger * 3.0), spd);
         } else if (wifi_open) {
             wifi_circle_grow = lerp(wifi_circle_grow, open_state, spd);
             bt_circle_grow = lerp(bt_circle_grow, @max(0.0, open_state - stagger), spd);
             cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - stagger * 2.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - stagger * 3.0), spd);
         } else {
             bt_circle_grow = lerp(bt_circle_grow, 0.0, spd);
             wifi_circle_grow = lerp(wifi_circle_grow, 0.0, spd);
             cap_circle_grow = lerp(cap_circle_grow, 0.0, spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, 0.0, spd);
         }
     }
 
@@ -826,9 +836,12 @@ pub fn tick(dt: f32) void {
     bt_hover_scale = lerp(bt_hover_scale, if (bt_hover and bt_panel_state < 0.05) 1.06 else 1.0, speed);
     capture_hover_brightness = lerp(capture_hover_brightness, if (capture_hover) 0.18 else 0.05, speed);
     capture_hover_scale = lerp(capture_hover_scale, if (capture_hover) 1.06 else 1.0, speed);
+    rickroll_hover_brightness = lerp(rickroll_hover_brightness, if (rickroll_hover) 0.18 else 0.05, speed);
+    rickroll_hover_scale = lerp(rickroll_hover_scale, if (rickroll_hover) 1.06 else 1.0, speed);
     wifi_hover = false;
     bt_hover = false;
     capture_hover = false;
+    rickroll_hover = false;
 
     // close panel on click outside
     const pressed_this_frame = ui.pointer_down and !prev_pointer_down;
@@ -870,7 +883,7 @@ pub fn tick(dt: f32) void {
 }
 
 pub fn isActive() bool {
-    return ui.menu_open or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001;
+    return ui.menu_open or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001 or btn_states[5] > 0.0001;
 }
 
 pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
@@ -921,12 +934,17 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     });
 
     const top_y = ui.screen_height - 40.0 * s;
-    const btn_y = [3]f32{
+    const btn_y = [4]f32{
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]),
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]),
         lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]),
     };
 
+
+    const open_state = @max(bt_panel_state, wifi_panel_state);
+    const icon_alpha = std.math.clamp(1.0 - open_state / 0.3, 0.0, 1.0);
+    const mask_overhang = 10.0 * s;
 
     // --- Unified blob background for BT + WiFi + Capture ---
     {
@@ -939,46 +957,55 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         const bt_list_h: f32 = if (bt_list_vis == 0) bt_item_h else @as(f32, @floatFromInt(bt_list_vis)) * bt_item_h;
         const bt_full_h: f32 = bt_pad_f * 2 + bt_list_h;
 
-        // GL coords: y from bottom of screen
-        const btn_bottom_y_gl = ui.screen_height - btn_y[0];
+        // GL coords: y from bottom of screen — each button has its own animated Y
+        const bt_cy_gl = (ui.screen_height - btn_y[0]) + radius;
+        const wifi_cy_gl = (ui.screen_height - btn_y[1]) + radius;
+        const cap_cy_gl = (ui.screen_height - btn_y[2]) + radius;
+        const rickroll_cy_gl = (ui.screen_height - btn_y[3]) + radius;
 
         // Circles stay at their button centers and grow radially (scale) to fill the mask.
-        const open_state = @max(bt_panel_state, wifi_panel_state);
-
         const bt_cx_gl = ui.screen_width - 40.0 * s - radius;
-        const bt_cy_gl = btn_bottom_y_gl + radius;
 
         const wifi_right_x = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s;
         const wifi_cx_gl = wifi_right_x - radius;
-        const wifi_cy_gl = btn_bottom_y_gl + radius;
 
         const cap_cx_gl = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - radius;
-        const cap_cy_gl = btn_bottom_y_gl + radius;
+        const rickroll_cx_gl = ui.screen_width - 40.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - 54.0 * s - 12.0 * s - radius;
 
         const centers = [16]f32{
             bt_cx_gl, bt_cy_gl, wifi_cx_gl, wifi_cy_gl,
-            cap_cx_gl, cap_cy_gl, 0, 0,
+            cap_cx_gl, cap_cy_gl, rickroll_cx_gl, rickroll_cy_gl,
             0, 0, 0, 0, 0, 0, 0, 0,
         };
-        // Max scale per circle: grow just past the panel bottom from each center's position
+        // Mask: panel shape, slightly overhanging top and right past BT button boundary.
         const opened_h = if (bt_panel_state >= wifi_panel_state) bt_full_h else wifi_panel_full_h;
-        const bt_max_scale = (opened_h - radius) / radius * 1.15;
-        const wifi_max_scale = @sqrt((150.0 * s) * (150.0 * s) + (opened_h - radius) * (opened_h - radius)) / radius * 1.1;
-        const cap_max_scale = @sqrt((300.0 * s - radius) * (300.0 * s - radius) + (opened_h - radius) * (opened_h - radius)) / radius * 1.1;
-        const bt_scale = lerp(1.0, @max(bt_max_scale, 2.0), bt_circle_grow);
-        const wifi_scale = lerp(1.0, @max(wifi_max_scale, 2.0), wifi_circle_grow);
-        const cap_scale = lerp(1.0, @max(cap_max_scale, 2.0), cap_circle_grow);
-        const scales_arr = [8]f32{ bt_hover_scale * bt_scale, wifi_hover_scale * wifi_scale, capture_hover_scale * cap_scale, 0, 0, 0, 0, 0 };
-        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, capture_hover_brightness, 0, 0, 0, 0, 0 };
+
+        // Max scale per circle: circle radius must reach the farthest mask corner
+        // exactly when that circle's grow value peaks (accounting for stagger).
+        // bt/wifi peak at cg = 0.82, cap at 0.64, rickroll at 0.46.
+        // Formula: max_scale = (diag - radius) / (cg_max * radius) + 1
+        const vert_dist = opened_h - mask_overhang - radius;
+        const bt_diag = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
+        const wifi_diag = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
+        const cap_diag = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
+        const rickroll_diag = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
+        const bt_max_scale = @max(1.5, (bt_diag - radius) / (0.82 * radius) + 1.0);
+        const wifi_max_scale = @max(1.5, (wifi_diag - radius) / (0.82 * radius) + 1.0);
+        const cap_max_scale = @max(1.5, (cap_diag - radius) / (0.64 * radius) + 1.0);
+        const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.46 * radius) + 1.0);
+        const bt_scale = lerp(1.0, bt_max_scale, bt_circle_grow);
+        const wifi_scale = lerp(1.0, wifi_max_scale, wifi_circle_grow);
+        const cap_scale = lerp(1.0, cap_max_scale, cap_circle_grow);
+        const rickroll_scale = lerp(1.0, rickroll_max_scale, rickroll_circle_grow);
+        const scales_arr = [8]f32{ bt_hover_scale * bt_scale, wifi_hover_scale * wifi_scale, capture_hover_scale * cap_scale, rickroll_hover_scale * rickroll_scale, 0, 0, 0, 0 };
+        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, 0, 0, 0, 0 };
         const widths_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
-
-        // Mask: panel shape at fixed position. Disabled (mask_r=0) when closed.
-        const mask_r = if (open_state > 0.01) radius else 0.0;
-        const mask_ex = panel_half_w - radius;
+        const mask_r = radius;
+        const mask_ex = panel_half_w - radius + mask_overhang / 2.0;
         const mask_ey = @max(opened_h / 2.0 - radius, 0.0);
-        const mask_cx_gl = ui.screen_width - 40.0 * s - panel_half_w;
-        const mask_cy_gl = btn_bottom_y_gl + radius + mask_ey;
+        const mask_cx_gl = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
+        const mask_cy_gl = (ui.screen_height - btn_y[0]) + radius + @max(opened_h / 2.0 - radius, 0.0) - mask_overhang;
 
         const blob_bb_w = 300.0 * s;
         const blob_bb_h = top_cluster_blob_h;
@@ -988,16 +1015,16 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = -40.0 * s, .y = btn_y[0] },
+                .offset = .{ .x = -40.0 * s + mask_overhang, .y = btn_y[0] + mask_overhang },
             },
-            .layout = .{ .sizing = .{ .w = .fixed(blob_bb_w), .h = .fixed(blob_bb_h) } },
-            .custom = .{ .custom_data = ui.mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, top_cluster_morph_k, 0, 0, 0, 0, 0, mask_cx_gl, mask_cy_gl, mask_ex, mask_ey, mask_r) },
+            .layout = .{ .sizing = .{ .w = .fixed(blob_bb_w + mask_overhang), .h = .fixed(blob_bb_h) } },
+            .custom = .{ .custom_data = ui.mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, top_cluster_morph_k, 0, 0, 0, 0, 0, open_state, mask_cx_gl, mask_cy_gl, mask_ex, mask_ey, mask_r) },
         })({});
     }
 
     // Bluetooth button (morphs into panel on click)
     // Bluetooth button: static 54x54 hit area, never moves
-    if (!bt_open and !wifi_open) {
+    if (open_state < 0.4) {
         zclay.UI()(.{
             .id = .ID("BtBtn"),
             .floating = .{
@@ -1022,11 +1049,11 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                     }
                 }
             }.callback, null);
-            if (@max(bt_panel_state, wifi_panel_state) < 0.15) {
+            if (icon_alpha > 0.01) {
                 zclay.UI()(.{
                     .id = .ID("BtIcon"),
                     .layout = .{ .sizing = .{ .w = .fixed(32 * s * bt_hover_scale), .h = .fixed(32 * s * bt_hover_scale) } },
-                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "bluetooth-symbolic", 1.0) },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "bluetooth-symbolic", icon_alpha) },
                 })({});
             }
         });
@@ -1051,24 +1078,25 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = -40 * s, .y = btn_y[0] },
+                .offset = .{ .x = -40 * s + mask_overhang, .y = btn_y[0] + mask_overhang },
             },
             .layout = .{
                 .direction = .top_to_bottom,
-                .sizing = .{ .w = .fixed(300 * s), .h = .fixed(bt_h) },
+                .sizing = .{ .w = .fixed(300 * s + mask_overhang), .h = .fixed(bt_h) },
                 .child_alignment = .{ .x = .left, .y = .top },
                 .padding = .{ .top = bt_pad, .bottom = bt_pad, .left = bt_pad, .right = bt_pad },
             },
         })({
-            if (bt_panel_state >= 0.15) {
+            const ba = std.math.clamp((bt_panel_state - 0.25) / 0.35, 0.0, 1.0);
+            if (ba > 0.01) {
                 if (bt_vis == 0) {
                     const label: []const u8 = if (bt_fetching.load(.acquire)) "Scanning..." else "No devices";
                     const fsz: u16 = @intFromFloat(14 * s);
-                    zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140 } });
+                    zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140.0 * ba } });
                 } else {
                     if (bt_status.len > 0) {
                         const sfsz: u16 = @intFromFloat(12 * s);
-                        zclay.text(bt_status, .{ .font_size = sfsz, .color = .{ 255, 255, 255, 160 } });
+                        zclay.text(bt_status, .{ .font_size = sfsz, .color = .{ 255, 255, 255, 160.0 * ba } });
                     }
                     for (0..bt_vis) |i| {
                         const e = &bt_snapshot[i];
@@ -1083,7 +1111,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 .padding = .{ .left = item_px, .right = item_px },
                                 .child_gap = @as(u16, @intFromFloat(8 * s)),
                             },
-                            .custom = .{ .custom_data = ui.mkRect(8 * s, bt_item_hover_bright[i]) },
+                            .custom = .{ .custom_data = ui.mkRect(8 * s, bt_item_hover_bright[i] * ba) },
                         })({
                             zclay.cdefs.Clay_OnHover(struct {
                                 pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
@@ -1104,7 +1132,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 }
                             }.callback, &bt_item_cb[i]);
                             const fsz: u16 = @intFromFloat(15 * s);
-                            zclay.text(e.name[0..e.name_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255 } else .{ 255, 255, 255, 200 } });
+                            zclay.text(e.name[0..e.name_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255.0 * ba } else .{ 255, 255, 255, 200.0 * ba } });
                             {
                                 const lfsz: u16 = @intFromFloat(12 * s);
                                 const spinner_frames = [_][]const u8{ "|", "/", "-", "\\" };
@@ -1120,7 +1148,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                         .id = .IDI("BtSpacer", @intCast(i)),
                                         .layout = .{ .sizing = .{ .w = .grow, .h = .fixed(1) } },
                                     })({});
-                                    zclay.text(sub_lbl, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 150 } });
+                                    zclay.text(sub_lbl, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 150.0 * ba } });
                                 }
                             }
                         });
@@ -1132,7 +1160,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 
     // WiFi button (morphs into panel on click)
     // WiFi button: static 54x54 hit area, never moves
-    if (!bt_open and !wifi_open) {
+    if (open_state < 0.4) {
         const wifi_offset_x = -40 * s - 54 * s - 12 * s;
         zclay.UI()(.{
             .id = .ID("WifiBtn"),
@@ -1158,7 +1186,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                     }
                 }
             }.callback, null);
-            if (@max(bt_panel_state, wifi_panel_state) < 0.15) {
+            if (icon_alpha > 0.01) {
                 var conn_signal: i32 = -1;
                 for (wifi_snapshot[0..wifi_snapshot_count]) |we| {
                     if (we.connected) { conn_signal = we.signal; break; }
@@ -1176,7 +1204,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                 zclay.UI()(.{
                     .id = .ID("WifiIcon"),
                     .layout = .{ .sizing = .{ .w = .fixed(32 * s * wifi_hover_scale), .h = .fixed(32 * s * wifi_hover_scale) } },
-                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, btn_sig_icon, 1.0) },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, btn_sig_icon, icon_alpha) },
                 })({});
             }
         });
@@ -1199,16 +1227,17 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             .floating = .{
                 .attach_to = .to_root,
                 .attach_points = .{ .element = .right_bottom, .parent = .right_top },
-                .offset = .{ .x = -40 * s, .y = btn_y[1] },
+                .offset = .{ .x = -40 * s + mask_overhang, .y = btn_y[1] + mask_overhang },
             },
             .layout = .{
                 .direction = .top_to_bottom,
-                .sizing = .{ .w = .fixed(300 * s), .h = .fixed(wifi_h) },
+                .sizing = .{ .w = .fixed(300 * s + mask_overhang), .h = .fixed(wifi_h) },
                 .child_alignment = if (wifi_pw_mode) .{ .x = .left, .y = .center } else .{ .x = .left, .y = .top },
                 .padding = .{ .top = wifi_pad, .bottom = wifi_pad, .left = wifi_pad, .right = wifi_pad },
             },
         })({
-            if (wifi_panel_state >= 0.15) {
+            const wa = std.math.clamp((wifi_panel_state - 0.25) / 0.35, 0.0, 1.0);
+            if (wa > 0.01) {
                 if (wifi_pw_mode) {
                 const target = &wifi_snapshot[wifi_pw_target];
                 wifi_pw_label = std.fmt.bufPrint(&wifi_pw_label_buf, "Password for {s}", .{target.ssid[0..target.ssid_len]}) catch "Password";
@@ -1233,7 +1262,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                     },
                 })({
                     const lfsz: u16 = @intFromFloat(13 * s);
-                    zclay.text(wifi_pw_label, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 180 } });
+                    zclay.text(wifi_pw_label, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 180.0 * wa } });
 
                     const ifsz: u16 = @intFromFloat(16 * s);
                     const item_px: u16 = @intFromFloat(8 * s);
@@ -1248,7 +1277,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             .padding = .{ .left = item_px, .right = @as(u16, @intFromFloat(4 * s)) },
                             .child_gap = @as(u16, @intFromFloat(4 * s)),
                         },
-                        .custom = .{ .custom_data = ui.mkRect(8 * s, 0.13) },
+                        .custom = .{ .custom_data = ui.mkRect(8 * s, 0.13 * wa) },
                     })({
                         zclay.UI()(.{
                             .id = .ID("WifiPwText"),
@@ -1258,9 +1287,9 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             },
                         })({
                             if (disp_len == 0) {
-                                zclay.text("Enter password...", .{ .font_size = ifsz, .color = .{ 255, 255, 255, 60 } });
+                                zclay.text("Enter password...", .{ .font_size = ifsz, .color = .{ 255, 255, 255, 60.0 * wa } });
                             } else {
-                                zclay.text(wifi_pw_disp_buf[0..disp_len], .{ .font_size = ifsz, .color = .{ 255, 255, 255, 230 } });
+                                zclay.text(wifi_pw_disp_buf[0..disp_len], .{ .font_size = ifsz, .color = .{ 255, 255, 255, 230.0 * wa } });
                             }
                         });
                         zclay.UI()(.{
@@ -1269,7 +1298,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 .sizing = .{ .w = .fixed(eye_w), .h = .grow },
                                 .child_alignment = .{ .x = .center, .y = .center },
                             },
-                            .custom = .{ .custom_data = ui.mkRect(6 * s, wifi_pw_show_hover_bright) },
+                            .custom = .{ .custom_data = ui.mkRect(6 * s, wifi_pw_show_hover_bright * wa) },
                         })({
                             zclay.cdefs.Clay_OnHover(struct {
                                 pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
@@ -1283,7 +1312,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             zclay.UI()(.{
                                 .id = .ID("WifiPwEyeIcon"),
                                 .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, icon_name, if (wifi_pw_show_hover) 1.0 else 0.5) },
+                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, icon_name, (if (wifi_pw_show_hover) @as(f32, 1.0) else @as(f32, 0.5)) * wa) },
                             })({});
                         });
                     });
@@ -1292,7 +1321,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                 if (wifi_vis == 0) {
                     const label: []const u8 = if (wifi_fetching.load(.acquire)) "Scanning..." else "No networks";
                     const fsz: u16 = @intFromFloat(14 * s);
-                    zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140 } });
+                    zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140.0 * wa } });
                 } else {
                     for (0..wifi_vis) |i| {
                         const e = &wifi_snapshot[i];
@@ -1307,7 +1336,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 .padding = .{ .left = item_px, .right = item_px },
                                 .child_gap = @as(u16, @intFromFloat(8 * s)),
                             },
-                            .custom = .{ .custom_data = ui.mkRect(8 * s, wifi_item_hover_bright[i]) },
+                            .custom = .{ .custom_data = ui.mkRect(8 * s, wifi_item_hover_bright[i] * wa) },
                         })({
                             zclay.cdefs.Clay_OnHover(struct {
                                 pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
@@ -1354,7 +1383,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             zclay.UI()(.{
                                 .id = .IDI("WifiSigIcon", @intCast(i)),
                                 .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, sig_icon, 0.9) },
+                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, sig_icon, 0.9 * wa) },
                             })({});
                             if (loading) {
                                 zclay.UI()(.{
@@ -1366,11 +1395,11 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                 zclay.UI()(.{
                                     .id = .IDI("WifiCheck", @intCast(i)),
                                     .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "object-select-symbolic", 0.9) },
+                                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "object-select-symbolic", 0.9 * wa) },
                                 })({});
                             }
                             const fsz: u16 = @intFromFloat(14 * s);
-                            zclay.text(e.ssid[0..e.ssid_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255 } else .{ 255, 255, 255, 200 } });
+                            zclay.text(e.ssid[0..e.ssid_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255.0 * wa } else .{ 255, 255, 255, 200.0 * wa } });
                         });
                     }
                 }
@@ -1380,7 +1409,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     }
 
     // Capture button (screenshot / recording)
-    if (!bt_open and !wifi_open) {
+    if (open_state < 0.4) {
         const is_rec = recording.isRecording();
         const cap_r = 27 * s;
         const cap_btn_w: f32 = 54 * s;
@@ -1413,11 +1442,57 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                     }
                 }
             }.callback, null);
-            if (@max(bt_panel_state, wifi_panel_state) < 0.15) {
+            if (icon_alpha > 0.01) {
                 zclay.UI()(.{
                     .id = .ID("CaptureIcon"),
                     .layout = .{ .sizing = .{ .w = .fixed(32 * s * capture_hover_scale), .h = .fixed(32 * s * capture_hover_scale) } },
-                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "media-record-symbolic", 1.0) },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "media-record-symbolic", icon_alpha) },
+                })({});
+            }
+        });
+    }
+
+    // Rickroll button (settings icon, opens browser)
+    if (open_state < 0.4) {
+        const rr_r = 27 * s;
+        const rr_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
+        zclay.UI()(.{
+            .id = .ID("RickrollBtn"),
+            .floating = .{
+                .attach_to = .to_root,
+                .attach_points = .{ .element = .right_bottom, .parent = .right_top },
+                .offset = .{ .x = rr_offset_x, .y = btn_y[3] },
+            },
+            .layout = .{
+                .sizing = .{ .w = .fixed(54 * s), .h = .fixed(54 * s) },
+                .child_alignment = .{ .x = .center, .y = .center },
+                .direction = .top_to_bottom,
+                .child_gap = @intFromFloat(4 * s),
+            },
+            .custom = .{ .custom_data = ui.mkRect(rr_r, rickroll_hover_brightness) },
+        })({
+            zclay.cdefs.Clay_OnHover(struct {
+                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
+                    rickroll_hover = true;
+                    if (ptr_data.state == .pressed_this_frame) {
+                        const t = std.Thread.spawn(.{}, struct {
+                            pub fn run() void {
+                                var child = std.process.Child.init(
+                                    &[_][]const u8{ "xdg-open", "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                                    std.heap.page_allocator,
+                                );
+                                _ = child.spawnAndWait() catch {};
+                            }
+                        }.run, .{}) catch return;
+                        t.detach();
+                    }
+                }
+            }.callback, null);
+            if (icon_alpha > 0.01) {
+                zclay.UI()(.{
+                    .id = .ID("RickrollIcon"),
+                    .layout = .{ .sizing = .{ .w = .fixed(32 * s * rickroll_hover_scale), .h = .fixed(32 * s * rickroll_hover_scale) } },
+                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "preferences-system-symbolic", icon_alpha) },
                 })({});
             }
         });

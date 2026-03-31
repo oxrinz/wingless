@@ -187,6 +187,7 @@ fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: 
     gl.glUniform1fv(prog.heights_loc, 8, &blob.heights[0]);
     gl.glUniform1f(prog.radius_loc, blob.radius);
     gl.glUniform1f(prog.morph_k_loc, blob.morph_k);
+    gl.glUniform1f(prog.open_state_loc, blob.open_state);
     gl.glUniform2f(prog.mask_center_loc, blob.mask_cx, blob.mask_cy);
     gl.glUniform1f(prog.mask_half_ex_loc, blob.mask_half_ex);
     gl.glUniform1f(prog.mask_half_ey_loc, blob.mask_half_ey);

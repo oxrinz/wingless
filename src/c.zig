@@ -40,6 +40,7 @@ pub const c = @cImport({
     @cInclude("stb/stb_image.h");
     @cInclude("stb/stb_image_write.h");
     @cInclude("xcb/xcb.h");
+    @cInclude("xcb/xproto.h");
     @cInclude("libinput.h");
 });
 

@@ -12,12 +12,12 @@ Minimal Wayland compositor without sacrificing beauty
 - common logic between menu beacon and screenshotting ui
 - output management
 - glass shaders
+- glass morph
 
 ## todo:
 - Bluetooth in menu
 - Design language and client library
 - Multiple desktops
-- Support multiple monitors
 - Don't render windows that are behind one another
 - Port to vulkan
 - Get rid of wlroots
@@ -29,8 +29,8 @@ Minimal Wayland compositor without sacrificing beauty
 - Menu window borders should be consistent regardless of window size
 - Add something that'd tell users if nm is not installed instead of silently failing
 - Notification system
-- Cursor visibility protocol
-- Menu button morphing
+- Frostpunk black when tabbing back in bug
+- Sound IO settings
 
 ## done
 - Window switching
@@ -98,3 +98,8 @@ Minimal Wayland compositor without sacrificing beauty
 - Screenshotting / screenrecording proper ui
 - Fix cursor constraints to work in cs2
 - Cursor setting
+- Cursor visibility protocol
+- Menu button morphing
+- Support multiple monitors
+- Rick roll
+- Resize request protocol

@@ -5,6 +5,7 @@ uniform float widths[8];   // half-extent X for rounded rect (0 = circle)
 uniform float heights[8];  // half-extent Y for rounded rect (0 = circle)
 uniform float radius;
 uniform float morphK;
+uniform float openState;
 uniform vec2 maskCenter;
 uniform float maskHalfEx;
 uniform float maskHalfEy;
@@ -19,6 +20,7 @@ float shapeSDF(vec2 p, vec2 center, float r, float half_ex, float half_ey) {
 }
 
 float fullSDF(vec2 p) {
+    // Blob: smin union of growing circles — provides glass texture and shape visuals.
     float d = 1e6;
     for (int i = 0; i < 8; i++) {
         if (scales[i] > 0.001) {
@@ -27,7 +29,18 @@ float fullSDF(vec2 p) {
     }
     if (maskRadius > 0.0) {
         float mask = shapeSDF(p, maskCenter, maskRadius, maskHalfEx, maskHalfEy);
-        d = smax(d, mask, radius * 0.4);
+        // Reveal boundary: morphs from button circles (state=0) to panel mask (state=1).
+        // This ties fill directly to openState — state=t means the panel is t-fraction full.
+        // The blob circles grow inside this boundary; smin inflation cannot overshoot it.
+        float buttons = 1e6;
+        for (int i = 0; i < 8; i++) {
+            if (scales[i] > 0.001) {
+                buttons = smin(buttons, shapeSDF(p, centers[i], radius, widths[i], heights[i]), morphK);
+            }
+        }
+        float reveal = mix(buttons, mask, openState);
+        d = max(d, reveal);
+        d = max(d, mask); // hard clip failsafe
     }
     return d;
 }
@@ -59,7 +72,7 @@ void main() {
     brightness /= wsum;
 
     // Glass refraction via finite-difference gradient
-    float refractionBand = radius * 0.5;
+    float refractionBand = radius * 1.8;
     float distFromCenter = 1.0 - clamp(-d / refractionBand, 0.0, 1.0);
     float distortion = 1.0 - sqrt(max(0.0, 1.0 - pow(distFromCenter, 2.0)));
 
