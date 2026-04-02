@@ -622,6 +622,8 @@ const WinglessXwayland = struct {
     associate: c.wl_listener,
     request_configure: c.wl_listener,
     request_activate: c.wl_listener,
+    request_move: c.wl_listener,
+    request_resize: c.wl_listener,
     map: c.wl_listener,
     unmap: c.wl_listener,
     commit: c.wl_listener,
@@ -642,6 +644,8 @@ const WinglessXwayland = struct {
         toplevel.associate = .{ .link = undefined, .notify = xwayland_surface_associate };
         toplevel.request_configure = .{ .link = undefined, .notify = xwayland_request_configure };
         toplevel.request_activate = .{ .link = undefined, .notify = xwayland_request_activate };
+        toplevel.request_move = .{ .link = undefined, .notify = xwayland_request_move };
+        toplevel.request_resize = .{ .link = undefined, .notify = xwayland_request_resize };
 
         toplevel.map = .{ .link = undefined, .notify = xwayland_surface_map };
         toplevel.unmap = .{ .link = undefined, .notify = xwayland_surface_unmap };
@@ -655,6 +659,8 @@ const WinglessXwayland = struct {
         c.wl_signal_add(&xsurface.events.associate, &toplevel.associate);
         c.wl_signal_add(&xsurface.events.request_configure, &toplevel.request_configure);
         c.wl_signal_add(&xsurface.events.request_activate, &toplevel.request_activate);
+        c.wl_signal_add(&xsurface.events.request_move, &toplevel.request_move);
+        c.wl_signal_add(&xsurface.events.request_resize, &toplevel.request_resize);
         c.wl_signal_add(&xsurface.events.destroy, &toplevel.destroy);
 
         return toplevel;
@@ -696,6 +702,8 @@ const WinglessXwayland = struct {
         c.wl_list_remove(&self.associate.link);
         c.wl_list_remove(&self.request_configure.link);
         c.wl_list_remove(&self.request_activate.link);
+        c.wl_list_remove(&self.request_move.link);
+        c.wl_list_remove(&self.request_resize.link);
 
         self.remove();
 
@@ -887,16 +895,6 @@ fn xwayland_surface_map(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
 
     if (!xwl.xsurface.override_redirect) {
         xwl.scene_tree.?.node.data = xwl;
-        const o = c.wlr_output_layout_output_at(xwl.server.output_layout, xwl.server.cursor.x, xwl.server.cursor.y) orelse
-            c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
-
-        var w: c_int = 0;
-        var h: c_int = 0;
-        c.wlr_output_effective_resolution(o, &w, &h);
-
-        c.wlr_xwayland_surface_configure(xwl.xsurface, 0, 0, @intCast(w), @intCast(h));
-
-        c.wlr_xwayland_surface_set_fullscreen(xwl.xsurface, true);
     }
 
     c.wlr_scene_node_set_position(&xwl.scene_tree.?.node, xwl.xsurface.x, xwl.xsurface.y);
@@ -1033,6 +1031,34 @@ fn xdg_toplevel_request_resize(listener: [*c]c.wl_listener, data: ?*anyopaque) c
     server.drag_from_client = true;
 }
 
+fn xwayland_request_move(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_move", listener)));
+    if (xwl.xsurface.fullscreen) return;
+    const server = xwl.server;
+    const toplevel: *WinglessToplevel = @ptrCast(xwl);
+    server.cursor_mode = .move;
+    server.grabbed_toplevel = toplevel;
+    server.grab_x = server.cursor.x - @as(f64, @floatFromInt(xwl.xsurface.x));
+    server.grab_y = server.cursor.y - @as(f64, @floatFromInt(xwl.xsurface.y));
+    server.drag_from_client = true;
+}
+
+fn xwayland_request_resize(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const event: *c.wlr_xwayland_resize_event = @ptrCast(@alignCast(data.?));
+    const xwl: *WinglessXwayland = @ptrCast(@as(*allowzero WinglessXwayland, @fieldParentPtr("request_resize", listener)));
+    if (xwl.xsurface.fullscreen) return;
+    const server = xwl.server;
+    const toplevel: *WinglessToplevel = @ptrCast(xwl);
+    server.cursor_mode = .resize;
+    server.grabbed_toplevel = toplevel;
+    server.grab_x = server.cursor.x;
+    server.grab_y = server.cursor.y;
+    server.grab_geo = .{ .x = xwl.xsurface.x, .y = xwl.xsurface.y, .width = xwl.xsurface.width, .height = xwl.xsurface.height };
+    server.resize_edges = event.edges;
+    server.drag_from_client = true;
+}
+
 fn server_new_xwayland_surface(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("new_xwayland_surface", listener)));
     const xsurface: *c.wlr_xwayland_surface = @ptrCast(@alignCast(data.?));
@@ -1060,15 +1086,8 @@ fn xwayland_request_configure(listener: [*c]c.wl_listener, data: ?*anyopaque) ca
 
     const o = c.wlr_output_layout_get_center_output(xwl.server.output_layout) orelse return;
 
-    if (!xwl.xsurface.override_redirect) {
-        var w: c_int = 0;
-        var h: c_int = 0;
-        c.wlr_output_effective_resolution(o, &w, &h);
-
-        c.wlr_xwayland_surface_configure(xwl.xsurface, 0, 0, @intCast(w), @intCast(h));
-    } else {
-        c.wlr_xwayland_surface_configure(xwl.xsurface, ev.x, ev.y, ev.width, ev.height);
-    }
+    _ = o;
+    c.wlr_xwayland_surface_configure(xwl.xsurface, ev.x, ev.y, ev.width, ev.height);
 
     if (xwl.scene_tree) |tree| {
         c.wlr_scene_node_set_position(&tree.node, ev.x, ev.y);
@@ -1237,12 +1256,11 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var sy: f64 = undefined;
     var surface: [*c]c.wlr_surface = null;
 
-    {
-        const lpos = cursorLocalPos(server);
-        if (ui.initialized) ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
-        ui.volume_slider.onCursorMove(lpos.x, lpos.y);
-    }
+    const lpos = cursorLocalPos(server);
+    if (ui.initialized) ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
+    ui.volume_slider.onCursorMove(lpos.x, lpos.y);
 
+    // if any of the compositor uis are open clear the constraints
     if (ui.menu_open or ui.beacon_open) {
         update_pointer_constraint(server, null);
         return;
@@ -1250,13 +1268,20 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
 
     if (ui.screenshot.isActive()) {
         update_pointer_constraint(server, null);
-        const ss_lpos = cursorLocalPos(server);
-        _ = ui.screenshot.onMouseMotion(ss_lpos.x, ss_lpos.y);
+        _ = ui.screenshot.onMouseMotion(lpos.x, lpos.y);
         return;
     }
 
     if (server.cursor_mode == .move) {
         const t = server.grabbed_toplevel.?;
+        if (t.focusable == .xwayland) {
+            const xwl = t.focusable.xwayland;
+            const new_x: i16 = @intFromFloat(server.cursor.x - server.grab_x);
+            const new_y: i16 = @intFromFloat(server.cursor.y - server.grab_y);
+            c.wlr_xwayland_surface_configure(xwl.xsurface, new_x, new_y, xwl.xsurface.width, xwl.xsurface.height);
+            if (xwl.scene_tree) |tree| c.wlr_scene_node_set_position(&tree.node, new_x, new_y);
+            return;
+        }
         if (t.is_fullscreen) {
             server.cursor_mode = .passthrough;
             server.grabbed_toplevel = null;
@@ -1288,6 +1313,25 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
 
     if (server.cursor_mode == .resize) {
         const t = server.grabbed_toplevel.?;
+        if (t.focusable == .xwayland) {
+            const xwl = t.focusable.xwayland;
+            const dx: i32 = @intFromFloat(server.cursor.x - server.grab_x);
+            const dy: i32 = @intFromFloat(server.cursor.y - server.grab_y);
+            const geo = server.grab_geo;
+            var new_left = geo.x;
+            var new_right = geo.x + @as(i32, geo.width);
+            var new_top = geo.y;
+            var new_bottom = geo.y + @as(i32, geo.height);
+            if (server.resize_edges & 4 != 0) new_left += dx;
+            if (server.resize_edges & 8 != 0) new_right += dx;
+            if (server.resize_edges & 1 != 0) new_top += dy;
+            if (server.resize_edges & 2 != 0) new_bottom += dy;
+            const new_w: u16 = @intCast(@max(1, new_right - new_left));
+            const new_h: u16 = @intCast(@max(1, new_bottom - new_top));
+            c.wlr_xwayland_surface_configure(xwl.xsurface, @intCast(new_left), @intCast(new_top), new_w, new_h);
+            if (xwl.scene_tree) |tree| c.wlr_scene_node_set_position(&tree.node, new_left, new_top);
+            return;
+        }
         if (t.is_fullscreen) {
             server.cursor_mode = .passthrough;
             server.grabbed_toplevel = null;
@@ -1323,21 +1367,22 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
         }
     }
 
-    // For locked pointer, return immediately — the surface lookup via desktop_active_toplevel
+    // for locked pointer, return immediately — the surface lookup via desktop_active_toplevel
     // may return a sub-surface that doesn't match the constraint's registered surface, which
-    // would cause update_pointer_constraint to incorrectly deactivate the lock. Relative motion
-    // is already forwarded in server_cursor_motion via wlr_relative_pointer_manager_v1.
+    // would cause update_pointer_constraint to incorrectly deactivate the lock. relative motion
+    // is already forwarded in server_cursor_motion via wlr_relative_pointer_manager_v1
     if (server.active_constraint) |constraint| {
         if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) return;
     }
 
     _ = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
-    // Update active pointer constraint based on surface under pointer
+    // update active pointer constraint based on surface under pointer
     update_pointer_constraint(server, surface);
 
-    // For confined pointer, enforce the constraint region.
-    // An empty region means "whole surface" per the protocol spec — skip enforcement in that case.
+    // for confined pointer, enforce the constraint region.
+    // an empty region means "whole surface" per the protocol spec, skip enforcement in that case.
+    // TODO: this may be innacurate, write proper tests
     if (server.active_constraint) |constraint| {
         if (constraint.type == c.WLR_POINTER_CONSTRAINT_V1_CONFINED) {
             if (c.pixman_region32_not_empty(&constraint.region) != 0 and
@@ -1356,7 +1401,9 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
         c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
         c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
         return;
-    } else {
+    }
+    // otherwise, propagate input or clear focus
+    else {
         if (surface != null) {
             c.wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
             c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
@@ -1420,6 +1467,7 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     const server: *WinglessServer = @ptrCast(@as(*allowzero WinglessServer, @fieldParentPtr("cursor_button", listener)));
     const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data.?));
 
+    // drag and drop has priority in all cases
     if (server.active_drag != null) {
         _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
         return;
@@ -1436,19 +1484,17 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
         return;
     }
 
-    // always feed Clay pointer state so toolbar buttons work during capture overlay
+    const btn_lpos = cursorLocalPos(server);
+
+    // end screenshot
+    if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, btn_lpos.x, btn_lpos.y)) return;
+
     if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive() or ui.screenshot.isActive())) {
         ui.pointer_down = event.state == c.WLR_BUTTON_PRESSED;
-        const lpos = cursorLocalPos(server);
-        ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
         ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
     }
 
-    {
-        const ss_lpos = cursorLocalPos(server);
-        if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, ss_lpos.x, ss_lpos.y)) return;
-    }
-
+    // when menu is open, don't pass input through
     if (ui.menu_open) return;
 
     var sx: f64 = undefined;
@@ -1456,54 +1502,80 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     var surface: [*c]c.wlr_surface = null;
     const hit_toplevel = desktop_active_toplevel(server, server.cursor.x, server.cursor.y, &surface, &sx, &sy);
 
-    // Super+LMB = move, Super+RMB = resize
-    if (event.state == c.WLR_BUTTON_PRESSED and hit_toplevel != null) {
-        const t = hit_toplevel.?;
-        // Don't call focus_toplevel for XWayland surfaces that have a parent window
-        // (transient popups, context menus). Doing so deactivates the parent via
-        // wlr_xwayland_surface_activate(parent, false), causing apps like Steam to
-        // dismiss their own popups when they receive an X11 deactivation event.
-        const is_xwl_child = t.focusable == .xwayland and t.focusable.xwayland.xsurface.parent != null;
-        if (!is_xwl_child) focus_toplevel(&t.focusable);
-        if (t.focusable == .xwayland) {
-            _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
-            return;
-        }
-        const wlr_kb = c.wlr_seat_get_keyboard(server.seat);
-        const mods = if (wlr_kb != null) c.wlr_keyboard_get_modifiers(wlr_kb) else 0;
-        if (mods & c.WLR_MODIFIER_LOGO != 0) {
-            if (event.button == 272) { // BTN_LEFT
-                if (t.is_fullscreen) return;
-                server.cursor_mode = .move;
-                server.grabbed_toplevel = t;
-                server.grab_x = server.cursor.x - @as(f64, @floatFromInt(t.x));
-                server.grab_y = server.cursor.y - @as(f64, @floatFromInt(t.y));
+    if (event.state == c.WLR_BUTTON_PRESSED) {
+        if (hit_toplevel) |t| {
+            // stupid xwayland shit
+            const is_xwl_child = t.focusable == .xwayland and t.focusable.xwayland.xsurface.parent != null;
+            if (!is_xwl_child) focus_toplevel(&t.focusable);
+
+            const wlr_kb = c.wlr_seat_get_keyboard(server.seat);
+            const mods = if (wlr_kb != null) c.wlr_keyboard_get_modifiers(wlr_kb) else 0;
+            const super = mods & c.WLR_MODIFIER_LOGO != 0;
+
+            // xwayland resize and move
+            if (t.focusable == .xwayland) {
+                const xwl = t.focusable.xwayland;
+                if (super and !xwl.xsurface.fullscreen) {
+                    if (event.button == 272) { // BTN_LEFT — move
+                        server.cursor_mode = .move;
+                        server.grabbed_toplevel = t;
+                        server.grab_x = server.cursor.x - @as(f64, @floatFromInt(xwl.xsurface.x));
+                        server.grab_y = server.cursor.y - @as(f64, @floatFromInt(xwl.xsurface.y));
+                        return;
+                    } else if (event.button == 273) { // BTN_RIGHT — resize
+                        const win_cx = @as(f64, @floatFromInt(xwl.xsurface.x)) + @as(f64, @floatFromInt(xwl.xsurface.width)) / 2.0;
+                        const win_cy = @as(f64, @floatFromInt(xwl.xsurface.y)) + @as(f64, @floatFromInt(xwl.xsurface.height)) / 2.0;
+                        var edges: u32 = 0;
+                        if (server.cursor.x < win_cx) edges |= 4 else edges |= 8;
+                        if (server.cursor.y < win_cy) edges |= 1 else edges |= 2;
+                        server.cursor_mode = .resize;
+                        server.grabbed_toplevel = t;
+                        server.grab_x = server.cursor.x;
+                        server.grab_y = server.cursor.y;
+                        server.grab_geo = .{ .x = xwl.xsurface.x, .y = xwl.xsurface.y, .width = xwl.xsurface.width, .height = xwl.xsurface.height };
+                        server.resize_edges = edges;
+                        return;
+                    }
+                }
+                _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
                 return;
-            } else if (event.button == 273) { // BTN_RIGHT
-                if (t.is_fullscreen) return;
-                const geo = t.xdg_toplevel.?.base.*.geometry;
-                const win_cx = @as(f64, @floatFromInt(t.x + geo.x)) + @as(f64, @floatFromInt(geo.width)) / 2.0;
-                const win_cy = @as(f64, @floatFromInt(t.y + geo.y)) + @as(f64, @floatFromInt(geo.height)) / 2.0;
-                var edges: u32 = 0;
-                if (server.cursor.x < win_cx) edges |= 4 else edges |= 8; // LEFT/RIGHT
-                if (server.cursor.y < win_cy) edges |= 1 else edges |= 2; // TOP/BOTTOM
-                server.cursor_mode = .resize;
-                server.grabbed_toplevel = t;
-                server.grab_x = server.cursor.x;
-                server.grab_y = server.cursor.y;
-                server.grab_geo = .{ .x = t.x, .y = t.y, .width = geo.width, .height = geo.height };
-                server.resize_edges = edges;
-                return;
+            }
+
+            // wayland resize and move
+            if (super) {
+                if (event.button == 272) { // BTN_LEFT — move
+                    if (t.is_fullscreen) return;
+                    server.cursor_mode = .move;
+                    server.grabbed_toplevel = t;
+                    server.grab_x = server.cursor.x - @as(f64, @floatFromInt(t.x));
+                    server.grab_y = server.cursor.y - @as(f64, @floatFromInt(t.y));
+                    return;
+                } else if (event.button == 273) { // BTN_RIGHT — resize
+                    if (t.is_fullscreen) return;
+                    const geo = t.xdg_toplevel.?.base.*.geometry;
+                    const win_cx = @as(f64, @floatFromInt(t.x + geo.x)) + @as(f64, @floatFromInt(geo.width)) / 2.0;
+                    const win_cy = @as(f64, @floatFromInt(t.y + geo.y)) + @as(f64, @floatFromInt(geo.height)) / 2.0;
+                    var edges: u32 = 0;
+                    if (server.cursor.x < win_cx) edges |= 4 else edges |= 8;
+                    if (server.cursor.y < win_cy) edges |= 1 else edges |= 2;
+                    server.cursor_mode = .resize;
+                    server.grabbed_toplevel = t;
+                    server.grab_x = server.cursor.x;
+                    server.grab_y = server.cursor.y;
+                    server.grab_geo = .{ .x = t.x, .y = t.y, .width = geo.width, .height = geo.height };
+                    server.resize_edges = edges;
+                    return;
+                }
             }
         }
     }
 
-    // Only update pointer focus for managed toplevels. Override-redirect XWayland popups
-    // (hit_toplevel == null) must not trigger pointer_leave on their parent — that causes
-    // X11 apps to dismiss the popup. XWayland's own grab mechanism routes button events.
+    // more weird xwayland shit
     if (surface != null and hit_toplevel != null) {
         c.wlr_seat_pointer_notify_enter(server.seat, surface, sx, sy);
     }
+
+    // if nothing else happened notify button
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
 }
 
@@ -1529,8 +1601,9 @@ fn update_pointer_constraint(server: *WinglessServer, surface: [*c]c.wlr_surface
 
     if (new_constraint == server.active_constraint) return;
 
+    // get rid of old constraint
     if (server.active_constraint) |old| {
-        // Apply cursor hint before deactivating a locked pointer
+        // apply cursor hint before deactivating a locked pointer
         if (old.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED and
             old.current.committed & c.WLR_POINTER_CONSTRAINT_V1_STATE_CURSOR_HINT != 0 and
             old.current.cursor_hint.enabled)
@@ -1539,21 +1612,24 @@ fn update_pointer_constraint(server: *WinglessServer, surface: [*c]c.wlr_surface
             const hint_y = old.current.cursor_hint.y;
             c.wlr_cursor_warp_closest(server.cursor, null, hint_x, hint_y);
         }
+
+        // remove old constraint
         c.wl_list_remove(&server.active_constraint_destroy.link);
         c.wlr_pointer_constraint_v1_send_deactivated(old);
         server.active_constraint = null;
-        // Restore cursor when unlocking
         if (old.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
             c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
         }
     }
 
+    // apply new constraint
     if (new_constraint) |nc| {
         server.active_constraint = nc;
         server.active_constraint_destroy = .{ .link = undefined, .notify = constraint_destroy_notify };
         c.wl_signal_add(&nc.events.destroy, &server.active_constraint_destroy);
         c.wlr_pointer_constraint_v1_send_activated(nc);
-        // Hide cursor when locking
+
+        // hide cursor when locking
         if (nc.type == c.WLR_POINTER_CONSTRAINT_V1_LOCKED) {
             c.wlr_cursor_set_surface(server.cursor, null, 0, 0);
         }
@@ -1671,14 +1747,14 @@ fn launchCommand(function: config.WinglessFunction, args: ?[]*anyopaque, server:
         .reboot => spawnCmd(&[_][]const u8{ "systemctl", "reboot" }),
         .screenshot => ui.screenshot.activate(),
         .screenshot_fullscreen => ui.screenshot.activateFullscreen(),
-        .record_toggle => {
+        .record => {
             if (ui.recording.isRecording()) {
                 ui.recording.stop();
             } else {
                 ui.screenshot.activateRecordingRegion();
             }
         },
-        .record_toggle_fullscreen => {
+        .record_fullscreen => {
             if (ui.recording.isRecording()) {
                 ui.recording.stop();
             } else {
@@ -1952,7 +2028,7 @@ fn server_new_input(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c)
             _ = c.wlr_keyboard_set_keymap(keyboard.wlr_keyboard, keymap);
             c.xkb_keymap_unref(keymap);
             c.xkb_context_unref(context);
-            c.wlr_keyboard_set_repeat_info(keyboard.wlr_keyboard, 60, 200);
+            c.wlr_keyboard_set_repeat_info(keyboard.wlr_keyboard, server.wingless_config.key_repeat_rate, server.wingless_config.key_repeat_delay);
 
             c.wl_signal_add(&keyboard.wlr_keyboard.events.modifiers, &keyboard.modifiers);
             c.wl_signal_add(&keyboard.wlr_keyboard.events.key, &keyboard.key);
@@ -2137,12 +2213,6 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
         const cursor_on_output = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y) == output.output;
         ui.renderUI(server, output, w, h, cursor_on_output) catch @panic("Failed to render ui");
-        // deliver pressed_this_frame to Clay callbacks on the cursor output, then clear
-        if (cursor_on_output) {
-            const lpos = cursorLocalPos(server);
-            ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
-            ui.pointer_down = false;
-        }
 
         c.wlr_output_add_software_cursors_to_render_pass(output.output, out_pass, null);
         _ = c.wlr_render_pass_submit(out_pass);

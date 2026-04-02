@@ -41,6 +41,7 @@ pub var ui_scale: f32 = 1.0;
 pub var output_refresh_hz: u32 = 60;
 
 var glass_font: Font = undefined;
+var display_font: Font = undefined;
 var icon_cache: std.StringHashMap(?Icon) = undefined;
 var icon_path_index: std.StringHashMap([]const u8) = undefined;
 var default_icon: Icon = undefined;
@@ -71,7 +72,6 @@ pub const GlassBackgroundProgram = struct {
     fill_amount_loc: c_int,
     fill_direction_loc: c_int,
     refraction_band_loc: c_int,
-    brightness_loc: c_int,
     resolution_loc: c_int,
     blur_amount_loc: c_int,
 };
@@ -83,7 +83,6 @@ pub const GlassBlobProgram = struct {
     resolution_loc: c_int,
     centers_loc: c_int,
     scales_loc: c_int,
-    brights_loc: c_int,
     widths_loc: c_int,
     heights_loc: c_int,
     radius_loc: c_int,
@@ -229,7 +228,7 @@ pub const Font = struct {
 };
 
 pub const CustomData = union(enum) {
-    glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0, refraction_band: f32 = 20.0, brightness: f32 = 0.05 },
+    glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0, refraction_band: f32 = 20.0 },
     window_surface: struct { focusable: *Focusable, scale: f32, anim_scale: f32 = 1.0 },
     icon: struct { icon: Icon, alpha: f32 = 1.0 },
     shadow: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, intensity: f32 },
@@ -240,7 +239,6 @@ pub const CustomData = union(enum) {
     glass_blob: struct {
         centers: [16]f32,  // 8 x (x_gl, y_gl) pairs
         scales: [8]f32,    // corner radius = radius * scales[i]
-        brights: [8]f32,
         widths: [8]f32,    // half-extent X beyond corner radius (0 = circle)
         heights: [8]f32,   // half-extent Y beyond corner radius (0 = circle)
         radius: f32,
@@ -258,6 +256,7 @@ pub const RenderContext = struct {
     screen_height: f32,
     scene_tex: *c.wlr_texture,
     font: *const Font,
+    display_font: *const Font,
 };
 
 var custom_pool: [256]CustomData = undefined;
@@ -270,10 +269,10 @@ pub fn mkGlass(roundness: f32, refraction_band: f32) *anyopaque {
     return d;
 }
 
-pub fn mkAnimatedGlass(roundness: f32, anim_scale: f32, refraction_band: f32, brightness: f32) *anyopaque {
+pub fn mkAnimatedGlass(roundness: f32, anim_scale: f32, refraction_band: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .refraction_band = refraction_band, .brightness = brightness } };
+    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .refraction_band = refraction_band } };
     return d;
 }
 
@@ -284,10 +283,10 @@ pub fn mkGlassFill(roundness: f32, fill_amount: f32, fill_dir: FillDir) *anyopaq
     return d;
 }
 
-pub fn mkAnimatedGlassFill(roundness: f32, anim_scale: f32, fill_amount: f32, fill_dir: FillDir, refraction_band: f32, brightness: f32) *anyopaque {
+pub fn mkAnimatedGlassFill(roundness: f32, anim_scale: f32, fill_amount: f32, fill_dir: FillDir, refraction_band: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .fill_amount = fill_amount, .fill_dir = @intFromEnum(fill_dir), .refraction_band = refraction_band, .brightness = brightness } };
+    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .fill_amount = fill_amount, .fill_dir = @intFromEnum(fill_dir), .refraction_band = refraction_band } };
     return d;
 }
 
@@ -306,16 +305,16 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
 }
 
 // Build a glass_blob from raw data. Centers must be in GL screen coords (y from bottom).
-pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, brights: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, open_state: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
+pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, open_state: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass_blob = .{ .centers = centers, .scales = scales, .brights = brights, .widths = widths, .heights = heights, .radius = radius, .morph_k = morph_k, .shadow_x = shadow_x, .shadow_y = shadow_y, .shadow_w = shadow_w, .shadow_h = shadow_h, .shadow_r = shadow_r, .open_state = open_state, .mask_cx = mask_cx, .mask_cy = mask_cy, .mask_half_ex = mask_half_ex, .mask_half_ey = mask_half_ey, .mask_r = mask_r } };
+    d.* = .{ .glass_blob = .{ .centers = centers, .scales = scales, .widths = widths, .heights = heights, .radius = radius, .morph_k = morph_k, .shadow_x = shadow_x, .shadow_y = shadow_y, .shadow_w = shadow_w, .shadow_h = shadow_h, .shadow_r = shadow_r, .open_state = open_state, .mask_cx = mask_cx, .mask_cy = mask_cy, .mask_half_ex = mask_half_ex, .mask_half_ey = mask_half_ey, .mask_r = mask_r } };
     return d;
 }
 
 // Convenience wrapper for the power cluster (4 circles in radial arrangement).
 // bx/by: Clay offset for the cluster center button (bx = x from right, by = y from top).
-pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bx: f32, by: f32, bright0: f32, bright1: f32, bright2: f32, bright3: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
+pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bx: f32, by: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
     const diag: f32 = 0.7071067811865476;
     const cx0 = screen_width + bx - radius;
     const cy0 = screen_height - by - radius;
@@ -327,23 +326,27 @@ pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, 
         cx0, cy0, cx0, cy0, cx0, cy0, cx0, cy0,
     };
     const scales_arr = [8]f32{ scale0, scale1, scale2, scale3, 0, 0, 0, 0 };
-    const brights_arr = [8]f32{ bright0, bright1, bright2, bright3, 0, 0, 0, 0 };
     const widths_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
     const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
     const btn_size = radius * 2.0;
     const bb_size = btn_size + spread * t;
     const shadow_x_clay = screen_width + bx - bb_size;
     const shadow_y_clay = by;
-    return mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, radius * 1.2 * @max(t1, @max(t2, t3)), shadow_x_clay, shadow_y_clay, bb_size, bb_size, radius, 0.0, 0, 0, 0, 0, 0);
+    return mkGlassBlobRaw(centers, scales_arr, widths_arr, heights_arr, radius, radius * 1.2 * @max(t1, @max(t2, t3)), shadow_x_clay, shadow_y_clay, bb_size, bb_size, radius, 0.0, 0, 0, 0, 0, 0);
 }
 
 pub fn textSize(text: []const u8, font_size: u16) zclay.Dimensions {
+    return textSizeEx(text, font_size, false);
+}
+
+pub fn textSizeEx(text: []const u8, font_size: u16, bold: bool) zclay.Dimensions {
+    const font = if (bold) &display_font else &glass_font;
     const scale: f32 = @floatFromInt(font_size);
     var w: f32 = 0;
     for (text) |ch| {
         if (ch == ' ') {
             w += 12.0 * scale / 32.0;
-        } else if (glass_font.glyphs[ch]) |g| {
+        } else if (font.glyphs[ch]) |g| {
             w += g.advance * scale;
         }
     }
@@ -561,7 +564,6 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .fill_amount_loc = gl.glGetUniformLocation(prog, "fillAmount"),
             .fill_direction_loc = gl.glGetUniformLocation(prog, "fillDirection"),
             .refraction_band_loc = gl.glGetUniformLocation(prog, "refractionBand"),
-            .brightness_loc = gl.glGetUniformLocation(prog, "brightness"),
             .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
             .blur_amount_loc = gl.glGetUniformLocation(prog, "blurAmount"),
         };
@@ -735,7 +737,6 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
             .centers_loc = gl.glGetUniformLocation(prog, "centers[0]"),
             .scales_loc = gl.glGetUniformLocation(prog, "scales[0]"),
-            .brights_loc = gl.glGetUniformLocation(prog, "brights[0]"),
             .widths_loc = gl.glGetUniformLocation(prog, "widths[0]"),
             .heights_loc = gl.glGetUniformLocation(prog, "heights[0]"),
             .radius_loc = gl.glGetUniformLocation(prog, "radius"),
@@ -862,13 +863,17 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
 }
 
 pub fn initUI(allocator: std.mem.Allocator) !void {
-    const font_json = @embedFile("assets/font.json");
-    const font_png = @embedFile("assets/font.png");
+    const font_json = @embedFile("assets/font-poppins.json");
+    const font_png = @embedFile("assets/font-poppins.png");
+    const display_font_json = @embedFile("assets/font-calsans.json");
+    const display_font_png = @embedFile("assets/font-calsans.png");
 
     icon_cache = std.StringHashMap(?Icon).init(allocator);
 
     const atlas_tex = loadTextureFromPng(font_png);
     glass_font = try loadFont(allocator, font_json, atlas_tex);
+    const display_atlas_tex = loadTextureFromPng(display_font_png);
+    display_font = try loadFont(allocator, display_font_json, display_atlas_tex);
 
     volume_slider.init();
 
@@ -1206,6 +1211,7 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
             .screen_height = screen_height,
             .scene_tex = @ptrCast(scene_tex.?),
             .font = &glass_font,
+            .display_font = &display_font,
         });
 
         screenshot.onFrame(w, h);

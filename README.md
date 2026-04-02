@@ -6,13 +6,80 @@ Minimal Wayland compositor without sacrificing beauty
 ![Lines of code](https://img.shields.io/badge/lines_of_code-15910-blue) ![UI lines](https://img.shields.io/badge/ui_lines-7938-blue) ![Functions](https://img.shields.io/badge/functions-279-blue)
 <!-- /stats -->
 
+## Installation
+
+### Dependencies
+
+On Arch Linux:
+```
+sudo pacman -S libinput libxcb mesa libglvnd wlroots wayland libxkbcommon pixman systemd
+```
+
+### Build
+
+Zig 0.15.2.
+```
+zig build
+```
+
+The binary will be at `zig-out/bin/wingless`.
+
+To build and run directly:
+```
+zig build run
+```
+
+Make sure to create `~/.wingless` before running or it will probably break... lol. Also add a background
+
+### Config
+
+`~/.wingless` is a flat key-value config file. Lines starting with `#` are comments.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `BACKGROUND` | path | Wallpaper image path |
+| `POINTER_SENSITIVITY` | float | Mouse acceleration speed (-1 to 1, default: 0) |
+| `KEY_REPEAT_RATE` | int | Key repeat rate in Hz (default: 60) |
+| `KEY_REPEAT_DELAY` | int | Key repeat delay in ms (default: 200) |
+| `BIND` | `<modifier> <key> <function>` | Add a keybind on top of the defaults |
+
+Modifiers: `super`, `super_shift`, `none`
+
+Key names use XKB notation: `n`, `Tab`, `space`, `XF86AudioRaiseVolume`, etc.
+
+Functions: `tab_next`, `tab_prev`, `close_focused`, `toggle_fullscreen`, `toggle_menu`, `toggle_beacon`, `volume_up`, `volume_down`, `volume_mute`, `snap_left`, `snap_right`, `move_to_next_output`, `screenshot`, `screenshot_fullscreen`, `record`, `record_fullscreen`, `shutdown`, `reboot`
+
+```
+# Wingless config
+
+BACKGROUND = /home/user/wallpaper.jpg;
+POINTER_SENSITIVITY = 0.5;
+KEY_REPEAT_RATE = 50;
+KEY_REPEAT_DELAY = 300;
+
+BIND = super n tab_next;
+BIND = super p tab_prev;
+BIND = super q close_focused;
+BIND = super space toggle_beacon;
+BIND = super Tab toggle_menu;
+BIND = none XF86AudioRaiseVolume volume_up;
+BIND = none XF86AudioLowerVolume volume_down;
+BIND = none XF86AudioMute volume_mute;
+```
+
+### Recording
+
+Recordings done through the recording tool will be placed in your home folder with the name wingless-<timestamp>.mp4. They won't be copied to your clipboard (yet).
+Recording keybind works as a toggle, same keys to start and end recordings.
+
+
 ## improvement vectors:
-- pointer protocol code
 - menu ui
 - common logic between menu beacon and screenshotting ui
 - output management
 - glass shaders
 - glass morph
+- input
 
 ## todo:
 - Bluetooth in menu
@@ -30,7 +97,9 @@ Minimal Wayland compositor without sacrificing beauty
 - Notification system
 - Frostpunk black when tabbing back in bug
 - Moving windows from one monitor to another in menu
-- Menu showing windows only specific to that screen
+- Reordering windows in the menu
+- Operation get to 12k lines
+- Better glass highlights
 
 ## done
 - Window switching
@@ -106,3 +175,6 @@ Minimal Wayland compositor without sacrificing beauty
 - Figure out icons properly
 - Sound IO settings
 - Better rim highlighting
+- Glass brightness
+- XWayland resize
+- Calsans X Poppins

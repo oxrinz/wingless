@@ -1,6 +1,5 @@
 uniform vec2 centers[8];
 uniform float scales[8];
-uniform float brights[8];
 uniform float widths[8];   // half-extent X for rounded rect (0 = circle)
 uniform float heights[8];  // half-extent Y for rounded rect (0 = circle)
 uniform float radius;
@@ -12,6 +11,8 @@ uniform float maskHalfEy;
 uniform float maskRadius;  // 0 = no mask
 
 varying vec2 v_uv;
+
+const float interiorDarken = 0.6;
 
 // Rounded rect SDF. When widths/heights are 0 it's a circle.
 float shapeSDF(vec2 p, vec2 center, float r, float half_ex, float half_ey) {
@@ -57,20 +58,6 @@ void main() {
         return;
     }
 
-    // Per-pixel brightness blended by proximity to each shape
-    float falloff_r = radius * 2.5;
-    float brightness = 0.0;
-    float wsum = 0.0001;
-    for (int i = 0; i < 8; i++) {
-        if (scales[i] > 0.001) {
-            float di = shapeSDF(fragCoord, centers[i], radius * scales[i], widths[i], heights[i]);
-            float w = exp(-max(di, 0.0) / falloff_r);
-            brightness += w * brights[i];
-            wsum += w;
-        }
-    }
-    brightness /= wsum;
-
     // Glass refraction via finite-difference gradient
     float refractionBand = radius * 1.8;
     float distFromCenter = 1.0 - clamp(-d / refractionBand, 0.0, 1.0);
@@ -86,13 +73,13 @@ void main() {
     vec2 sampleCoord = fragCoord - distortion * grad * 30.0;
 
     float blurRadius = 1.2 * (1.0 - distFromCenter * 0.5);
-    float internalShadow = max(step(d, 0.0), exp(-8.0 * max(d, 0.0) / 400.0)) * 0.5;
+    float internalShadow = max(step(d, 0.0), exp(-8.0 * max(d, 0.0) / 400.0)) * interiorDarken;
     vec3 glassColor = getBlurredColor(sampleCoord, blurRadius) * (1.0 - internalShadow) * 0.9;
+    glassColor += vec3(0.12);
 
     // Rim highlights
     vec2 hl = glassRimHighlight(d, grad, gradMag);
     glassColor += edge * (hl.x + hl.y);
-    glassColor += vec3(brightness);
     glassColor *= edge;
 
     gl_FragColor = vec4(glassColor, edge);

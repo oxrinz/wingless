@@ -71,13 +71,11 @@ var wifi_open: bool = false;
 var wifi_panel_state: f32 = 0.0;
 var prev_pointer_down: bool = false;
 var wifi_hover: bool = false;
-var wifi_hover_brightness: f32 = 0.05;
 var wifi_hover_scale: f32 = 1.0;
 
 var bt_open: bool = false;
 var bt_panel_state: f32 = 0.0;
 var bt_hover: bool = false;
-var bt_hover_brightness: f32 = 0.05;
 var bt_hover_scale: f32 = 1.0;
 
 // Top cluster blob state: BT+WiFi+Capture merge into one blob when any panel opens
@@ -269,7 +267,6 @@ var mic_panel_full_h: f32 = 54.0;
 const max_thumbs = 16;
 var thumb_hover: [max_thumbs]bool = [_]bool{false} ** max_thumbs;
 var thumb_hover_scale: [max_thumbs]f32 = [_]f32{1.0} ** max_thumbs;
-var thumb_hover_brightness: [max_thumbs]f32 = [_]f32{0.05} ** max_thumbs;
 
 var thumb_order: [max_thumbs]Focusable = undefined;
 var thumb_order_count: usize = 0;
@@ -923,9 +920,7 @@ pub fn tick(dt: f32) void {
     const speed = dt * 14.0;
     for (0..max_thumbs) |i| {
         const target_scale: f32 = if (thumb_hover[i]) 1.06 else 1.0;
-        const target_brightness: f32 = if (thumb_hover[i]) 0.14 else 0.05;
         thumb_hover_scale[i] = lerp(thumb_hover_scale[i], target_scale, speed);
-        thumb_hover_brightness[i] = lerp(thumb_hover_brightness[i], target_brightness, speed);
         thumb_hover[i] = false; // reset each frame, set again by OnHover
     }
     // Cluster hover brightness per button
@@ -1038,9 +1033,9 @@ pub fn tick(dt: f32) void {
             refreshBt();
         }
     }
-    wifi_hover_brightness = lerp(wifi_hover_brightness, if (wifi_hover and wifi_panel_state < 0.05) 0.18 else 0.05, speed);
+
     wifi_hover_scale = lerp(wifi_hover_scale, if (wifi_hover and wifi_panel_state < 0.05) 1.06 else 1.0, speed);
-    bt_hover_brightness = lerp(bt_hover_brightness, if (bt_hover and bt_panel_state < 0.05) 0.18 else 0.05, speed);
+
     bt_hover_scale = lerp(bt_hover_scale, if (bt_hover and bt_panel_state < 0.05) 1.06 else 1.0, speed);
     capture_hover_brightness = lerp(capture_hover_brightness, if (capture_hover) 0.18 else 0.05, speed);
     capture_hover_scale = lerp(capture_hover_scale, if (capture_hover) 1.06 else 1.0, speed);
@@ -1250,7 +1245,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             capture_hover_scale * cap_scale,     rickroll_hover_scale * rickroll_scale,
             0, 0,
         };
-        const brights_arr = [8]f32{ bt_hover_brightness, wifi_hover_brightness, speaker_hover_brightness, mic_hover_brightness, capture_hover_brightness, rickroll_hover_brightness, 0, 0 };
         const widths_arr  = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         // No mask while buttons are sliding in — circles slide freely.
@@ -1285,7 +1279,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                 .offset = .{ .x = -40.0 * s + mask_overhang, .y = btn_y[0] + mask_overhang },
             },
             .layout = .{ .sizing = .{ .w = .fixed(blob_bb_w + mask_overhang), .h = .fixed(blob_bb_h) } },
-            .custom = .{ .custom_data = ui.mkGlassBlobRaw(centers, scales_arr, brights_arr, widths_arr, heights_arr, radius, top_cluster_morph_k, 0, 0, 0, 0, 0, open_state, mask_cx_gl, mask_cy_gl, mask_ex, mask_ey, mask_r) },
+            .custom = .{ .custom_data = ui.mkGlassBlobRaw(centers, scales_arr, widths_arr, heights_arr, radius, top_cluster_morph_k, 0, 0, 0, 0, 0, open_state, mask_cx_gl, mask_cy_gl, mask_ex, mask_ey, mask_r) },
         })({});
     }
 
@@ -2120,7 +2114,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             .child_alignment = .{ .x = .center, .y = .center },
                             .sizing = .{ .w = .fixed(thumb_w), .h = .fixed(thumb_h) },
                         },
-                        .custom = .{ .custom_data = ui.mkAnimatedGlass(18, combined_scale, 10.0, thumb_hover_brightness[idx]) },
+                        .custom = .{ .custom_data = ui.mkAnimatedGlass(18, combined_scale, 10.0) },
                     })({
                         zclay.cdefs.Clay_OnHover(struct {
                             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
@@ -2186,8 +2180,6 @@ pub fn layoutPowerCluster() void {
         },
         .layout = .{ .sizing = .{ .w = .fixed(bb_size), .h = .fixed(bb_size) } },
         .custom = .{ .custom_data = ui.mkGlassBlob(t, cluster_sub_states[0], cluster_sub_states[1], cluster_sub_states[2], radius, spread, bx, by,
-            cluster_hover_bright[0], cluster_hover_bright[1],
-            cluster_hover_bright[2], cluster_hover_bright[3],
             cluster_hover_scale[0], cluster_hover_scale[1],
             cluster_hover_scale[2], cluster_hover_scale[3]) },
     })({});

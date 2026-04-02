@@ -4,11 +4,11 @@ uniform float roundness;
 uniform float fillAmount;
 uniform int fillDirection;
 uniform float refractionBand;
-uniform float brightness;
 uniform float blurAmount;
 varying vec2 v_uv;
 
 const float interiorDarken = 0.6;
+const float brightness = 0.12;
 
 void main() {
   vec2 fragCoord = v_uv * resolution;
@@ -28,10 +28,6 @@ void main() {
   vec3 glassColor = vec3(0.0);
 
   if (edge > 0.0) {
-    // Large eps smooths the interior bisector discontinuity (the "hard line
-    // from corners" artifact). Half the refraction band gives ~refractionBand
-    // px of blending — enough to hide the seam without softening the rim
-    // highlight.
     vec2 grad;
     float gradMag;
     sdfGrad(glassCoord, size * 0.5, roundness, refractionBand * 0.5, grad,

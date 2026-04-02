@@ -50,22 +50,26 @@ vec3 getBlurredColor(vec2 coord, float blurRadius) {
     return color / totalWeight;
 }
 
-// Rim highlight band for a signed-distance field value d.
-// Returns (hlTL, hlBR) packed as xy.
+// Rim highlight / border for a signed-distance field value d.
+// Thin border right at the edge with directional catch-lights on top.
+// Returns (hlTL+ambient, hlBR) packed as xy.
 vec2 glassRimHighlight(float d, vec2 grad, float gradMag) {
-    float aa = max(fwidth(d), 0.5);
     float hlFade = smoothstep(0.0, 1.5, gradMag);
     float dd = max(-d, 0.0);
     float aaH = max(fwidth(d), 1e-4);
-    float insetPx = aaH * 1.5;
-    float rimPx = 5.0;
-    float rimBand = smoothstep(insetPx, insetPx + aaH, dd) *
-                    (1.0 - smoothstep(insetPx + rimPx - aa, insetPx + rimPx + aa, dd));
-    float falloff = exp(-dd / 2.0);
+    float aa = max(fwidth(d), 0.5);
+
+    // 1.5px border sitting right at the shape edge
+    float borderPx = 1.5;
+    float rim = smoothstep(0.0, aaH, dd) *
+                (1.0 - smoothstep(borderPx - aa, borderPx + aa, dd));
+
     vec2 lightDir = normalize(vec2(-0.35, -0.45));
     float ndlTL = max(dot(-grad, lightDir), 0.0);
     float ndlBR = max(dot(-grad, -lightDir), 0.0);
-    float hlTL = rimBand * falloff * (pow(ndlTL, 5.0) * 1.5 + pow(ndlTL, 12.0) * 1.8) * hlFade;
-    float hlBR = rimBand * falloff * (pow(ndlBR, 5.0) * 1.5 + pow(ndlBR, 12.0) * 1.8) * hlFade;
+
+    float ambient = 0.18; // visible border all the way around
+    float hlTL = rim * (ambient + pow(ndlTL, 4.0) * 1.2 + pow(ndlTL, 10.0) * 1.5) * hlFade;
+    float hlBR = rim * (pow(ndlBR, 4.0) * 1.2 + pow(ndlBR, 10.0) * 1.5) * hlFade;
     return vec2(hlTL, hlBR);
 }

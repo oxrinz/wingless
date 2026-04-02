@@ -234,7 +234,7 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
             .volume_mute => "audio-volume-muted-symbolic",
             .snap_left, .snap_right, .move_to_next_output => "focus-windows-symbolic",
             .screenshot, .screenshot_fullscreen => "camera-photo-symbolic",
-            .record_toggle, .record_toggle_fullscreen => "media-record-symbolic",
+            .record, .record_fullscreen => "media-record-symbolic",
             .launch_app => null,
         };
         const object = allocator.create(BeaconCommand) catch return;

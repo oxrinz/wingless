@@ -27,10 +27,8 @@ var is_dragging: bool = false;
 
 // toolbar button animation state
 var ss_hover: bool = false;
-var ss_brightness: f32 = 0.14;
 var ss_scale: f32 = 1.02;
 var rec_hover: bool = false;
-var rec_brightness: f32 = 0.02;
 var rec_scale: f32 = 1.0;
 
 fn lerp(a: f32, b: f32, t: f32) f32 {
@@ -276,9 +274,7 @@ pub fn tick(dt: f32) void {
     const speed = dt * 14.0;
     const ss_sel = capture_mode == .screenshot;
     const rec_sel = capture_mode == .recording;
-    ss_brightness = lerp(ss_brightness, if (ss_hover) 0.22 else if (ss_sel) 0.14 else 0.02, speed);
     ss_scale = lerp(ss_scale, if (ss_hover) 1.06 else if (ss_sel) 1.02 else 1.0, speed);
-    rec_brightness = lerp(rec_brightness, if (rec_hover) 0.22 else if (rec_sel) 0.14 else 0.02, speed);
     rec_scale = lerp(rec_scale, if (rec_hover) 1.06 else if (rec_sel) 1.02 else 1.0, speed);
     ss_hover = false;
     rec_hover = false;
@@ -352,7 +348,7 @@ pub fn layoutToolbar() void {
                 .sizing = .{ .w = .fixed(ss_btn_w), .h = .fixed(btn_h) },
                 .child_alignment = .{ .x = .center, .y = .center },
             },
-            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, ss_scale, 10.0 * s, ss_brightness) },
+            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, ss_scale, 10.0 * s) },
         })({
             zclay.cdefs.Clay_OnHover(onScreenshotBtnHover, null);
             zclay.UI()(.{
@@ -384,7 +380,7 @@ pub fn layoutToolbar() void {
                 .sizing = .{ .w = .fixed(rec_btn_w), .h = .fixed(btn_h) },
                 .child_alignment = .{ .x = .center, .y = .center },
             },
-            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, rec_scale, 10.0 * s, rec_brightness) },
+            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, rec_scale, 10.0 * s) },
         })({
             zclay.cdefs.Clay_OnHover(onRecordBtnHover, null);
             zclay.UI()(.{

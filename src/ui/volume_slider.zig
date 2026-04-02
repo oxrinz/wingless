@@ -39,7 +39,6 @@ var cursor_y: f32 = 0;
 var last_sent_volume: f32 = -1;
 var vol_hovered: bool = false;
 var vol_hover_scale: f32 = 1.0;
-var vol_hover_brightness: f32 = 0.05;
 
 fn lerp(a: f32, b: f32, t: f32) f32 {
     return a + (b - a) * t;
@@ -132,9 +131,7 @@ pub fn tick(dt: f32) void {
 
     const speed = dt * 14.0;
     const vol_target_scale: f32 = if (vol_hovered) 1.08 else 1.0;
-    const vol_target_brightness: f32 = if (vol_hovered) 0.14 else 0.05;
     vol_hover_scale = lerp(vol_hover_scale, vol_target_scale, speed);
-    vol_hover_brightness = lerp(vol_hover_brightness, vol_target_brightness, speed);
     vol_hovered = false;
 }
 
@@ -163,7 +160,7 @@ pub fn layout() void {
             .sizing = .{ .w = .fixed(track_w), .h = .fixed(track_h) },
             .padding = .{ .top = @intFromFloat(pad), .bottom = @intFromFloat(pad), .left = @intFromFloat(pad), .right = @intFromFloat(pad) },
         },
-        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(22, glass_state * vol_hover_scale, fill_state, .top_to_bottom, 8.0, vol_hover_brightness) },
+        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(22, glass_state * vol_hover_scale, fill_state, .top_to_bottom, 8.0) },
     })({
         zclay.cdefs.Clay_OnHover(struct {
             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {

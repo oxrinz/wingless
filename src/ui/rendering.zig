@@ -26,7 +26,7 @@ fn ndc_y_scene(y: f32, h: f32) f32 {
     return (y / h) * 2.0 - 1.0;
 }
 
-fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, roundness: f32, fill_amount: f32, fill_direction: i32, refraction_band: f32, brightness: f32) void {
+fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, roundness: f32, fill_amount: f32, fill_direction: i32, refraction_band: f32) void {
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
 
@@ -47,7 +47,6 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glUniform1f(output.glass_background.?.fill_amount_loc, fill_amount);
     gl.glUniform1i(output.glass_background.?.fill_direction_loc, fill_direction);
     gl.glUniform1f(output.glass_background.?.refraction_band_loc, refraction_band);
-    gl.glUniform1f(output.glass_background.?.brightness_loc, brightness);
     gl.glUniform2f(output.glass_background.?.resolution_loc, screen_w, screen_h);
     gl.glUniform1f(output.glass_background.?.blur_amount_loc, 1.2);
 
@@ -182,7 +181,6 @@ fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: 
 
     gl.glUniform2fv(prog.centers_loc, 8, &blob.centers[0]);
     gl.glUniform1fv(prog.scales_loc, 8, &blob.scales[0]);
-    gl.glUniform1fv(prog.brights_loc, 8, &blob.brights[0]);
     gl.glUniform1fv(prog.widths_loc, 8, &blob.widths[0]);
     gl.glUniform1fv(prog.heights_loc, 8, &blob.heights[0]);
     gl.glUniform1f(prog.radius_loc, blob.radius);
@@ -369,7 +367,6 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
     gl.glUniform2f(glass.resolution_loc, screen_w, screen_h);
     gl.glUniform1f(glass.fill_amount_loc, 0.0);
     gl.glUniform1i(glass.fill_direction_loc, 0);
-    gl.glUniform1f(glass.brightness_loc, 0.0);
 
     gl.glEnable(c.GL_BLEND);
     gl.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
@@ -704,9 +701,9 @@ pub fn render(ctx: ui.RenderContext) void {
                     const cy = bb.y + bb.height * 0.5;
                     const aw = bb.width * g.anim_scale;
                     const ah = bb.height * g.anim_scale;
-                    drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
+                    drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band);
                 } else {
-                    drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band, g.brightness);
+                    drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band);
                 }
             },
             .glass_blob => |pcb| {
@@ -797,8 +794,8 @@ pub fn render(ctx: ui.RenderContext) void {
                     },
                     .glass_text => |gt| {
                         const scale: f32 = @floatFromInt(gt.font_size);
-                        const thickness: f32 = if (gt.bold) 0.2 else 0.0;
-                        drawGlassSentence(ctx.output, ctx.font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, thickness, scale, ctx.scene_tex, 1);
+                        const font = if (gt.bold) ctx.display_font else ctx.font;
+                        drawGlassSentence(ctx.output, font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, 0.0, scale, ctx.scene_tex, 1);
                     },
                     .rect => |rc| {
                         const rf = ctx.output.round_fill.?;

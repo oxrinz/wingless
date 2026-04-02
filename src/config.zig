@@ -25,8 +25,8 @@ pub const WinglessFunction = enum {
     screenshot,
     screenshot_fullscreen,
 
-    record_toggle,
-    record_toggle_fullscreen,
+    record,
+    record_fullscreen,
 };
 
 pub const Modifier = enum {
@@ -44,6 +44,8 @@ pub const Keybind = struct {
 pub const WinglessConfig = struct {
     pointer_sensitivity: f64 = 1,
     background: ?[]const u8 = null,
+    key_repeat_rate: i32 = 60,
+    key_repeat_delay: i32 = 200,
     keybinds: []Keybind,
 };
 
@@ -83,23 +85,20 @@ fn readNextToken(allocator: std.mem.Allocator, line: []const u8) !struct { token
 }
 
 pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
-
-    // read config file
     const cwd = std.fs.cwd();
-    //const file = try cwd.openFile("~/.config/wingless/config", .{});
     const home = try std.process.getEnvVarOwned(allocator, "HOME");
     const path = try std.fmt.allocPrint(allocator, "{s}/.wingless", .{home});
     const file = try cwd.openFile(path, .{});
     const data = try file.readToEndAlloc(allocator, 16 * 1024);
     file.close();
 
-    var config = try allocator.create(WinglessConfig);
+    var config = WinglessConfig{ .keybinds = &.{} };
+    var custom_binds = std.ArrayList(Keybind).init(allocator);
 
-    // parse config
     var it = std.mem.splitScalar(u8, data, '\n');
     while (it.next()) |line_raw| {
         const line = std.mem.trim(u8, line_raw, " \t\r");
-        if (line.len == 0) continue;
+        if (line.len == 0 or std.mem.startsWith(u8, line, "#")) continue;
 
         if (std.mem.startsWith(u8, line, "BACKGROUND")) {
             const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
@@ -108,39 +107,65 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
         } else if (std.mem.startsWith(u8, line, "POINTER_SENSITIVITY")) {
             const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
             const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+            config.pointer_sensitivity = try std.fmt.parseFloat(f64, std.mem.trim(u8, line[eq + 1 .. semi], " \t"));
+        } else if (std.mem.startsWith(u8, line, "KEY_REPEAT_RATE")) {
+            const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
+            const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+            config.key_repeat_rate = try std.fmt.parseInt(i32, std.mem.trim(u8, line[eq + 1 .. semi], " \t"), 10);
+        } else if (std.mem.startsWith(u8, line, "KEY_REPEAT_DELAY")) {
+            const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
+            const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+            config.key_repeat_delay = try std.fmt.parseInt(i32, std.mem.trim(u8, line[eq + 1 .. semi], " \t"), 10);
+        } else if (std.mem.startsWith(u8, line, "BIND")) {
+            const eq = std.mem.indexOfScalar(u8, line, '=') orelse return error.InvalidConfig;
+            const semi = std.mem.indexOfScalar(u8, line, ';') orelse return error.InvalidConfig;
+            const value_str = std.mem.trim(u8, line[eq + 1 .. semi], " \t");
 
-            const value_str = std.mem.trim(
-                u8,
-                line[eq + 1 .. semi],
-                " \t",
-            );
+            // format: BIND = <modifier> <key> <function>;
+            // modifier: super, super_shift, none
+            // key: XKB key name e.g. n, Tab, XF86AudioRaiseVolume
+            // function: tab_next, close_focused, etc.
+            var parts = std.mem.tokenizeScalar(u8, value_str, ' ');
+            const modifier_str = parts.next() orelse return error.InvalidConfig;
+            const key_str = parts.next() orelse return error.InvalidConfig;
+            const function_str = parts.next() orelse return error.InvalidConfig;
 
-            config.pointer_sensitivity = try std.fmt.parseFloat(f64, value_str);
+            const modifier = std.meta.stringToEnum(Modifier, modifier_str) orelse return error.InvalidConfig;
+            const function = std.meta.stringToEnum(WinglessFunction, function_str) orelse return error.InvalidConfig;
+
+            const key_str_z = try allocator.dupeZ(u8, key_str);
+            const keysym = c.xkb_keysym_from_name(key_str_z, c.XKB_KEYSYM_NO_FLAGS);
+            if (keysym == c.XKB_KEY_NoSymbol) return error.InvalidKeyName;
+
+            try custom_binds.append(.{
+                .function = function,
+                .key = @intCast(keysym),
+                .modifier = modifier,
+            });
         }
     }
 
-    // keybinds
-    var keybinds = try allocator.alloc(Keybind, 16);
-    keybinds[0] = .{ .key = c.XKB_KEY_n, .function = .tab_next };
-    keybinds[1] = .{ .key = c.XKB_KEY_p, .function = .tab_prev };
-    keybinds[2] = .{ .key = c.XKB_KEY_q, .function = .close_focused };
-    keybinds[3] = .{ .key = c.XKB_KEY_space, .function = .toggle_beacon };
-    keybinds[4] = .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up, .modifier = .none };
-    keybinds[5] = .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down, .modifier = .none };
-    keybinds[6] = .{ .key = c.XKB_KEY_XF86AudioMute, .function = .volume_mute, .modifier = .none };
-    keybinds[7] = .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu };
-    keybinds[8] = .{ .key = c.XKB_KEY_f, .function = .toggle_fullscreen };
-    keybinds[9] = .{ .key = c.XKB_KEY_h, .function = .snap_left };
-    keybinds[10] = .{ .key = c.XKB_KEY_l, .function = .snap_right };
-    keybinds[11] = .{ .key = c.XKB_KEY_s, .function = .screenshot_fullscreen };
-    keybinds[12] = .{ .key = c.XKB_KEY_s, .function = .screenshot, .modifier = .super_shift };
-    keybinds[13] = .{ .key = c.XKB_KEY_r, .function = .record_toggle_fullscreen };
-    keybinds[14] = .{ .key = c.XKB_KEY_r, .function = .record_toggle, .modifier = .super_shift };
-    keybinds[15] = .{ .key = c.XKB_KEY_m, .function = .move_to_next_output, .modifier = .super_shift };
+    try custom_binds.appendSlice(&.{
+        .{ .key = c.XKB_KEY_n, .function = .tab_next },
+        .{ .key = c.XKB_KEY_p, .function = .tab_prev },
+        .{ .key = c.XKB_KEY_q, .function = .close_focused },
+        .{ .key = c.XKB_KEY_space, .function = .toggle_beacon },
+        .{ .key = c.XKB_KEY_XF86AudioRaiseVolume, .function = .volume_up, .modifier = .none },
+        .{ .key = c.XKB_KEY_XF86AudioLowerVolume, .function = .volume_down, .modifier = .none },
+        .{ .key = c.XKB_KEY_XF86AudioMute, .function = .volume_mute, .modifier = .none },
+        .{ .key = c.XKB_KEY_Tab, .function = .toggle_menu },
+        .{ .key = c.XKB_KEY_f, .function = .toggle_fullscreen },
+        .{ .key = c.XKB_KEY_h, .function = .snap_left },
+        .{ .key = c.XKB_KEY_l, .function = .snap_right },
+        .{ .key = c.XKB_KEY_s, .function = .screenshot_fullscreen },
+        .{ .key = c.XKB_KEY_s, .function = .screenshot, .modifier = .super_shift },
+        .{ .key = c.XKB_KEY_r, .function = .record_fullscreen },
+        .{ .key = c.XKB_KEY_r, .function = .record, .modifier = .super_shift },
+        .{ .key = c.XKB_KEY_m, .function = .move_to_next_output, .modifier = .super_shift },
+    });
+    config.keybinds = try custom_binds.toOwnedSlice();
 
-    config.keybinds = keybinds;
-
-    return config.*;
+    return config;
 }
 
 test "one line lexer" {
