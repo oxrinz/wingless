@@ -9,15 +9,14 @@ const recording = @import("recording.zig");
 pub const CaptureMode = enum { screenshot, recording };
 var capture_mode: CaptureMode = .screenshot;
 
-const State = enum { idle, capturing, capturing_fullscreen, selecting };
-var state: State = .idle;
+pub const State = enum { idle, capturing, capturing_fullscreen, selecting };
+pub var state: State = .idle;
 
 var cap_w: c_int = 0;
 var cap_h: c_int = 0;
 var cap_pixels: []u8 = &.{};
 var cap_tex: c_uint = 0;
 
-// selection anchor and current cursor in screen space (y=0 at top)
 var drag_start_x: f32 = 0;
 var drag_start_y: f32 = 0;
 var cur_x: f32 = 0;
@@ -25,17 +24,17 @@ var cur_y: f32 = 0;
 var has_selection: bool = false;
 var is_dragging: bool = false;
 
-// toolbar button animation state
 var ss_hover: bool = false;
 var ss_scale: f32 = 1.02;
+var ss_fill: f32 = 1.0;
 var rec_hover: bool = false;
 var rec_scale: f32 = 1.0;
+var rec_fill: f32 = 0.0;
 
 fn lerp(a: f32, b: f32, t: f32) f32 {
     return a + (b - a) * t;
 }
 
-// GL resources
 var prog: c_uint = 0;
 var vbo: c_uint = 0;
 var pos_loc: c_int = -1;
@@ -86,10 +85,6 @@ fn ensureGL() void {
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
-pub fn isActive() bool {
-    return state == .selecting;
-}
-
 pub fn activate() void {
     activateWithMode(.screenshot);
 }
@@ -109,15 +104,22 @@ fn activateWithMode(mode: CaptureMode) void {
     if (state != .idle) return;
     capture_mode = mode;
     state = .capturing;
-    ui.menu_open = false;
-    ui.beacon_open = false;
+    ui.open.menu = false;
+    ui.open.beacon = false;
     main.resetCursorToDefault();
 }
 
 pub fn onMouseButton(pressed: bool, x: f32, y: f32) bool {
     if (state != .selecting) return false;
     if (pressed) {
-        // let Clay determine if cursor is over the toolbar (handles button hits too)
+        if (zclay.pointerOver(zclay.ElementId.ID("CaptureTypeScreenshot"))) {
+            capture_mode = .screenshot;
+            return true;
+        }
+        if (zclay.pointerOver(zclay.ElementId.ID("CaptureTypeRecord"))) {
+            capture_mode = .recording;
+            return true;
+        }
         if (zclay.pointerOver(zclay.ElementId.ID("CaptureToolbar"))) {
             return true;
         }
@@ -268,14 +270,14 @@ fn commitSelection() void {
     }
 }
 
-// --- Clay toolbar (called inside Clay layout block) ---
-
 pub fn tick(dt: f32) void {
     const speed = dt * 14.0;
     const ss_sel = capture_mode == .screenshot;
     const rec_sel = capture_mode == .recording;
     ss_scale = lerp(ss_scale, if (ss_hover) 1.06 else if (ss_sel) 1.02 else 1.0, speed);
     rec_scale = lerp(rec_scale, if (rec_hover) 1.06 else if (rec_sel) 1.02 else 1.0, speed);
+    ss_fill = lerp(ss_fill, if (ss_sel) 1.0 else 0.0, speed);
+    rec_fill = lerp(rec_fill, if (rec_sel) 1.0 else 0.0, speed);
     ss_hover = false;
     rec_hover = false;
 }
@@ -341,14 +343,13 @@ pub fn layoutToolbar() void {
             .child_alignment = .{ .y = .center },
         },
     })({
-        // Screenshot button
         zclay.UI()(.{
             .id = .ID("CaptureTypeScreenshot"),
             .layout = .{
                 .sizing = .{ .w = .fixed(ss_btn_w), .h = .fixed(btn_h) },
                 .child_alignment = .{ .x = .center, .y = .center },
             },
-            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, ss_scale, 10.0 * s) },
+            .custom = .{ .custom_data = ui.mkAnimatedGlassFill(14 * s, ss_scale, ss_fill, .top_to_bottom) },
         })({
             zclay.cdefs.Clay_OnHover(onScreenshotBtnHover, null);
             zclay.UI()(.{
@@ -368,19 +369,18 @@ pub fn layoutToolbar() void {
                 zclay.UI()(.{
                     .id = .ID("CaptureTypeScreenshotLabel"),
                     .layout = .{ .sizing = .{ .w = .fixed(ss_sz.w), .h = .fixed(ss_sz.h) } },
-                    .custom = .{ .custom_data = ui.mkGlassText("Screenshot", font_size, false) },
+                    .custom = .{ .custom_data = ui.mkGlassTextDark("Screenshot", font_size, false, ss_fill) },
                 })({});
             });
         });
 
-        // Recording button
         zclay.UI()(.{
             .id = .ID("CaptureTypeRecord"),
             .layout = .{
                 .sizing = .{ .w = .fixed(rec_btn_w), .h = .fixed(btn_h) },
                 .child_alignment = .{ .x = .center, .y = .center },
             },
-            .custom = .{ .custom_data = ui.mkAnimatedGlass(14 * s, rec_scale, 10.0 * s) },
+            .custom = .{ .custom_data = ui.mkAnimatedGlassFill(14 * s, rec_scale, rec_fill, .top_to_bottom) },
         })({
             zclay.cdefs.Clay_OnHover(onRecordBtnHover, null);
             zclay.UI()(.{
@@ -400,14 +400,12 @@ pub fn layoutToolbar() void {
                 zclay.UI()(.{
                     .id = .ID("CaptureTypeRecordLabel"),
                     .layout = .{ .sizing = .{ .w = .fixed(rec_sz.w), .h = .fixed(rec_sz.h) } },
-                    .custom = .{ .custom_data = ui.mkGlassText("Record", font_size, false) },
+                    .custom = .{ .custom_data = ui.mkGlassTextDark("Record", font_size, false, rec_fill) },
                 })({});
             });
         });
     });
 }
-
-// --- GL overlay (called before Clay layout when in selecting state) ---
 
 pub fn renderBackground(w: c_int, h: c_int) void {
     if (state != .selecting) return;
@@ -438,8 +436,6 @@ pub fn renderBackground(w: c_int, h: c_int) void {
     gl.glUseProgram(0);
 }
 
-// --- Frame handler (pixel capture only, called after Clay rendering) ---
-
 pub fn onFrame(w: c_int, h: c_int) void {
     switch (state) {
         .idle, .selecting => {},
@@ -459,7 +455,6 @@ pub fn onFrame(w: c_int, h: c_int) void {
             gl.glReadPixels(0, 0, w, h, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, cap_pixels.ptr);
 
             if (is_fullscreen) {
-                // fullscreen screenshot: dispatch immediately
                 copyFullscreenPixels(w, h);
                 state = .idle;
                 if (cap_pixels.len > 0) {
@@ -469,7 +464,6 @@ pub fn onFrame(w: c_int, h: c_int) void {
                 return;
             }
 
-            // upload to texture, enter selection mode
             if (cap_tex != 0) gl.glDeleteTextures(1, &cap_tex);
             gl.glGenTextures(1, &cap_tex);
             gl.glBindTexture(gl.GL_TEXTURE_2D, cap_tex);

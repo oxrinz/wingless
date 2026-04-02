@@ -93,7 +93,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
     file.close();
 
     var config = WinglessConfig{ .keybinds = &.{} };
-    var custom_binds = std.ArrayList(Keybind).init(allocator);
+    var custom_binds: std.ArrayListUnmanaged(Keybind) = .{};
 
     var it = std.mem.splitScalar(u8, data, '\n');
     while (it.next()) |line_raw| {
@@ -137,7 +137,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
             const keysym = c.xkb_keysym_from_name(key_str_z, c.XKB_KEYSYM_NO_FLAGS);
             if (keysym == c.XKB_KEY_NoSymbol) return error.InvalidKeyName;
 
-            try custom_binds.append(.{
+            try custom_binds.append(allocator, .{
                 .function = function,
                 .key = @intCast(keysym),
                 .modifier = modifier,
@@ -145,7 +145,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
         }
     }
 
-    try custom_binds.appendSlice(&.{
+    try custom_binds.appendSlice(allocator, &.{
         .{ .key = c.XKB_KEY_n, .function = .tab_next },
         .{ .key = c.XKB_KEY_p, .function = .tab_prev },
         .{ .key = c.XKB_KEY_q, .function = .close_focused },
@@ -163,7 +163,7 @@ pub fn getConfig(allocator: std.mem.Allocator) !WinglessConfig {
         .{ .key = c.XKB_KEY_r, .function = .record, .modifier = .super_shift },
         .{ .key = c.XKB_KEY_m, .function = .move_to_next_output, .modifier = .super_shift },
     });
-    config.keybinds = try custom_binds.toOwnedSlice();
+    config.keybinds = try custom_binds.toOwnedSlice(allocator);
 
     return config;
 }

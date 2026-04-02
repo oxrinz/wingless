@@ -18,11 +18,9 @@ const NM_SETTINGS_PATH: [*c]const u8 = "/org/freedesktop/NetworkManager/Settings
 const NM_SETTINGS_IFACE: [*c]const u8 = "org.freedesktop.NetworkManager.Settings";
 const NM_SETTINGS_CONN: [*c]const u8 = "org.freedesktop.NetworkManager.Settings.Connection";
 
-
 var cluster_open: bool = false;
-var cluster_state: f32 = 0.0; // 0=collapsed, 1=expanded
-var cluster_sub_states: [3]f32 = [_]f32{0} ** 3; // per-button: 0=power, 1=sleep, 2=restart
-// 0=center(close), 1=power, 2=sleep, 3=restart
+var cluster_state: f32 = 0.0;
+var cluster_sub_states: [3]f32 = [_]f32{0} ** 3;
 var cluster_hover: [4]bool = [_]bool{false} ** 4;
 var cluster_hover_bright: [4]f32 = [_]f32{0.05} ** 4;
 var cluster_hover_scale: [4]f32 = [_]f32{1.0} ** 4;
@@ -78,9 +76,8 @@ var bt_panel_state: f32 = 0.0;
 var bt_hover: bool = false;
 var bt_hover_scale: f32 = 1.0;
 
-// Top cluster blob state: BT+WiFi+Capture merge into one blob when any panel opens
-var top_cluster_blob_h: f32 = 54.0; // animated bounding box height
-var top_cluster_morph_k: f32 = 0.0; // smooth union parameter
+var top_cluster_blob_h: f32 = 54.0;
+var top_cluster_morph_k: f32 = 0.0;
 var bt_circle_grow: f32 = 0.0;
 var wifi_circle_grow: f32 = 0.0;
 var cap_circle_grow: f32 = 0.0;
@@ -235,9 +232,7 @@ var clock_str: []u8 = clock_buf[0..0];
 var date_buf: [32]u8 = undefined;
 var date_str: []u8 = date_buf[0..0];
 
-// this is public only because of the fullscreen blur
 pub var menu_state: f32 = 0;
-// btn_states[0]=Power, [1]=Reboot, [2]=BT, [3]=WiFi, [4]=Capture, [5]=Rickroll, [6]=Speaker, [7]=Mic (right to left)
 var btn_states: [8]f32 = [_]f32{0} ** 8;
 
 var capture_hover: bool = false;
@@ -406,7 +401,6 @@ fn fetchWifiThread() void {
     defer _ = sd.sd_bus_unref(bus);
     const b = bus.?;
 
-    // Find WiFi device path
     var dev_path_buf: [256]u8 = [_]u8{0} ** 256;
     var dev_path_len: usize = 0;
     {
@@ -433,15 +427,13 @@ fn fetchWifiThread() void {
     if (dev_path_len == 0) return;
     const dev_path: [*c]const u8 = @ptrCast(&dev_path_buf);
 
-    @memcpy(wifi_device_path[0..dev_path_len + 1], dev_path_buf[0..dev_path_len + 1]);
+    @memcpy(wifi_device_path[0 .. dev_path_len + 1], dev_path_buf[0 .. dev_path_len + 1]);
     wifi_device_path_len = dev_path_len;
 
-    // Get active AP path
     var active_ap_buf: [256]u8 = [_]u8{0} ** 256;
     const active_ap_len = nmPropPath(b, dev_path, NM_DEV_WIFI, "ActiveAccessPoint", &active_ap_buf);
     const active_ap = active_ap_buf[0..active_ap_len];
 
-    // Get known SSIDs from saved connections
     var known_ssids: [max_wifi_entries][64]u8 = undefined;
     var known_ssid_lens: [max_wifi_entries]usize = [_]usize{0} ** max_wifi_entries;
     var known_count: usize = 0;
@@ -467,7 +459,6 @@ fn fetchWifiThread() void {
         }
     }
 
-    // Get all access points
     var apmsg: ?*sd.sd_bus_message = null;
     var aperr: sd.sd_bus_error = std.mem.zeroes(sd.sd_bus_error);
     defer sd.sd_bus_error_free(&aperr);
@@ -572,7 +563,6 @@ fn wifiConnectThread() void {
     const ssid = args.ssid[0..args.ssid_len];
 
     if (!args.with_password) {
-        // Find and activate existing saved connection
         var conn_path_buf: [256]u8 = [_]u8{0} ** 256;
         var conn_path_len: usize = 0;
         {
@@ -608,7 +598,6 @@ fn wifiConnectThread() void {
             if (reply != null) _ = sd.sd_bus_message_unref(reply.?);
         }
     } else {
-        // AddAndActivateConnection with password
         var call_msg: ?*sd.sd_bus_message = null;
         if (sd.sd_bus_message_new_method_call(bus, &call_msg, NM_DEST, NM_PATH, NM_IFACE, "AddAndActivateConnection") < 0) return;
         defer _ = sd.sd_bus_message_unref(call_msg.?);
@@ -722,7 +711,6 @@ fn fetchAudioThread(is_speaker: bool) void {
     defer fetching.store(false, .release);
     const alloc = std.heap.page_allocator;
 
-    // Get default device name
     var def_buf: [256]u8 = [_]u8{0} ** 256;
     var def_name: []const u8 = "";
     {
@@ -838,19 +826,17 @@ fn refreshMic() void {
 }
 
 pub fn toggleMenu() void {
-    if (ui.beacon_open == false and !ui.screenshot.isActive()) {
-        ui.menu_open = !ui.menu_open;
-        if (ui.menu_open) main.resetCursorToDefault();
+    if (ui.open.beacon == false and !(ui.screenshot.state == .selecting)) {
+        ui.open.menu = !ui.open.menu;
+        if (ui.open.menu) main.resetCursorToDefault();
     }
 }
 
 pub fn tick(dt: f32) void {
-    menu_state = lerp(menu_state, if (ui.menu_open) 1.0 else 0.0, dt * 20.0);
+    menu_state = lerp(menu_state, if (ui.open.menu) 1.0 else 0.0, dt * 20.0);
 
-    // Close cluster when menu closes
-    if (!ui.menu_open) cluster_open = false;
+    if (!ui.open.menu) cluster_open = false;
 
-    // Power cluster animation
     cluster_state = lerp(cluster_state, if (cluster_open) 1.0 else 0.0, dt * 16.0);
     const css = dt * 10.0;
     if (cluster_open) {
@@ -863,9 +849,8 @@ pub fn tick(dt: f32) void {
         if (cluster_sub_states[1] < 0.5) cluster_sub_states[2] = @max(0.0, lerp(cluster_sub_states[2], 0.0, css));
     }
 
-    // Stagger: BT, WiFi, Speaker, Mic, Cap, Rickroll (panel buttons first, then utility)
     const bs = dt * 12.0;
-    if (ui.menu_open) {
+    if (ui.open.menu) {
         btn_states[0] = @min(1.0, lerp(btn_states[0], 1.0, bs));
         if (btn_states[0] > 0.3) btn_states[2] = @min(1.0, lerp(btn_states[2], 1.0, bs));
         if (btn_states[2] > 0.3) btn_states[3] = @min(1.0, lerp(btn_states[3], 1.0, bs));
@@ -900,9 +885,8 @@ pub fn tick(dt: f32) void {
         month_names[month_idx],
     }) catch date_buf[0..0];
 
-    // Stagger thumbnails: each one waits for the previous to nearly finish
     const ts2 = dt * 18.0;
-    if (ui.menu_open) {
+    if (ui.open.menu) {
         for (0..thumb_order_count) |i| {
             if (i == 0 or thumb_states[i - 1] > 0.2) {
                 thumb_states[i] = @min(1.0, lerp(thumb_states[i], 1.0, ts2));
@@ -916,14 +900,12 @@ pub fn tick(dt: f32) void {
         }
     }
 
-    // animate hover states
     const speed = dt * 14.0;
     for (0..max_thumbs) |i| {
         const target_scale: f32 = if (thumb_hover[i]) 1.06 else 1.0;
         thumb_hover_scale[i] = lerp(thumb_hover_scale[i], target_scale, speed);
-        thumb_hover[i] = false; // reset each frame, set again by OnHover
+        thumb_hover[i] = false;
     }
-    // Cluster hover brightness per button
     for (0..4) |i| {
         cluster_hover_bright[i] = lerp(cluster_hover_bright[i], if (cluster_hover[i]) 0.18 else 0.05, speed);
         cluster_hover_scale[i] = lerp(cluster_hover_scale[i], if (cluster_hover[i]) 1.06 else 1.0, speed);
@@ -936,56 +918,49 @@ pub fn tick(dt: f32) void {
     speaker_panel_state = lerp(speaker_panel_state, if (speaker_open) 1.0 else 0.0, dt * 8.0);
     mic_panel_state = lerp(mic_panel_state, if (mic_open) 1.0 else 0.0, dt * 8.0);
 
-    // Staggered per-circle grow: opened button leads, others follow proportional to distance.
-    // Button positions (right-to-left): bt=0, wifi=1, speaker=2, mic=3, cap=4, rickroll=5
     {
         const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
         const stagger: f32 = 0.18;
         const spd = dt * 9.0;
         const sg = stagger;
         if (bt_open) {
-            // bt pos=0: wifi=1, speaker=2, mic=3, cap=4, rickroll=5
-            bt_circle_grow       = lerp(bt_circle_grow,       open_state,                        spd);
-            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
-            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg * 2.0),  spd);
-            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
-            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 4.0),  spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 5.0),  spd);
+            bt_circle_grow = lerp(bt_circle_grow, open_state, spd);
+            wifi_circle_grow = lerp(wifi_circle_grow, @max(0.0, open_state - sg), spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            mic_circle_grow = lerp(mic_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
+            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - sg * 4.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 5.0), spd);
         } else if (wifi_open) {
-            // wifi pos=1: bt=1, speaker=1, mic=2, cap=3, rickroll=4
-            wifi_circle_grow     = lerp(wifi_circle_grow,     open_state,                        spd);
-            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg),        spd);
-            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg),        spd);
-            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
-            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 3.0),  spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 4.0),  spd);
+            wifi_circle_grow = lerp(wifi_circle_grow, open_state, spd);
+            bt_circle_grow = lerp(bt_circle_grow, @max(0.0, open_state - sg), spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg), spd);
+            mic_circle_grow = lerp(mic_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 4.0), spd);
         } else if (speaker_open) {
-            // speaker pos=2: wifi=1, mic=1, bt=2, cap=2, rickroll=3
-            speaker_circle_grow  = lerp(speaker_circle_grow,  open_state,                        spd);
-            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg),        spd);
-            mic_circle_grow      = lerp(mic_circle_grow,      @max(0.0, open_state - sg),        spd);
-            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 2.0),  spd);
-            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg * 2.0),  spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 3.0),  spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, open_state, spd);
+            wifi_circle_grow = lerp(wifi_circle_grow, @max(0.0, open_state - sg), spd);
+            mic_circle_grow = lerp(mic_circle_grow, @max(0.0, open_state - sg), spd);
+            bt_circle_grow = lerp(bt_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
         } else if (mic_open) {
-            // mic pos=3: speaker=1, cap=1, wifi=2, rickroll=2, bt=3
-            mic_circle_grow      = lerp(mic_circle_grow,      open_state,                        spd);
-            speaker_circle_grow  = lerp(speaker_circle_grow,  @max(0.0, open_state - sg),        spd);
-            cap_circle_grow      = lerp(cap_circle_grow,      @max(0.0, open_state - sg),        spd);
-            wifi_circle_grow     = lerp(wifi_circle_grow,     @max(0.0, open_state - sg * 2.0),  spd);
-            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0),  spd);
-            bt_circle_grow       = lerp(bt_circle_grow,       @max(0.0, open_state - sg * 3.0),  spd);
+            mic_circle_grow = lerp(mic_circle_grow, open_state, spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, @max(0.0, open_state - sg), spd);
+            cap_circle_grow = lerp(cap_circle_grow, @max(0.0, open_state - sg), spd);
+            wifi_circle_grow = lerp(wifi_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            rickroll_circle_grow = lerp(rickroll_circle_grow, @max(0.0, open_state - sg * 2.0), spd);
+            bt_circle_grow = lerp(bt_circle_grow, @max(0.0, open_state - sg * 3.0), spd);
         } else {
-            bt_circle_grow       = lerp(bt_circle_grow,       0.0, spd);
-            wifi_circle_grow     = lerp(wifi_circle_grow,     0.0, spd);
-            speaker_circle_grow  = lerp(speaker_circle_grow,  0.0, spd);
-            mic_circle_grow      = lerp(mic_circle_grow,      0.0, spd);
-            cap_circle_grow      = lerp(cap_circle_grow,      0.0, spd);
+            bt_circle_grow = lerp(bt_circle_grow, 0.0, spd);
+            wifi_circle_grow = lerp(wifi_circle_grow, 0.0, spd);
+            speaker_circle_grow = lerp(speaker_circle_grow, 0.0, spd);
+            mic_circle_grow = lerp(mic_circle_grow, 0.0, spd);
+            cap_circle_grow = lerp(cap_circle_grow, 0.0, spd);
             rickroll_circle_grow = lerp(rickroll_circle_grow, 0.0, spd);
         }
     }
 
-    // Top cluster blob: animate morph_k and bounding box height
     const any_open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
     top_cluster_morph_k = lerp(top_cluster_morph_k, @max(15.0, any_open_state * 80.0) * ui.ui_scale, dt * 10.0);
     {
@@ -1009,11 +984,7 @@ pub fn tick(dt: f32) void {
         const mc_list_h: f32 = if (mc_list_vis == 0) dev_item_h else @as(f32, @floatFromInt(mc_list_vis)) * dev_item_h;
         mic_panel_full_h = lerp(mic_panel_full_h, pad * 2 + mc_list_h, dt * 25.0);
 
-        const target_blob_h: f32 = if (bt_open or bt_panel_state > 0.01) bt_full_h
-            else if (wifi_open or wifi_panel_state > 0.01) wifi_panel_full_h
-            else if (speaker_open or speaker_panel_state > 0.01) speaker_panel_full_h
-            else if (mic_open or mic_panel_state > 0.01) mic_panel_full_h
-            else 54 * s;
+        const target_blob_h: f32 = if (bt_open or bt_panel_state > 0.01) bt_full_h else if (wifi_open or wifi_panel_state > 0.01) wifi_panel_full_h else if (speaker_open or speaker_panel_state > 0.01) speaker_panel_full_h else if (mic_open or mic_panel_state > 0.01) mic_panel_full_h else 54 * s;
         top_cluster_blob_h = lerp(top_cluster_blob_h, target_blob_h, dt * 10.0);
     }
 
@@ -1052,7 +1023,6 @@ pub fn tick(dt: f32) void {
     speaker_hover = false;
     mic_hover = false;
 
-    // close panel on click outside
     const pressed_this_frame = ui.pointer_down and !prev_pointer_down;
     if (pressed_this_frame) {
         if (wifi_open and !zclay.pointerOver(zclay.ElementId.ID("WifiBtn")) and !zclay.pointerOver(zclay.ElementId.ID("WifiPanel"))) {
@@ -1064,7 +1034,6 @@ pub fn tick(dt: f32) void {
         if (bt_open and !zclay.pointerOver(zclay.ElementId.ID("BtBtn")) and !zclay.pointerOver(zclay.ElementId.ID("BtPanel"))) bt_open = false;
         if (speaker_open and !zclay.pointerOver(zclay.ElementId.ID("SpeakerBtn")) and !zclay.pointerOver(zclay.ElementId.ID("SpeakerPanel"))) speaker_open = false;
         if (mic_open and !zclay.pointerOver(zclay.ElementId.ID("MicBtn")) and !zclay.pointerOver(zclay.ElementId.ID("MicPanel"))) mic_open = false;
-        // Close the power cluster if clicking outside all its buttons
         if (cluster_open and
             !zclay.pointerOver(zclay.ElementId.ID("ClusterBtnCenter")) and
             !zclay.pointerOver(zclay.ElementId.ID("ClusterBtnPower")) and
@@ -1089,7 +1058,7 @@ pub fn tick(dt: f32) void {
         mic_item_hover_bright[i] = lerp(mic_item_hover_bright[i], if (mic_item_hover[i]) 0.09 else 0.0, speed);
         mic_item_hover[i] = false;
     }
-    if (!ui.menu_open and menu_state < 0.01) {
+    if (!ui.open.menu and menu_state < 0.01) {
         wifi_open = false;
         wifi_pw_mode = false;
         wifi_pw_len = 0;
@@ -1100,7 +1069,7 @@ pub fn tick(dt: f32) void {
 }
 
 pub fn isActive() bool {
-    return ui.menu_open or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001 or btn_states[5] > 0.0001 or btn_states[6] > 0.0001 or btn_states[7] > 0.0001;
+    return ui.open.menu or menu_state > 0.0001 or btn_states[0] > 0.0001 or btn_states[2] > 0.0001 or btn_states[3] > 0.0001 or btn_states[4] > 0.0001 or btn_states[5] > 0.0001 or btn_states[6] > 0.0001 or btn_states[7] > 0.0001;
 }
 
 pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
@@ -1108,23 +1077,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 
     const s = ui.ui_scale;
     const clock_x_off: f32 = lerp(-300.0 * s, 40.0 * s, menu_state);
-    // const shadow_x_off: f32 = lerp(-620.0, -320.0, menu_state);
 
-    // TODO: add shadow behind clock text
-    //    zclay.UI()(.{
-    //        .id = .ID("ClockShadow"),
-    //        .floating = .{
-    //            .attach_to = .to_root,
-    //            .attach_points = .{ .element = .left_bottom, .parent = .left_bottom },
-    //            .offset = .{ .x = shadow_x_off, .y = -40 },
-    //        },
-    //        .layout = .{
-    //            .sizing = .{ .w = .fixed(300), .h = .fixed(140) },
-    //        },
-    //        .custom = .{ .custom_data = ui.mkAnimatedShadow(120, menu_state, 1.00) },
-    //    })({});
-
-    // text element, 40px from left and bottom edges
     zclay.UI()(.{
         .id = .ID("ClockText"),
         .floating = .{
@@ -1152,45 +1105,39 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 
     const top_y = ui.screen_height - 40.0 * s;
     const btn_y = [6]f32{
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]), // BT
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]), // WiFi
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[6]), // Speaker (3rd in stagger)
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[7]), // Mic    (4th)
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]), // Cap    (5th)
-        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]), // Rickroll (6th)
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[2]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[3]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[6]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[7]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[4]),
+        lerp(ui.screen_height + 200.0 * s, top_y, btn_states[5]),
     };
 
     const open_state = @max(@max(bt_panel_state, wifi_panel_state), @max(speaker_panel_state, mic_panel_state));
     const icon_alpha = std.math.clamp(1.0 - open_state / 0.3, 0.0, 1.0);
     const mask_overhang = 10.0 * s;
 
-    // --- Unified blob background for BT + WiFi + Capture ---
     {
         const radius = 27.0 * s;
-        const panel_half_w = 150.0 * s; // half of 300px panel width
-        // Panel heights for each button
+        const panel_half_w = 150.0 * s;
         const bt_item_h: f32 = 54 * s;
         const bt_pad_f: f32 = 14 * s;
         const bt_list_vis: usize = @min(bt_snapshot_count, 6);
         const bt_list_h: f32 = if (bt_list_vis == 0) bt_item_h else @as(f32, @floatFromInt(bt_list_vis)) * bt_item_h;
         const bt_full_h: f32 = bt_pad_f * 2 + bt_list_h;
 
-        // GL coords: y from bottom of screen — each button has its own animated Y
-        const bt_cy_gl       = (ui.screen_height - btn_y[0]) + radius;
-        const wifi_cy_gl     = (ui.screen_height - btn_y[1]) + radius;
-        const speaker_cy_gl  = (ui.screen_height - btn_y[2]) + radius;
-        const mic_cy_gl      = (ui.screen_height - btn_y[3]) + radius;
-        const cap_cy_gl      = (ui.screen_height - btn_y[4]) + radius;
+        const bt_cy_gl = (ui.screen_height - btn_y[0]) + radius;
+        const wifi_cy_gl = (ui.screen_height - btn_y[1]) + radius;
+        const speaker_cy_gl = (ui.screen_height - btn_y[2]) + radius;
+        const mic_cy_gl = (ui.screen_height - btn_y[3]) + radius;
+        const cap_cy_gl = (ui.screen_height - btn_y[4]) + radius;
         const rickroll_cy_gl = (ui.screen_height - btn_y[5]) + radius;
 
-        // Circles stay at their button centers and grow radially (scale) to fill the mask.
-        // Each button is 54px wide with 12px gap: step = 66px per position.
-        // Order right-to-left: bt=0, wifi=1, speaker=2, mic=3, cap=4, rickroll=5
-        const bt_cx_gl       = ui.screen_width - 40.0 * s - radius;
-        const wifi_cx_gl     = bt_cx_gl - 66.0 * s;
-        const speaker_cx_gl  = bt_cx_gl - 132.0 * s;
-        const mic_cx_gl      = bt_cx_gl - 198.0 * s;
-        const cap_cx_gl      = bt_cx_gl - 264.0 * s;
+        const bt_cx_gl = ui.screen_width - 40.0 * s - radius;
+        const wifi_cx_gl = bt_cx_gl - 66.0 * s;
+        const speaker_cx_gl = bt_cx_gl - 132.0 * s;
+        const mic_cx_gl = bt_cx_gl - 198.0 * s;
+        const cap_cx_gl = bt_cx_gl - 264.0 * s;
         const rickroll_cx_gl = bt_cx_gl - 330.0 * s;
 
         const centers = [16]f32{
@@ -1200,74 +1147,65 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             mic_cx_gl,      mic_cy_gl,
             cap_cx_gl,      cap_cy_gl,
             rickroll_cx_gl, rickroll_cy_gl,
-            0, 0, 0, 0,
+            0,              0,
+            0,              0,
         };
 
-        // Mask: panel shape — picks tallest open panel height
         const opened_h_candidates = [4]f32{ bt_full_h, wifi_panel_full_h, speaker_panel_full_h, mic_panel_full_h };
         const opened_h_states = [4]f32{ bt_panel_state, wifi_panel_state, speaker_panel_state, mic_panel_state };
         var opened_h: f32 = bt_full_h;
         var max_ps: f32 = 0.0;
         for (opened_h_candidates, opened_h_states) |h, ps| {
-            if (ps > max_ps) { max_ps = ps; opened_h = h; }
+            if (ps > max_ps) {
+                max_ps = ps;
+                opened_h = h;
+            }
         }
 
-        // Max scale: each circle's radius must reach the farthest mask corner at its peak grow value.
-        // All circles calibrated for 0.82 peak (1-step follower). Leaders overshoot slightly — fine.
-        // bt/wifi/speaker/mic: farthest corner is the opposite horizontal edge of mask.
-        // cap/rickroll: further left than panel center; farthest corner is the panel right edge.
         const vert_dist = opened_h - mask_overhang - radius;
-        const mask_right_dist = 40.0 * s - radius; // horiz dist from bt center to mask right edge (small)
-        const bt_diag        = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
-        const wifi_diag      = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
-        const speaker_diag   = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
-        const mic_diag       = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
-        // cap/rickroll are left of the panel; their farthest corner is the panel right edge
-        const cap_h_dist      = (264.0 * s) - mask_right_dist;
+        const mask_right_dist = 40.0 * s - radius;
+        const bt_diag = @sqrt((273.0 * s) * (273.0 * s) + vert_dist * vert_dist);
+        const wifi_diag = @sqrt((207.0 * s) * (207.0 * s) + vert_dist * vert_dist);
+        const speaker_diag = @sqrt((169.0 * s) * (169.0 * s) + vert_dist * vert_dist);
+        const mic_diag = @sqrt((235.0 * s) * (235.0 * s) + vert_dist * vert_dist);
+        const cap_h_dist = (264.0 * s) - mask_right_dist;
         const rickroll_h_dist = (330.0 * s) - mask_right_dist;
-        const cap_diag        = @sqrt(cap_h_dist * cap_h_dist + vert_dist * vert_dist);
-        const rickroll_diag   = @sqrt(rickroll_h_dist * rickroll_h_dist + vert_dist * vert_dist);
-        const bt_max_scale       = @max(1.5, (bt_diag       - radius) / (0.82 * radius) + 1.0);
-        const wifi_max_scale     = @max(1.5, (wifi_diag     - radius) / (0.82 * radius) + 1.0);
-        const speaker_max_scale  = @max(1.5, (speaker_diag  - radius) / (0.82 * radius) + 1.0);
-        const mic_max_scale      = @max(1.5, (mic_diag      - radius) / (0.82 * radius) + 1.0);
-        const cap_max_scale      = @max(1.5, (cap_diag      - radius) / (0.82 * radius) + 1.0);
+        const cap_diag = @sqrt(cap_h_dist * cap_h_dist + vert_dist * vert_dist);
+        const rickroll_diag = @sqrt(rickroll_h_dist * rickroll_h_dist + vert_dist * vert_dist);
+        const bt_max_scale = @max(1.5, (bt_diag - radius) / (0.82 * radius) + 1.0);
+        const wifi_max_scale = @max(1.5, (wifi_diag - radius) / (0.82 * radius) + 1.0);
+        const speaker_max_scale = @max(1.5, (speaker_diag - radius) / (0.82 * radius) + 1.0);
+        const mic_max_scale = @max(1.5, (mic_diag - radius) / (0.82 * radius) + 1.0);
+        const cap_max_scale = @max(1.5, (cap_diag - radius) / (0.82 * radius) + 1.0);
         const rickroll_max_scale = @max(1.5, (rickroll_diag - radius) / (0.82 * radius) + 1.0);
-        const bt_scale       = lerp(1.0, bt_max_scale,       bt_circle_grow);
-        const wifi_scale     = lerp(1.0, wifi_max_scale,     wifi_circle_grow);
-        const speaker_scale  = lerp(1.0, speaker_max_scale,  speaker_circle_grow);
-        const mic_scale      = lerp(1.0, mic_max_scale,      mic_circle_grow);
-        const cap_scale      = lerp(1.0, cap_max_scale,      cap_circle_grow);
+        const bt_scale = lerp(1.0, bt_max_scale, bt_circle_grow);
+        const wifi_scale = lerp(1.0, wifi_max_scale, wifi_circle_grow);
+        const speaker_scale = lerp(1.0, speaker_max_scale, speaker_circle_grow);
+        const mic_scale = lerp(1.0, mic_max_scale, mic_circle_grow);
+        const cap_scale = lerp(1.0, cap_max_scale, cap_circle_grow);
         const rickroll_scale = lerp(1.0, rickroll_max_scale, rickroll_circle_grow);
         const scales_arr = [8]f32{
             bt_hover_scale * bt_scale,           wifi_hover_scale * wifi_scale,
             speaker_hover_scale * speaker_scale, mic_hover_scale * mic_scale,
             capture_hover_scale * cap_scale,     rickroll_hover_scale * rickroll_scale,
-            0, 0,
+            0,                                   0,
         };
-        const widths_arr  = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        const widths_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
         const heights_arr = [8]f32{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        // No mask while buttons are sliding in — circles slide freely.
-        // When a panel opens the mask activates; reveal=mix(buttons,mask,0.005)≈buttons so no pop.
         const mask_r: f32 = if (open_state > 0.005) radius else 0.0;
-        // Idle: pill exactly encasing all 6 button circles (bt_cx to rickroll_cx ± radius)
-        // bt_cx = screen_w - 40s - radius, rickroll_cx = bt_cx - 330s => span = 384s, half = 192s
-        const idle_cx  = ui.screen_width - 40.0 * s - 192.0 * s;
-        const idle_ex  = 192.0 * s - radius;
+        const idle_cx = ui.screen_width - 40.0 * s - 192.0 * s;
+        const idle_ex = 192.0 * s - radius;
         const idle_ey: f32 = 0.0;
-        const idle_cy  = (ui.screen_height - btn_y[0]) + radius;
-        // Open: panel rect at the right side (all panels anchor here)
-        const open_cx  = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
-        const open_ex  = panel_half_w - radius + mask_overhang / 2.0;
-        const open_ey  = @max(opened_h / 2.0 - radius, 0.0);
-        const open_cy  = (ui.screen_height - btn_y[0]) + radius + open_ey - mask_overhang;
-        // Lerp mask shape between idle cluster pill and open panel rect
-        const mask_ex    = lerp(idle_ex, open_ex, open_state);
-        const mask_ey    = lerp(idle_ey, open_ey, open_state);
+        const idle_cy = (ui.screen_height - btn_y[0]) + radius;
+        const open_cx = ui.screen_width - 40.0 * s - panel_half_w + mask_overhang / 2.0;
+        const open_ex = panel_half_w - radius + mask_overhang / 2.0;
+        const open_ey = @max(opened_h / 2.0 - radius, 0.0);
+        const open_cy = (ui.screen_height - btn_y[0]) + radius + open_ey - mask_overhang;
+        const mask_ex = lerp(idle_ex, open_ex, open_state);
+        const mask_ey = lerp(idle_ey, open_ey, open_state);
         const mask_cx_gl = lerp(idle_cx, open_cx, open_state);
         const mask_cy_gl = lerp(idle_cy, open_cy, open_state);
 
-        // Bounding box must cover all 6 buttons (rickroll is leftmost at ~357px from right edge)
         const blob_bb_w = 400.0 * s;
         const blob_bb_h = top_cluster_blob_h;
 
@@ -1283,7 +1221,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         })({});
     }
 
-    // Generic device-list panel renderer — used by BT, Speaker, Mic
     const GenericItem = struct { label: []const u8, is_active: bool };
     const ItemHoverFn = *const fn (zclay.ElementId, zclay.PointerData, ?*anyopaque) callconv(.c) void;
     const renderDeviceListPanel = struct {
@@ -1365,8 +1302,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         }
     }.call;
 
-    // Bluetooth button (morphs into panel on click)
-    // Bluetooth button: static 54x54 hit area, never moves
     if (open_state < 0.4) {
         zclay.UI()(.{
             .id = .ID("BtBtn"),
@@ -1401,7 +1336,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             }
         });
     }
-    // Bluetooth panel content: fixed at panel position, rendered on top of blob
     if (bt_panel_state > 0.01) {
         if (bt_panel_state > 0.005) {
             bt_mutex.lock();
@@ -1501,8 +1435,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         });
     }
 
-    // WiFi button (morphs into panel on click)
-    // WiFi button: static 54x54 hit area, never moves
     if (open_state < 0.4) {
         const wifi_offset_x = -40 * s - 54 * s - 12 * s;
         zclay.UI()(.{
@@ -1532,7 +1464,10 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             if (icon_alpha > 0.01) {
                 var conn_signal: i32 = -1;
                 for (wifi_snapshot[0..wifi_snapshot_count]) |we| {
-                    if (we.connected) { conn_signal = we.signal; break; }
+                    if (we.connected) {
+                        conn_signal = we.signal;
+                        break;
+                    }
                 }
                 const btn_sig_icon: []const u8 = if (conn_signal >= 80)
                     "network-wireless-signal-excellent-symbolic"
@@ -1552,7 +1487,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             }
         });
     }
-    // WiFi panel content: fixed at panel position, rendered on top of blob
     if (wifi_panel_state > 0.01) {
         if (wifi_panel_state > 0.005) {
             wifi_mutex.lock();
@@ -1582,176 +1516,175 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             const wa = std.math.clamp((wifi_panel_state - 0.25) / 0.35, 0.0, 1.0);
             if (wa > 0.01) {
                 if (wifi_pw_mode) {
-                const target = &wifi_snapshot[wifi_pw_target];
-                wifi_pw_label = std.fmt.bufPrint(&wifi_pw_label_buf, "Password for {s}", .{target.ssid[0..target.ssid_len]}) catch "Password";
+                    const target = &wifi_snapshot[wifi_pw_target];
+                    wifi_pw_label = std.fmt.bufPrint(&wifi_pw_label_buf, "Password for {s}", .{target.ssid[0..target.ssid_len]}) catch "Password";
 
-                @memset(&wifi_pw_disp_buf, 0);
-                if (wifi_pw_show) {
-                    @memcpy(wifi_pw_disp_buf[0..wifi_pw_len], wifi_pw_buf[0..wifi_pw_len]);
-                } else {
-                    for (0..wifi_pw_len) |k| wifi_pw_disp_buf[k] = '*';
-                }
-                const cursor_on = @as(usize, @intFromFloat(anim_time * 2)) % 2 == 0;
-                if (wifi_pw_len > 0 and cursor_on) wifi_pw_disp_buf[wifi_pw_len] = '|';
-                const disp_len: usize = if (wifi_pw_len > 0) (if (cursor_on) wifi_pw_len + 1 else wifi_pw_len) else 0;
+                    @memset(&wifi_pw_disp_buf, 0);
+                    if (wifi_pw_show) {
+                        @memcpy(wifi_pw_disp_buf[0..wifi_pw_len], wifi_pw_buf[0..wifi_pw_len]);
+                    } else {
+                        for (0..wifi_pw_len) |k| wifi_pw_disp_buf[k] = '*';
+                    }
+                    const cursor_on = @as(usize, @intFromFloat(anim_time * 2)) % 2 == 0;
+                    if (wifi_pw_len > 0 and cursor_on) wifi_pw_disp_buf[wifi_pw_len] = '|';
+                    const disp_len: usize = if (wifi_pw_len > 0) (if (cursor_on) wifi_pw_len + 1 else wifi_pw_len) else 0;
 
-                zclay.UI()(.{
-                    .id = .ID("WifiPwContainer"),
-                    .layout = .{
-                        .direction = .top_to_bottom,
-                        .sizing = .{ .w = .grow, .h = .fit },
-                        .child_alignment = .{ .x = .left, .y = .top },
-                        .child_gap = @as(u16, @intFromFloat(8 * s)),
-                    },
-                })({
-                    const lfsz: u16 = @intFromFloat(13 * s);
-                    zclay.text(wifi_pw_label, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 180.0 * wa } });
-
-                    const ifsz: u16 = @intFromFloat(16 * s);
-                    const item_px: u16 = @intFromFloat(8 * s);
-                    const eye_w: f32 = item_h * 0.65;
-                    const icon_name: []const u8 = if (wifi_pw_show) "password-show-off" else "password-show-on";
                     zclay.UI()(.{
-                        .id = .ID("WifiPwInput"),
+                        .id = .ID("WifiPwContainer"),
                         .layout = .{
-                            .direction = .left_to_right,
-                            .sizing = .{ .w = .grow, .h = .fixed(item_h) },
-                            .child_alignment = .{ .x = .left, .y = .center },
-                            .padding = .{ .left = item_px, .right = @as(u16, @intFromFloat(4 * s)) },
-                            .child_gap = @as(u16, @intFromFloat(4 * s)),
+                            .direction = .top_to_bottom,
+                            .sizing = .{ .w = .grow, .h = .fit },
+                            .child_alignment = .{ .x = .left, .y = .top },
+                            .child_gap = @as(u16, @intFromFloat(8 * s)),
                         },
-                        .custom = .{ .custom_data = ui.mkRect(8 * s, 0.13 * wa) },
                     })({
+                        const lfsz: u16 = @intFromFloat(13 * s);
+                        zclay.text(wifi_pw_label, .{ .font_size = lfsz, .color = .{ 255, 255, 255, 180.0 * wa } });
+
+                        const ifsz: u16 = @intFromFloat(16 * s);
+                        const item_px: u16 = @intFromFloat(8 * s);
+                        const eye_w: f32 = item_h * 0.65;
+                        const icon_name: []const u8 = if (wifi_pw_show) "password-show-off" else "password-show-on";
                         zclay.UI()(.{
-                            .id = .ID("WifiPwText"),
-                            .layout = .{
-                                .sizing = .{ .w = .grow, .h = .grow },
-                                .child_alignment = .{ .x = .left, .y = .center },
-                            },
-                        })({
-                            if (disp_len == 0) {
-                                zclay.text("Enter password...", .{ .font_size = ifsz, .color = .{ 255, 255, 255, 60.0 * wa } });
-                            } else {
-                                zclay.text(wifi_pw_disp_buf[0..disp_len], .{ .font_size = ifsz, .color = .{ 255, 255, 255, 230.0 * wa } });
-                            }
-                        });
-                        zclay.UI()(.{
-                            .id = .ID("WifiPwEyeBtn"),
-                            .layout = .{
-                                .sizing = .{ .w = .fixed(eye_w), .h = .grow },
-                                .child_alignment = .{ .x = .center, .y = .center },
-                            },
-                            .custom = .{ .custom_data = ui.mkRect(6 * s, wifi_pw_show_hover_bright * wa) },
-                        })({
-                            zclay.cdefs.Clay_OnHover(struct {
-                                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
-                                    wifi_pw_show_hover = true;
-                                    if (ptr_data.state == .pressed_this_frame) {
-                                        wifi_pw_show = !wifi_pw_show;
-                                    }
-                                }
-                            }.callback, null);
-                            const icon_sz: f32 = 18 * s;
-                            zclay.UI()(.{
-                                .id = .ID("WifiPwEyeIcon"),
-                                .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, icon_name, (if (wifi_pw_show_hover) @as(f32, 1.0) else @as(f32, 0.5)) * wa) },
-                            })({});
-                        });
-                    });
-                });
-            } else {
-                if (wifi_vis == 0) {
-                    const label: []const u8 = if (wifi_fetching.load(.acquire)) "Scanning..." else "No networks";
-                    const fsz: u16 = @intFromFloat(14 * s);
-                    zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140.0 * wa } });
-                } else {
-                    for (0..wifi_vis) |i| {
-                        const e = &wifi_snapshot[i];
-                        wifi_item_cb[i] = .{ .idx = i };
-                        const item_px: u16 = @intFromFloat(10 * s);
-                        zclay.UI()(.{
-                            .id = .IDI("WifiItem", @intCast(i)),
+                            .id = .ID("WifiPwInput"),
                             .layout = .{
                                 .direction = .left_to_right,
                                 .sizing = .{ .w = .grow, .h = .fixed(item_h) },
                                 .child_alignment = .{ .x = .left, .y = .center },
-                                .padding = .{ .left = item_px, .right = item_px },
-                                .child_gap = @as(u16, @intFromFloat(8 * s)),
+                                .padding = .{ .left = item_px, .right = @as(u16, @intFromFloat(4 * s)) },
+                                .child_gap = @as(u16, @intFromFloat(4 * s)),
                             },
-                            .custom = .{ .custom_data = ui.mkRect(8 * s, wifi_item_hover_bright[i] * wa) },
+                            .custom = .{ .custom_data = ui.mkRect(8 * s, 0.13 * wa) },
                         })({
-                            zclay.cdefs.Clay_OnHover(struct {
-                                pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
-                                    const d: *WifiItemCb = @ptrCast(@alignCast(user_data.?));
-                                    wifi_item_hover[d.idx] = true;
-                                    if (ptr_data.state == .pressed_this_frame and wifi_action_idx == no_action) {
-                                        const entry = &wifi_snapshot[d.idx];
-                                        if (entry.connected) {
-                                            const dt = std.Thread.spawn(.{}, wifiDisconnectThread, .{}) catch return;
-                                            dt.detach();
-                                            wifi_action_idx = d.idx;
-                                            wifi_action_timer = 5.0;
-                                        } else if (entry.secured and !entry.known) {
-                                            wifi_pw_target = d.idx;
-                                            wifi_pw_mode = true;
-                                            wifi_pw_len = 0;
-                                        } else {
-                                            wifi_connect_args = .{};
-                                            @memcpy(wifi_connect_args.ssid[0..entry.ssid_len], entry.ssid[0..entry.ssid_len]);
-                                            wifi_connect_args.ssid_len = entry.ssid_len;
-                                            @memcpy(wifi_connect_args.ap_path[0..entry.ap_path_len], entry.ap_path[0..entry.ap_path_len]);
-                                            wifi_connect_args.ap_path_len = entry.ap_path_len;
-                                            wifi_connect_args.with_password = false;
-                                            const ct = std.Thread.spawn(.{}, wifiConnectThread, .{}) catch return;
-                                            ct.detach();
-                                            wifi_action_idx = d.idx;
-                                            wifi_action_timer = 5.0;
+                            zclay.UI()(.{
+                                .id = .ID("WifiPwText"),
+                                .layout = .{
+                                    .sizing = .{ .w = .grow, .h = .grow },
+                                    .child_alignment = .{ .x = .left, .y = .center },
+                                },
+                            })({
+                                if (disp_len == 0) {
+                                    zclay.text("Enter password...", .{ .font_size = ifsz, .color = .{ 255, 255, 255, 60.0 * wa } });
+                                } else {
+                                    zclay.text(wifi_pw_disp_buf[0..disp_len], .{ .font_size = ifsz, .color = .{ 255, 255, 255, 230.0 * wa } });
+                                }
+                            });
+                            zclay.UI()(.{
+                                .id = .ID("WifiPwEyeBtn"),
+                                .layout = .{
+                                    .sizing = .{ .w = .fixed(eye_w), .h = .grow },
+                                    .child_alignment = .{ .x = .center, .y = .center },
+                                },
+                                .custom = .{ .custom_data = ui.mkRect(6 * s, wifi_pw_show_hover_bright * wa) },
+                            })({
+                                zclay.cdefs.Clay_OnHover(struct {
+                                    pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
+                                        wifi_pw_show_hover = true;
+                                        if (ptr_data.state == .pressed_this_frame) {
+                                            wifi_pw_show = !wifi_pw_show;
                                         }
                                     }
-                                }
-                            }.callback, &wifi_item_cb[i]);
-                            const loading = wifi_action_idx == i;
-                            const icon_sz: f32 = 20 * s;
-                            const sig_icon: []const u8 = if (e.secured)
-                                "network-wireless-encrypted-symbolic"
-                            else if (e.signal >= 80)
-                                "network-wireless-signal-excellent-symbolic"
-                            else if (e.signal >= 60)
-                                "network-wireless-signal-good-symbolic"
-                            else if (e.signal >= 40)
-                                "network-wireless-signal-ok-symbolic"
-                            else
-                                "network-wireless-signal-weak-symbolic";
-                            zclay.UI()(.{
-                                .id = .IDI("WifiSigIcon", @intCast(i)),
-                                .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, sig_icon, 0.9 * wa) },
-                            })({});
-                            if (loading) {
+                                }.callback, null);
+                                const icon_sz: f32 = 18 * s;
                                 zclay.UI()(.{
-                                    .id = .IDI("WifiSpinner", @intCast(i)),
+                                    .id = .ID("WifiPwEyeIcon"),
                                     .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                    .custom = .{ .custom_data = ui.mkSpinner(anim_time) },
+                                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, icon_name, (if (wifi_pw_show_hover) @as(f32, 1.0) else @as(f32, 0.5)) * wa) },
                                 })({});
-                            } else if (e.connected) {
-                                zclay.UI()(.{
-                                    .id = .IDI("WifiCheck", @intCast(i)),
-                                    .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
-                                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "object-select-symbolic", 0.9 * wa) },
-                                })({});
-                            }
-                            const fsz: u16 = @intFromFloat(14 * s);
-                            zclay.text(e.ssid[0..e.ssid_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255.0 * wa } else .{ 255, 255, 255, 200.0 * wa } });
+                            });
                         });
+                    });
+                } else {
+                    if (wifi_vis == 0) {
+                        const label: []const u8 = if (wifi_fetching.load(.acquire)) "Scanning..." else "No networks";
+                        const fsz: u16 = @intFromFloat(14 * s);
+                        zclay.text(label, .{ .font_size = fsz, .color = .{ 255, 255, 255, 140.0 * wa } });
+                    } else {
+                        for (0..wifi_vis) |i| {
+                            const e = &wifi_snapshot[i];
+                            wifi_item_cb[i] = .{ .idx = i };
+                            const item_px: u16 = @intFromFloat(10 * s);
+                            zclay.UI()(.{
+                                .id = .IDI("WifiItem", @intCast(i)),
+                                .layout = .{
+                                    .direction = .left_to_right,
+                                    .sizing = .{ .w = .grow, .h = .fixed(item_h) },
+                                    .child_alignment = .{ .x = .left, .y = .center },
+                                    .padding = .{ .left = item_px, .right = item_px },
+                                    .child_gap = @as(u16, @intFromFloat(8 * s)),
+                                },
+                                .custom = .{ .custom_data = ui.mkRect(8 * s, wifi_item_hover_bright[i] * wa) },
+                            })({
+                                zclay.cdefs.Clay_OnHover(struct {
+                                    pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
+                                        const d: *WifiItemCb = @ptrCast(@alignCast(user_data.?));
+                                        wifi_item_hover[d.idx] = true;
+                                        if (ptr_data.state == .pressed_this_frame and wifi_action_idx == no_action) {
+                                            const entry = &wifi_snapshot[d.idx];
+                                            if (entry.connected) {
+                                                const dt = std.Thread.spawn(.{}, wifiDisconnectThread, .{}) catch return;
+                                                dt.detach();
+                                                wifi_action_idx = d.idx;
+                                                wifi_action_timer = 5.0;
+                                            } else if (entry.secured and !entry.known) {
+                                                wifi_pw_target = d.idx;
+                                                wifi_pw_mode = true;
+                                                wifi_pw_len = 0;
+                                            } else {
+                                                wifi_connect_args = .{};
+                                                @memcpy(wifi_connect_args.ssid[0..entry.ssid_len], entry.ssid[0..entry.ssid_len]);
+                                                wifi_connect_args.ssid_len = entry.ssid_len;
+                                                @memcpy(wifi_connect_args.ap_path[0..entry.ap_path_len], entry.ap_path[0..entry.ap_path_len]);
+                                                wifi_connect_args.ap_path_len = entry.ap_path_len;
+                                                wifi_connect_args.with_password = false;
+                                                const ct = std.Thread.spawn(.{}, wifiConnectThread, .{}) catch return;
+                                                ct.detach();
+                                                wifi_action_idx = d.idx;
+                                                wifi_action_timer = 5.0;
+                                            }
+                                        }
+                                    }
+                                }.callback, &wifi_item_cb[i]);
+                                const loading = wifi_action_idx == i;
+                                const icon_sz: f32 = 20 * s;
+                                const sig_icon: []const u8 = if (e.secured)
+                                    "network-wireless-encrypted-symbolic"
+                                else if (e.signal >= 80)
+                                    "network-wireless-signal-excellent-symbolic"
+                                else if (e.signal >= 60)
+                                    "network-wireless-signal-good-symbolic"
+                                else if (e.signal >= 40)
+                                    "network-wireless-signal-ok-symbolic"
+                                else
+                                    "network-wireless-signal-weak-symbolic";
+                                zclay.UI()(.{
+                                    .id = .IDI("WifiSigIcon", @intCast(i)),
+                                    .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
+                                    .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, sig_icon, 0.9 * wa) },
+                                })({});
+                                if (loading) {
+                                    zclay.UI()(.{
+                                        .id = .IDI("WifiSpinner", @intCast(i)),
+                                        .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
+                                        .custom = .{ .custom_data = ui.mkSpinner(anim_time) },
+                                    })({});
+                                } else if (e.connected) {
+                                    zclay.UI()(.{
+                                        .id = .IDI("WifiCheck", @intCast(i)),
+                                        .layout = .{ .sizing = .{ .w = .fixed(icon_sz), .h = .fixed(icon_sz) } },
+                                        .custom = .{ .custom_data = ui.mkIcon(std.heap.page_allocator, "object-select-symbolic", 0.9 * wa) },
+                                    })({});
+                                }
+                                const fsz: u16 = @intFromFloat(14 * s);
+                                zclay.text(e.ssid[0..e.ssid_len], .{ .font_size = fsz, .color = if (e.connected) .{ 255, 255, 255, 255.0 * wa } else .{ 255, 255, 255, 200.0 * wa } });
+                            });
+                        }
                     }
                 }
-            }
             }
         });
     }
 
-    // Capture button (screenshot / recording)
     if (open_state < 0.4) {
         const is_rec = recording.isRecording();
         const cap_r = 27 * s;
@@ -1794,7 +1727,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         });
     }
 
-    // Rickroll button (settings icon, opens browser)
     if (open_state < 0.4) {
         const rr_r = 27 * s;
         const rr_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
@@ -1820,7 +1752,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                         const t = std.Thread.spawn(.{}, struct {
                             pub fn run() void {
                                 var child = std.process.Child.init(
-                                    &[_][]const u8{ "xdg-open", "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+                                    &[_][]const u8{ "xdg-open", "https://www.youtube.com/watch?v=o6o1AvGLNRc" },
                                     std.heap.page_allocator,
                                 );
                                 _ = child.spawnAndWait() catch {};
@@ -1840,7 +1772,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         });
     }
 
-    // Speaker button
     if (open_state < 0.4) {
         const speaker_r = 27 * s;
         const speaker_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s;
@@ -1884,7 +1815,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             }
         });
     }
-    // Speaker panel
     {
         if (speaker_panel_state > 0.005) {
             speaker_mutex.lock();
@@ -1932,7 +1862,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         );
     }
 
-    // Mic button
     if (open_state < 0.4) {
         const mic_r = 27 * s;
         const mic_offset_x: f32 = -40 * s - 54 * s - 12 * s - 54 * s - 12 * s - 54 * s - 12 * s;
@@ -1976,7 +1905,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
             }
         });
     }
-    // Mic panel
     {
         if (mic_panel_state > 0.005) {
             mic_mutex.lock();
@@ -2024,11 +1952,9 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         );
     }
 
-    // focs = all windows except the currently focused one — exactly what we want to show
     const focs = focusables orelse return;
     if (focs.len == 0) return;
 
-    // Reconcile: keep stable order, drop closed windows, append newly opened ones
     {
         var new_count: usize = 0;
         for (thumb_order[0..thumb_order_count]) |fo| {
@@ -2044,7 +1970,10 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
         for (focs) |fo| {
             var found = false;
             for (thumb_order[0..thumb_order_count]) |existing| {
-                if (existing.cmp(fo)) { found = true; break; }
+                if (existing.cmp(fo)) {
+                    found = true;
+                    break;
+                }
             }
             if (!found and thumb_order_count < max_thumbs) {
                 thumb_order[thumb_order_count] = fo.*;
@@ -2062,7 +1991,6 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
     const avail_w = ui.screen_width * 0.6;
     const avail_h = ui.screen_height * 0.6;
 
-    // Square grid: cols = ceil(sqrt(n))
     const n_f: f32 = @floatFromInt(n);
     const cols_f = @ceil(@sqrt(n_f));
     const cols: usize = @intFromFloat(@max(1.0, @min(cols_f, n_f)));
@@ -2114,15 +2042,13 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                             .child_alignment = .{ .x = .center, .y = .center },
                             .sizing = .{ .w = .fixed(thumb_w), .h = .fixed(thumb_h) },
                         },
-                        .custom = .{ .custom_data = ui.mkAnimatedGlass(18, combined_scale, 10.0) },
+                        .custom = .{ .custom_data = ui.mkAnimatedGlass(18, combined_scale) },
                     })({
                         zclay.cdefs.Clay_OnHover(struct {
                             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, user_data: ?*anyopaque) callconv(.c) void {
                                 const d: *ThumbCbData = @ptrCast(@alignCast(user_data.?));
                                 thumb_hover[d.idx] = true;
-                                if (ptr_data.state == .pressed_this_frame and ui.menu_open) {
-                                    // Place the old focused window at the clicked slot.
-                                    // Reconciliation next frame will drop the newly-focused window.
+                                if (ptr_data.state == .pressed_this_frame and ui.open.menu) {
                                     if (d.focusable.server().focused_toplevel) |cur_focused| {
                                         thumb_order[d.idx] = cur_focused.*;
                                     }
@@ -2131,7 +2057,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
                                         .xwayland => |xwl| &xwl.focusable,
                                     };
                                     main.focus_toplevel(live);
-                                    ui.menu_open = false;
+                                    ui.open.menu = false;
                                 }
                             }
                         }.callback, &thumb_cb_data[idx]);
@@ -2151,7 +2077,7 @@ pub fn layout(_: ?*Focusable, focusables: ?[]*Focusable) void {
 }
 
 pub fn layoutPowerCluster() void {
-    if (menu_state <= 0.001 and !ui.menu_open and btn_states[0] <= 0.001) return;
+    if (menu_state <= 0.001 and !ui.open.menu and btn_states[0] <= 0.001) return;
 
     const s = ui.ui_scale;
     const radius = 27.0 * s;
@@ -2161,16 +2087,11 @@ pub fn layoutPowerCluster() void {
     const t = cluster_state;
     const diag: f32 = 0.7071067811865476;
 
-    // All floating elements use right_top anchor from root.
-    // root.right_top = (screen_w, 0) in Clay (y=0 is visual bottom in this renderer).
     const bx = lerp(200.0 * s, -(40.0 * s), btn_states[0]);
     const by = 40.0 * s;
 
-    // Single bounding box covers all 4 button positions (square that grows with t).
-    // bb right_top stays fixed at (screen_w-40, 40); width/height grow as buttons spread.
     const bb_size = btn_size + spread * t;
 
-    // --- One-pass SDF morph background for all 4 buttons ---
     zclay.UI()(.{
         .id = .ID("PowerClusterBg"),
         .floating = .{
@@ -2179,15 +2100,10 @@ pub fn layoutPowerCluster() void {
             .offset = .{ .x = bx, .y = by },
         },
         .layout = .{ .sizing = .{ .w = .fixed(bb_size), .h = .fixed(bb_size) } },
-        .custom = .{ .custom_data = ui.mkGlassBlob(t, cluster_sub_states[0], cluster_sub_states[1], cluster_sub_states[2], radius, spread, bx, by,
-            cluster_hover_scale[0], cluster_hover_scale[1],
-            cluster_hover_scale[2], cluster_hover_scale[3]) },
+        .custom = .{ .custom_data = ui.mkGlassBlob(t, cluster_sub_states[0], cluster_sub_states[1], cluster_sub_states[2], radius, spread, bx, by, cluster_hover_scale[0], cluster_hover_scale[1], cluster_hover_scale[2], cluster_hover_scale[3]) },
     })({});
 
-    // --- Transparent overlay hitboxes (each has OnHover + icon child, no background) ---
-
     if (t > 0.05) {
-        // Power (shutdown) — left
         const tp = cluster_sub_states[0];
         zclay.UI()(.{
             .id = .ID("ClusterBtnPower"),
@@ -2215,7 +2131,6 @@ pub fn layoutPowerCluster() void {
             })({});
         });
 
-        // Sleep (suspend) — upper-left diagonal
         const ts = cluster_sub_states[1];
         zclay.UI()(.{
             .id = .ID("ClusterBtnSleep"),
@@ -2243,7 +2158,6 @@ pub fn layoutPowerCluster() void {
             })({});
         });
 
-        // Restart (reboot) — up
         const tr = cluster_sub_states[2];
         zclay.UI()(.{
             .id = .ID("ClusterBtnRestart"),
@@ -2272,7 +2186,6 @@ pub fn layoutPowerCluster() void {
         });
     }
 
-    // Center button: laid out last so it always has top click priority over sub-buttons
     {
         const center_icon: []const u8 = if (t < 0.5) "system-shutdown-symbolic" else "window-close-symbolic";
         zclay.UI()(.{

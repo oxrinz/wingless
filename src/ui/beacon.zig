@@ -72,9 +72,9 @@ pub fn tick(dt: f32) void {
     }
     const t20 = @min(dt * 20.0, 1.0);
 
-    beacon_state = lerp(beacon_state, if (ui.beacon_open) 1.0 else 0.0, t20);
+    beacon_state = lerp(beacon_state, if (ui.open.beacon) 1.0 else 0.0, t20);
 
-    if (!ui.beacon_open) {
+    if (!ui.open.beacon) {
         beacon_suggestion_state = lerp(beacon_suggestion_state, 0.0, t20);
         placeholder_alpha = 0.0;
     } else {
@@ -119,10 +119,9 @@ pub fn layout(allocator: std.mem.Allocator) void {
             .attach_to = .to_root,
             .attach_points = .{ .element = .center_center, .parent = .center_center },
         },
-        .custom = .{ .custom_data = ui.mkGlass(roundness, 30.0) },
+        .custom = .{ .custom_data = ui.mkGlass(roundness) },
     })({
-        // suggestions below input
-        if (ui.beacon_open and sugg_target > 0 and beacon_suggestion_state > 0.05) {
+        if (ui.open.beacon and sugg_target > 0 and beacon_suggestion_state > 0.05) {
             const n_sugg = @min(beacon_suggestions.len, 3);
 
             zclay.UI()(.{
@@ -143,7 +142,6 @@ pub fn layout(allocator: std.mem.Allocator) void {
                                 .child_gap = @intFromFloat(12 * s),
                             },
                         })({
-                            // icon slot
                             zclay.UI()(.{
                                 .id = .IDI("SuggIcon", @intCast(i)),
                                 .layout = .{
@@ -174,8 +172,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
             });
         }
 
-        // divider between input and suggestions
-        if (ui.beacon_open and sugg_target > 0 and beacon_suggestion_state > 0.05) {
+        if (ui.open.beacon and sugg_target > 0 and beacon_suggestion_state > 0.05) {
             zclay.UI()(.{
                 .id = .ID("BeaconDivider"),
                 .layout = .{
@@ -185,7 +182,6 @@ pub fn layout(allocator: std.mem.Allocator) void {
             })({});
         }
 
-        // input text row
         zclay.UI()(.{
             .id = .ID("BeaconInput"),
             .layout = .{
@@ -194,7 +190,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
                 .child_gap = @intFromFloat(10 * s),
             },
         })({
-            if (ui.beacon_open and placeholder_alpha > 0.01) {
+            if (ui.open.beacon and placeholder_alpha > 0.01) {
                 zclay.UI()(.{
                     .id = .ID("BeaconSearchIcon"),
                     .layout = .{ .sizing = .{ .w = .fixed(34 * s), .h = .fixed(34 * s) } },
@@ -206,7 +202,7 @@ pub fn layout(allocator: std.mem.Allocator) void {
                 });
             }
 
-            if (ui.beacon_open and beacon_buffer.items.len > 0) {
+            if (ui.open.beacon and beacon_buffer.items.len > 0) {
                 zclay.text(beacon_buffer.items, .{
                     .font_size = 26,
                     .color = .{ 255, 255, 255, 255 },
@@ -293,7 +289,6 @@ pub fn initCommands(allocator: std.mem.Allocator) !void {
                 const val = line[eq + 1 ..];
 
                 if (std.mem.eql(u8, key, "Type")) {
-                    // TODO: filter non-application types
                 } else if (std.mem.eql(u8, key, "Name")) {
                     name = try allocator.dupe(u8, val);
                 } else if (std.mem.eql(u8, key, "Exec")) {
@@ -409,15 +404,13 @@ pub fn updateBeaconSuggestions(allocator: std.mem.Allocator) !void {
     beacon_suggestions = results;
 }
 
-/// Returns the command to launch if Return was pressed, null otherwise.
-/// Always "handles" the key (caller should mark handled = true).
 pub fn handleKey(sym: c.xkb_keysym_t, allocator: std.mem.Allocator) ?*BeaconCommand {
     if (sym == c.XKB_KEY_BackSpace) {
         _ = beacon_buffer.pop();
         updateBeaconSuggestions(allocator) catch {};
         return null;
     } else if (sym == c.XKB_KEY_Return) {
-        ui.beacon_open = false;
+        ui.open.beacon = false;
         beacon_buffer.clearRetainingCapacity();
         if (beacon_suggestions.len == 0) return null;
         return beacon_suggestions[0];

@@ -776,7 +776,7 @@ fn seat_request_set_cursor(listener: [*c]c.wl_listener, data: ?*anyopaque) callc
     if (focused_client != event.seat_client) return;
 
     // don't let clients override cursor while compositor UI is active
-    if (ui.menu_open or ui.beacon_open or ui.screenshot.isActive()) return;
+    if (ui.open.menu or ui.open.beacon or ui.screenshot.state == .selecting) return;
 
     // if pointer is locked, keep cursor hidden
     if (server.active_constraint) |constraint| {
@@ -1257,16 +1257,15 @@ fn process_cursor_motion(server: *WinglessServer, time: c_uint) void {
     var surface: [*c]c.wlr_surface = null;
 
     const lpos = cursorLocalPos(server);
-    if (ui.initialized) ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
     ui.volume_slider.onCursorMove(lpos.x, lpos.y);
 
     // if any of the compositor uis are open clear the constraints
-    if (ui.menu_open or ui.beacon_open) {
+    if (ui.open.menu or ui.open.beacon) {
         update_pointer_constraint(server, null);
         return;
     }
 
-    if (ui.screenshot.isActive()) {
+    if (ui.screenshot.state == .selecting) {
         update_pointer_constraint(server, null);
         _ = ui.screenshot.onMouseMotion(lpos.x, lpos.y);
         return;
@@ -1421,7 +1420,7 @@ fn server_cursor_motion(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     server.last_cursor_x = server.cursor.x;
     server.last_cursor_y = server.cursor.y;
 
-    const overlay_open = ui.menu_open or ui.beacon_open or ui.screenshot.isActive();
+    const overlay_open = ui.open.menu or ui.open.beacon or ui.screenshot.state == .selecting;
 
     // always forward relative motion to any listening clients (independent of constraints)
     if (!overlay_open) {
@@ -1489,13 +1488,13 @@ fn server_cursor_button(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv
     // end screenshot
     if (ui.screenshot.onMouseButton(event.state == c.WLR_BUTTON_PRESSED, btn_lpos.x, btn_lpos.y)) return;
 
-    if (ui.initialized and (ui.menu_open or ui.beacon_open or ui.volume_slider.isActive() or ui.screenshot.isActive())) {
+    if (ui.initialized and (ui.open.menu or ui.open.beacon or ui.volume_slider.isActive() or ui.screenshot.state == .selecting)) {
         ui.pointer_down = event.state == c.WLR_BUTTON_PRESSED;
         ui.volume_slider.onMouseButton(event.state == c.WLR_BUTTON_PRESSED);
     }
 
     // when menu is open, don't pass input through
-    if (ui.menu_open) return;
+    if (ui.open.menu) return;
 
     var sx: f64 = undefined;
     var sy: f64 = undefined;
@@ -1847,13 +1846,13 @@ fn keyboard_repeat_cb(data: ?*anyopaque) callconv(.c) c_int {
 
     if (ui.menu.wifi_pw_mode) {
         _ = ui.menu.handleKey(sym);
-    } else if (ui.beacon_open) {
+    } else if (ui.open.beacon) {
         if (beacon.handleKey(sym, keyboard.server.allocator)) |cmd| {
             launchCommand(cmd.function, cmd.args, keyboard.server);
         }
     }
 
-    const still_active = ui.menu.wifi_pw_mode or ui.beacon_open;
+    const still_active = ui.menu.wifi_pw_mode or ui.open.beacon;
     if (!still_active) {
         _ = c.wl_event_source_timer_update(keyboard.repeat_timer.?, 0);
         return 0;
@@ -1872,100 +1871,89 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
     const seat = server.seat;
 
-    var handled = false;
-
     const keycode = event.keycode + 8;
     var syms: [*c]c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(keyboard.wlr_keyboard.xkb_state, keycode, @ptrCast(&syms));
 
-    if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
-        const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
+    const handled = blk: {
+        if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
+            const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
 
-        // handle Super+Escape = quit
-        if (0 < (modifiers & c.WLR_MODIFIER_LOGO)) {
-            for (0..@intCast(nsyms)) |i| {
-                if (syms[i] == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
-            }
-        }
-
-        // handle screenshot overlay keys (Return/Escape)
-        for (0..@intCast(nsyms)) |i| {
-            if (ui.screenshot.onKey(@intCast(syms[i]))) {
-                handled = true;
-            }
-        }
-
-        // handle keybinds
-        for (server.wingless_config.keybinds) |keybind| {
-            const modifier_matches = switch (keybind.modifier) {
-                .super => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT == 0,
-                .super_shift => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT != 0,
-                .none => true,
-            };
-            if (!modifier_matches) continue;
-            for (0..@intCast(nsyms)) |i| {
-                if (keybind.key == c.xkb_keysym_to_lower(syms[i])) {
-                    launchCommand(keybind.function, null, server);
-                    if (keybind.modifier == .super) super_handled = true;
-                    handled = true;
+            if (0 < (modifiers & c.WLR_MODIFIER_LOGO)) {
+                for (0..@intCast(nsyms)) |i| {
+                    if (syms[i] == c.XKB_KEY_Escape) c.wl_display_terminate(server.display);
                 }
             }
-        }
 
-        // handle wifi password input
-        if (ui.menu.wifi_pw_mode and !handled) {
             for (0..@intCast(nsyms)) |i| {
-                if (ui.menu.handleKey(syms[i])) {
-                    handled = true;
+                if (ui.screenshot.onKey(@intCast(syms[i]))) break :blk true;
+            }
+
+            for (server.wingless_config.keybinds) |keybind| {
+                const modifier_matches = switch (keybind.modifier) {
+                    .super => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT == 0,
+                    .super_shift => modifiers & c.WLR_MODIFIER_LOGO != 0 and modifiers & c.WLR_MODIFIER_SHIFT != 0,
+                    .none => true,
+                };
+                if (!modifier_matches) continue;
+                for (0..@intCast(nsyms)) |i| {
+                    if (keybind.key == c.xkb_keysym_to_lower(syms[i])) {
+                        launchCommand(keybind.function, null, server);
+                        if (keybind.modifier == .super) super_handled = true;
+                        break :blk true;
+                    }
+                }
+            }
+
+            if (ui.menu.wifi_pw_mode) {
+                for (0..@intCast(nsyms)) |i| {
+                    if (ui.menu.handleKey(syms[i])) {
+                        if (keyboard.repeat_timer) |timer| {
+                            keyboard.repeat_sym = syms[i];
+                            _ = c.wl_event_source_timer_update(timer, @intCast(keyboard.wlr_keyboard.repeat_info.delay));
+                        }
+                        break :blk true;
+                    }
+                }
+            }
+
+            if (ui.open.beacon) {
+                for (0..@intCast(nsyms)) |i| {
+                    if (beacon.handleKey(syms[i], server.allocator)) |cmd| {
+                        launchCommand(cmd.function, cmd.args, server);
+                    }
                     if (keyboard.repeat_timer) |timer| {
                         keyboard.repeat_sym = syms[i];
                         _ = c.wl_event_source_timer_update(timer, @intCast(keyboard.wlr_keyboard.repeat_info.delay));
                     }
+                    break :blk true;
                 }
             }
         }
 
-        // handle beacon input
-        if (ui.beacon_open and !handled) {
+        if (event.state == c.WL_KEYBOARD_KEY_STATE_RELEASED) {
             for (0..@intCast(nsyms)) |i| {
-                if (beacon.handleKey(syms[i], server.allocator)) |cmd| {
-                    launchCommand(cmd.function, cmd.args, server);
+                const sym = syms[i];
+                const superkey = sym == c.XKB_KEY_Super_L or sym == c.XKB_KEY_Super_R or sym == c.XKB_KEY_Meta_L or sym == c.XKB_KEY_Meta_R;
+                if (superkey and super_handled) super_handled = false;
+                if (sym == keyboard.repeat_sym) {
+                    if (keyboard.repeat_timer) |timer| {
+                        _ = c.wl_event_source_timer_update(timer, 0);
+                    }
+                    keyboard.repeat_sym = 0;
                 }
-                handled = true;
-                if (keyboard.repeat_timer) |timer| {
-                    keyboard.repeat_sym = syms[i];
-                    _ = c.wl_event_source_timer_update(timer, @intCast(keyboard.wlr_keyboard.repeat_info.delay));
+            }
+
+            for (&keyboard.eaten_keycodes) |*slot| {
+                if (slot.* == keycode) {
+                    slot.* = 0;
+                    break :blk true;
                 }
             }
         }
-    }
 
-    if (event.state == c.WL_KEYBOARD_KEY_STATE_RELEASED) {
-        for (0..@intCast(nsyms)) |i| {
-            const sym = syms[i];
-            const superkey = sym == c.XKB_KEY_Super_L or sym == c.XKB_KEY_Super_R or sym == c.XKB_KEY_Meta_L or sym == c.XKB_KEY_Meta_R;
-
-            if (superkey) {
-                if (super_handled)
-                    super_handled = false;
-            }
-
-            if (sym == keyboard.repeat_sym) {
-                if (keyboard.repeat_timer) |timer| {
-                    _ = c.wl_event_source_timer_update(timer, 0);
-                }
-                keyboard.repeat_sym = 0;
-            }
-        }
-
-        for (&keyboard.eaten_keycodes) |*slot| {
-            if (slot.* == keycode) {
-                slot.* = 0;
-                handled = true;
-                break;
-            }
-        }
-    }
+        break :blk false;
+    };
 
     if (handled) {
         if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
@@ -1976,12 +1964,11 @@ fn keyboard_handle_key(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(
                 }
             }
         }
+        return;
     }
 
-    if (handled == false) {
-        c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
-        c.wlr_seat_keyboard_notify_key(seat, event.time_msec, event.keycode, event.state);
-    }
+    c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
+    c.wlr_seat_keyboard_notify_key(seat, event.time_msec, event.keycode, event.state);
 }
 
 fn keyboard_handle_modifiers(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -2085,7 +2072,6 @@ fn render_scene_buffer_iter(
     const ss = c.wlr_scene_surface_try_from_buffer(scene_buf) orelse return;
     const tex: *c.wlr_texture = c.wlr_surface_get_texture(ss.*.surface) orelse return;
 
-    // Walk up the scene tree to find the owning WinglessToplevel via node.data
     var toplevel: ?*WinglessToplevel = null;
     var parent: ?*c.wlr_scene_tree = @ptrCast(scene_buf.node.parent);
     var depth: usize = 0;
@@ -2097,7 +2083,6 @@ fn render_scene_buffer_iter(
         parent = @ptrCast(parent.?.node.parent);
     }
 
-    // Non-fullscreen XDG toplevel: use GL with rounded corners
     if (toplevel) |t| {
         if (t.focusable == .xdg and !t.is_fullscreen and t.xdg_toplevel != null) {
             const xdg_base: *c.wlr_xdg_surface = @ptrCast(t.xdg_toplevel.?.base);
@@ -2212,7 +2197,12 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         });
 
         const cursor_on_output = c.wlr_output_layout_output_at(server.output_layout, server.cursor.x, server.cursor.y) == output.output;
+        if (cursor_on_output and ui.initialized) {
+            const lpos = cursorLocalPos(server);
+            ui.zclay.setPointerState(.{ .x = lpos.x, .y = ui.cursor_screen_height - lpos.y }, ui.pointer_down);
+        }
         ui.renderUI(server, output, w, h, cursor_on_output) catch @panic("Failed to render ui");
+        if (cursor_on_output) ui.pointer_down = false;
 
         c.wlr_output_add_software_cursors_to_render_pass(output.output, out_pass, null);
         _ = c.wlr_render_pass_submit(out_pass);
@@ -2222,7 +2212,7 @@ fn output_frame(listener: [*c]c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     _ = c.wlr_output_commit_state(output.output, &state);
 
     // keep requesting frames on ALL outputs while animated UI is active
-    if (ui.volume_slider.isActive() or ui.menu_open or ui.beacon_open or ui.screenshot.isActive() or ui.recording.isRecording()) {
+    if (ui.volume_slider.isActive() or ui.open.menu or ui.open.beacon or ui.screenshot.state == .selecting or ui.recording.isRecording()) {
         var link = server.outputs.next;
         while (link != &server.outputs) : (link = link.*.next) {
             const o: *WinglessOutput = @ptrCast(@alignCast(link));

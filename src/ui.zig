@@ -27,14 +27,15 @@ pub const AnimState = struct { elapsed: u64 };
 
 var last_ns: i128 = 0;
 
-pub var beacon_open = false;
-pub var menu_open = false;
+pub const OpenFlags = packed struct(u8) {
+    menu: bool = false,
+    beacon: bool = false,
+    _: u6 = 0,
+};
+pub var open: OpenFlags = .{};
 pub var pointer_down: bool = false;
 pub var screen_width: f32 = 0;
 pub var screen_height: f32 = 0;
-/// Dimensions of whichever output the cursor is currently on — only written
-/// during that output's renderUI pass. Use this (not screen_height) for any
-/// pointer-coordinate math that must match the Clay layout coordinate space.
 pub var cursor_screen_width: f32 = 0;
 pub var cursor_screen_height: f32 = 0;
 pub var ui_scale: f32 = 1.0;
@@ -48,7 +49,7 @@ var default_icon: Icon = undefined;
 
 const PendingIcon = struct {
     name: []const u8,
-    pixels: [*c]u8, // stbi-allocated, free with stbi_image_free
+    pixels: [*c]u8,
     w: c_int,
     h: c_int,
 };
@@ -111,6 +112,7 @@ pub const GlassTextProgram = struct {
     px_range_loc: c_int,
     thickness_loc: c_int,
     glass_mode_loc: c_int,
+    dark_amount_loc: c_int,
     resolution_loc: c_int,
 };
 
@@ -151,7 +153,6 @@ pub const ShadowProgram = struct {
     size_locs: [MAX_SHADOW_COUNT]c_int,
     roundness_locs: [MAX_SHADOW_COUNT]c_int,
     intensity_locs: [MAX_SHADOW_COUNT]c_int,
-    // blob shadow
     blob_centers_loc: c_int,
     blob_scales_loc: c_int,
     blob_widths_loc: c_int,
@@ -228,22 +229,20 @@ pub const Font = struct {
 };
 
 pub const CustomData = union(enum) {
-    glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0, refraction_band: f32 = 20.0 },
+    glass: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, fill_amount: f32 = 0.0, fill_dir: i32 = 0 },
     window_surface: struct { focusable: *Focusable, scale: f32, anim_scale: f32 = 1.0 },
     icon: struct { icon: Icon, alpha: f32 = 1.0 },
     shadow: struct { roundness: f32, animated: bool = false, anim_scale: f32 = 1.0, intensity: f32 },
-    glass_text: struct { text: []const u8, font_size: u16, bold: bool = false },
+    glass_text: struct { text: []const u8, font_size: u16, bold: bool = false, dark_amount: f32 = 0.0 },
     rect: struct { roundness: f32, a: f32, r: f32 = 1.0, g: f32 = 1.0, b: f32 = 1.0 },
     spinner: struct { time: f32 },
-    // Generic SDF blob: raw rounded-rect/circle data. Centers in GL screen coords (y from bottom).
     glass_blob: struct {
-        centers: [16]f32,  // 8 x (x_gl, y_gl) pairs
-        scales: [8]f32,    // corner radius = radius * scales[i]
-        widths: [8]f32,    // half-extent X beyond corner radius (0 = circle)
-        heights: [8]f32,   // half-extent Y beyond corner radius (0 = circle)
+        centers: [16]f32,
+        scales: [8]f32,
+        widths: [8]f32,
+        heights: [8]f32,
         radius: f32,
         morph_k: f32,
-        // Shadow hint: bounding rect for the whole blob (Clay coords)
         shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32,
         open_state: f32,
         mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32,
@@ -262,17 +261,17 @@ pub const RenderContext = struct {
 var custom_pool: [256]CustomData = undefined;
 var custom_pool_idx: usize = 0;
 
-pub fn mkGlass(roundness: f32, refraction_band: f32) *anyopaque {
+pub fn mkGlass(roundness: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness, .refraction_band = refraction_band } };
+    d.* = .{ .glass = .{ .roundness = roundness } };
     return d;
 }
 
-pub fn mkAnimatedGlass(roundness: f32, anim_scale: f32, refraction_band: f32) *anyopaque {
+pub fn mkAnimatedGlass(roundness: f32, anim_scale: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .refraction_band = refraction_band } };
+    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale } };
     return d;
 }
 
@@ -283,10 +282,10 @@ pub fn mkGlassFill(roundness: f32, fill_amount: f32, fill_dir: FillDir) *anyopaq
     return d;
 }
 
-pub fn mkAnimatedGlassFill(roundness: f32, anim_scale: f32, fill_amount: f32, fill_dir: FillDir, refraction_band: f32) *anyopaque {
+pub fn mkAnimatedGlassFill(roundness: f32, anim_scale: f32, fill_amount: f32, fill_dir: FillDir) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
-    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .fill_amount = fill_amount, .fill_dir = @intFromEnum(fill_dir), .refraction_band = refraction_band } };
+    d.* = .{ .glass = .{ .roundness = roundness, .animated = true, .anim_scale = anim_scale, .fill_amount = fill_amount, .fill_dir = @intFromEnum(fill_dir) } };
     return d;
 }
 
@@ -304,7 +303,6 @@ pub fn mkAnimatedShadow(roundness: f32, anim_scale: f32, intensity: f32) *anyopa
     return d;
 }
 
-// Build a glass_blob from raw data. Centers must be in GL screen coords (y from bottom).
 pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, widths: [8]f32, heights: [8]f32, radius: f32, morph_k: f32, shadow_x: f32, shadow_y: f32, shadow_w: f32, shadow_h: f32, shadow_r: f32, open_state: f32, mask_cx: f32, mask_cy: f32, mask_half_ex: f32, mask_half_ey: f32, mask_r: f32) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
@@ -312,8 +310,6 @@ pub fn mkGlassBlobRaw(centers: [16]f32, scales: [8]f32, widths: [8]f32, heights:
     return d;
 }
 
-// Convenience wrapper for the power cluster (4 circles in radial arrangement).
-// bx/by: Clay offset for the cluster center button (bx = x from right, by = y from top).
 pub fn mkGlassBlob(t: f32, t1: f32, t2: f32, t3: f32, radius: f32, spread: f32, bx: f32, by: f32, scale0: f32, scale1: f32, scale2: f32, scale3: f32) *anyopaque {
     const diag: f32 = 0.7071067811865476;
     const cx0 = screen_width + bx - radius;
@@ -357,6 +353,13 @@ pub fn mkGlassText(text: []const u8, font_size: u16, bold: bool) *anyopaque {
     const d = &custom_pool[custom_pool_idx];
     custom_pool_idx += 1;
     d.* = .{ .glass_text = .{ .text = text, .font_size = font_size, .bold = bold } };
+    return d;
+}
+
+pub fn mkGlassTextDark(text: []const u8, font_size: u16, bold: bool, dark_amount: f32) *anyopaque {
+    const d = &custom_pool[custom_pool_idx];
+    custom_pool_idx += 1;
+    d.* = .{ .glass_text = .{ .text = text, .font_size = font_size, .bold = bold, .dark_amount = dark_amount } };
     return d;
 }
 
@@ -540,10 +543,10 @@ fn glLinkProgram(vs: c_uint, fs: c_uint) c_uint {
 }
 
 pub fn toggleBeacon() void {
-    if (beacon_open == true) beacon.beacon_buffer.clearRetainingCapacity();
-    if (menu_open == false and !screenshot.isActive()) {
-        beacon_open = !beacon_open;
-        if (beacon_open) main.resetCursorToDefault();
+    if (open.beacon) beacon.beacon_buffer.clearRetainingCapacity();
+    if (!open.menu and !(screenshot.state == .selecting)) {
+        open.beacon = !open.beacon;
+        if (open.beacon) main.resetCursorToDefault();
     }
 }
 
@@ -583,6 +586,7 @@ pub fn ensurePrograms(out: *WinglessOutput) void {
             .px_range_loc = gl.glGetUniformLocation(prog, "pxRange"),
             .thickness_loc = gl.glGetUniformLocation(prog, "thickness"),
             .glass_mode_loc = gl.glGetUniformLocation(prog, "glassMode"),
+            .dark_amount_loc = gl.glGetUniformLocation(prog, "darkAmount"),
             .resolution_loc = gl.glGetUniformLocation(prog, "resolution"),
         };
     }
@@ -877,7 +881,6 @@ pub fn initUI(allocator: std.mem.Allocator) !void {
 
     volume_slider.init();
 
-    // transparent 1x1 placeholder until preload thread sets the real default
     {
         var tex: c_uint = 0;
         gl.glGenTextures(1, &tex);
@@ -1002,7 +1005,6 @@ fn resolveIconPath(allocator: std.mem.Allocator, icon: []const u8) !?[]const u8 
     return null;
 }
 
-// Higher = better. Scalable beats all fixed sizes; larger fixed beats smaller.
 fn iconPathPriority(path: []const u8) u8 {
     if (std.mem.indexOf(u8, path, "scalable") != null) return 10;
     if (std.mem.indexOf(u8, path, "256") != null) return 8;
@@ -1013,10 +1015,9 @@ fn iconPathPriority(path: []const u8) u8 {
     if (std.mem.indexOf(u8, path, "32") != null) return 3;
     if (std.mem.indexOf(u8, path, "24") != null) return 2;
     if (std.mem.indexOf(u8, path, "16") != null) return 1;
-    return 4; // unknown fixed size
+    return 4;
 }
 
-// fallback_only: if true, skip icons already in the index (used for non-WhiteSur dirs)
 fn indexIconDir(allocator: std.mem.Allocator, base: []const u8, fallback_only: bool) void {
     var dir = std.fs.openDirAbsolute(base, .{ .iterate = true }) catch return;
     defer dir.close();
@@ -1032,7 +1033,6 @@ fn indexIconDir(allocator: std.mem.Allocator, base: []const u8, fallback_only: b
         const full = std.fs.path.join(allocator, &.{ base, entry.path }) catch continue;
         if (icon_path_index.getPtr(icon_name)) |existing| {
             if (fallback_only) {
-                // WhiteSur already has this icon, don't replace it
                 allocator.free(full);
                 continue;
             }
@@ -1069,7 +1069,6 @@ fn buildIconIndex(allocator: std.mem.Allocator) void {
         "/usr/local/share/icons",
     };
 
-    // Pass 1: WhiteSur only — best size wins within WhiteSur
     if (home.len > 0) {
         for (user_bases) |ub| {
             if (ub.len == 0) continue;
@@ -1088,7 +1087,6 @@ fn buildIconIndex(allocator: std.mem.Allocator) void {
         }
     }
 
-    // Pass 2: hicolor + flat dirs as fallback — only fills icons missing from WhiteSur
     if (home.len > 0) {
         for (user_bases) |ub| {
             if (ub.len == 0) continue;
@@ -1134,7 +1132,6 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     if (output.gl_vbo == 0) gl.glGenBuffers(1, &output.gl_vbo);
     if (output.gl_vao == 0) gl.glGenBuffers(1, &output.gl_vao);
 
-    // TODO: move this into some nicer init function on output detect
     ensurePrograms(output);
     gl.glViewport(0, 0, w, h);
 
@@ -1146,17 +1143,14 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         if (hz > 0) output_refresh_hz = hz;
     }
 
-    // animate state once per frame on the cursor output; lerp(a,b,dt*k) is
-    // already frame-rate independent so no accumulator needed
     if (is_cursor_output) {
-        const dt = @min(getDeltaSeconds(), 1.0 / 30.0); // cap to avoid spiral-of-death on hickups
+        const dt = @min(getDeltaSeconds(), 1.0 / 30.0);
         beacon.tick(dt);
         menu.tick(dt);
         volume_slider.tick(dt);
         screenshot.tick(dt);
     }
 
-    // gl state
     gl.glDisable(c.GL_SCISSOR_TEST);
     gl.glDisable(c.GL_DEPTH_TEST);
     gl.glDisable(c.GL_CULL_FACE);
@@ -1168,9 +1162,6 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
     defer c.wlr_texture_destroy(scene_tex);
 
     if (is_cursor_output) {
-        // these are for the menu
-        // collect focusables before the clay layout block
-        // the layout blocks, so any fallible work must happen here.
         const focusables = if (server.focused_toplevel != null and menu.isActive())
             server.focused_toplevel.?.linkedToList(server.allocator) catch null
         else
@@ -1178,19 +1169,15 @@ pub fn renderUI(server: *WinglessServer, output: *WinglessOutput, w: c_int, h: c
         defer if (focusables) |f| server.allocator.free(f);
         const focused_toplevel = if (menu.isActive()) server.focused_toplevel else null;
 
-        // draw capture dim overlay before Clay so the toolbar floats on top
         screenshot.renderBackground(w, h);
 
-        // lock in the cursor output dimensions — used for pointer coordinate math
         cursor_screen_width = screen_width;
         cursor_screen_height = screen_height;
 
-        // layout
         custom_pool_idx = 0;
         zclay.setLayoutDimensions(.{ .w = screen_width, .h = screen_height });
         zclay.beginLayout();
 
-        // root container
         zclay.UI()(.{
             .id = .ID("Screen"),
             .layout = .{

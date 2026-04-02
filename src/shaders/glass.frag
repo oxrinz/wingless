@@ -33,7 +33,6 @@ void main() {
     sdfGrad(glassCoord, size * 0.5, roundness, refractionBand * 0.5, grad,
             gradMag);
 
-    // Precise gradient for rim highlight (doesn't have the bisector problem).
     vec2 rimGrad;
     float rimGradMag;
     sdfGrad(glassCoord, size * 0.5, roundness, 0.5, rimGrad, rimGradMag);

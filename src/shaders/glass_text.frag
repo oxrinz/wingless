@@ -6,6 +6,7 @@ uniform sampler2D scene;
 uniform float pxRange;
 uniform float thickness;
 uniform int glassMode;
+uniform float darkAmount;
 
 varying vec2 v_uv;
 varying vec2 v_screen_uv;
@@ -48,7 +49,7 @@ void main() {
     discard;
 
   if (glassMode == 0) {
-    gl_FragColor = vec4(vec3(1.0), alpha * 0.8);
+    gl_FragColor = vec4(mix(vec3(1.0), vec3(0.0), darkAmount), alpha * 0.8);
     return;
   }
 
@@ -76,6 +77,7 @@ void main() {
   float hl = rimStrength * (pow(ndlTL, 2.0) + pow(ndlBR, 2.0) * 0.4) * 0.15;
 
   glassColor = clamp(glassColor + hl + vec3(0.55), 0.0, 1.0);
+  glassColor = mix(glassColor, vec3(0.0), darkAmount);
 
   gl_FragColor = vec4(glassColor, alpha);
 }

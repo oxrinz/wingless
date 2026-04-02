@@ -15,6 +15,8 @@ On Arch Linux:
 sudo pacman -S libinput libxcb mesa libglvnd wlroots wayland libxkbcommon pixman systemd
 ```
 
+Also make sure the WhiteSur icons are installed
+
 ### Build
 
 Zig 0.15.2.
@@ -98,8 +100,7 @@ Recording keybind works as a toggle, same keys to start and end recordings.
 - Frostpunk black when tabbing back in bug
 - Moving windows from one monitor to another in menu
 - Reordering windows in the menu
-- Operation get to 12k lines
-- Better glass highlights
+- Glass refractions should be predetermined
 
 ## done
 - Window switching
@@ -178,3 +179,4 @@ Recording keybind works as a toggle, same keys to start and end recordings.
 - Glass brightness
 - XWayland resize
 - Calsans X Poppins
+- Better glass highlights

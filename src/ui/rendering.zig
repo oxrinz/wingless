@@ -20,13 +20,11 @@ fn ndc_y(y: f32, h: f32) f32 {
     return 1.0 - (y / h) * 2.0;
 }
 
-// Scene-buffer version: DMA-BUF row 0 = top of image, GL y=0 maps to row 0,
-// so NDC y=-1 = top of screen (opposite of EGL display surface convention).
 fn ndc_y_scene(y: f32, h: f32) f32 {
     return (y / h) * 2.0 - 1.0;
 }
 
-fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, roundness: f32, fill_amount: f32, fill_direction: i32, refraction_band: f32) void {
+fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, scene_tex: *c.wlr_texture, roundness: f32, fill_amount: f32, fill_direction: i32) void {
     var attribs: c.wlr_gles2_texture_attribs = undefined;
     c.wlr_gles2_texture_get_attribs(scene_tex, &attribs);
 
@@ -46,7 +44,7 @@ fn drawGlassQuad(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen
     gl.glUniform1f(output.glass_background.?.roundness, roundness);
     gl.glUniform1f(output.glass_background.?.fill_amount_loc, fill_amount);
     gl.glUniform1i(output.glass_background.?.fill_direction_loc, fill_direction);
-    gl.glUniform1f(output.glass_background.?.refraction_band_loc, refraction_band);
+    gl.glUniform1f(output.glass_background.?.refraction_band_loc, roundness * 0.8);
     gl.glUniform2f(output.glass_background.?.resolution_loc, screen_w, screen_h);
     gl.glUniform1f(output.glass_background.?.blur_amount_loc, 1.2);
 
@@ -108,7 +106,6 @@ fn drawQuadWithUv(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, scree
     gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0);
 }
 
-// Scene-buffer variants: use ndc_y_scene (y=0 at top) and UV v=0 at top.
 fn drawQuadScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, gl_pos_loc: c_int) void {
     const x0 = ndc_x(x, screen_w);
     const y0 = ndc_y_scene(y, screen_h);
@@ -140,7 +137,6 @@ fn drawQuadWithUvScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, 
     const x1 = ndc_x(x + w, screen_w);
     const y1 = ndc_y_scene(y + h, screen_h);
 
-    // UV: v=0 at visual top, v=1 at visual bottom (Wayland DMA-BUF row 0 = top = GL tex v=0)
     const verts = [_]f32{
         x0, y0, 0, 0,
         x1, y0, 1, 0,
@@ -195,7 +191,7 @@ fn drawBlobQuad(output: *WinglessOutput, bb_x: f32, bb_y: f32, bb_w: f32, bb_h: 
     drawQuad(output, bb_x - pad, bb_y - pad, bb_w + pad * 2.0, bb_h + pad * 2.0, screen_w, screen_h, prog.pos_loc);
 }
 
-fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, scene_tex: *c.wlr_texture, glass_mode: c_int) f32 {
+fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, scene_tex: *c.wlr_texture, glass_mode: c_int, dark_amount: f32) f32 {
     if (ch == ' ') return 12.0 * scale / 32.0;
     const g = font.glyphs[ch] orelse return 0;
 
@@ -216,6 +212,7 @@ fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: 
     gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
     gl.glUniform1i(output.glass_text.?.scene_loc, 1);
     gl.glUniform1i(output.glass_text.?.glass_mode_loc, glass_mode);
+    gl.glUniform1f(output.glass_text.?.dark_amount_loc, dark_amount);
 
     gl.glUniform1f(output.glass_text.?.px_range_loc, font.px_range);
     gl.glUniform1f(output.glass_text.?.thickness_loc, thickness);
@@ -256,10 +253,10 @@ fn drawGlassChar(output: *WinglessOutput, font: *const Font, ch: u8, x: f32, y: 
     return g.advance * scale;
 }
 
-fn drawGlassSentence(output: *WinglessOutput, font: *const Font, sentence: []const u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, scene_tex: *c.wlr_texture, glass_mode: c_int) void {
+fn drawGlassSentence(output: *WinglessOutput, font: *const Font, sentence: []const u8, x: f32, y: f32, screen_w: f32, screen_h: f32, thickness: f32, scale: f32, scene_tex: *c.wlr_texture, glass_mode: c_int, dark_amount: f32) void {
     var real_x = x;
     for (sentence) |char| {
-        real_x += drawGlassChar(output, font, char, real_x, y, screen_w, screen_h, thickness, scale, scene_tex, glass_mode);
+        real_x += drawGlassChar(output, font, char, real_x, y, screen_w, screen_h, thickness, scale, scene_tex, glass_mode, dark_amount);
     }
 }
 
@@ -332,11 +329,6 @@ fn ensureBlurFbo(output: *WinglessOutput, w: c_int, h: c_int) void {
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
 }
 
-// Called during Pass 1 (scene_buffer), before drawing a window that has blur regions.
-// Snapshots the current FBO (background + windows below this one) then draws the glass
-// shader over each region using that snapshot — so the window draws on top of glass bg.
-// Uses drawQuadScene (y=0=top) and passes quadPos without y-flip, unlike the UI-overlay
-// drawGlassQuad which runs in Pass 2 where y=0=bottom.
 pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.BlurRegion, sx: f32, sy: f32, screen_w: f32, screen_h: f32) void {
     if (regions.len == 0) return;
     const glass = output.glass_background orelse return;
@@ -344,7 +336,6 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
     const iw: c_int = @intFromFloat(screen_w);
     const ih: c_int = @intFromFloat(screen_h);
 
-    // lazily create snapshot texture (holds a copy of the FBO before this window is drawn)
     if (output.blur_snapshot_tex == 0) {
         gl.glGenTextures(1, &output.blur_snapshot_tex);
         gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_snapshot_tex);
@@ -355,7 +346,6 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
     }
 
-    // snapshot: copy scene_buffer FBO (background + windows below this one) into snapshot texture
     gl.glBindTexture(gl.GL_TEXTURE_2D, output.blur_snapshot_tex);
     gl.glCopyTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, 0, 0, iw, ih);
 
@@ -378,7 +368,6 @@ pub fn drawWindowGlassRegions(output: *WinglessOutput, regions: []*glass_proto.B
         const ry: f32 = sy + @as(f32, @floatFromInt(r.y));
         const rw: f32 = @floatFromInt(r.width);
         const rh: f32 = @floatFromInt(r.height);
-        // quadPos: top-left in scene_buffer fragCoord space (y=0=top, no flip needed)
         gl.glUniform2f(glass.quad_pos_loc, rx, ry);
         gl.glUniform2f(glass.size_loc, rw, rh);
         gl.glUniform1f(glass.roundness, @as(f32, @floatFromInt(r.radius)) * ui.ui_scale);
@@ -468,7 +457,6 @@ fn uploadShadowUniforms(prog: ui.ShadowProgram, entries: []const ShadowEntry, bl
     gl.glUniform1fv(prog.blob_mask_radius_loc, ui.MAX_BLOB_COUNT, &flat_mask_radius[0]);
 }
 
-// Scene-buffer-pass: single window shadow (no y-flip, padded quad)
 fn drawWindowShadowScene(output: *WinglessOutput, x: f32, y: f32, w: f32, h: f32, screen_w: f32, screen_h: f32, roundness: f32, intensity: f32) void {
     const prog = output.shadow orelse return;
     gl.glUseProgram(prog.prog);
@@ -492,11 +480,9 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
     const intensity_loc = output.blur.?.intensity_loc;
     const dir_loc = output.blur.?.direction_loc;
 
-    // save current fbo (wlroots uses its own, not 0)
     var prev_fbo: c_int = 0;
     gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING, &prev_fbo);
 
-    // pass 1: horizontal, scene_tex -> blur_fbo
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, output.blur_fbo);
     gl.glViewport(0, 0, iw, ih);
     gl.glDisable(gl.GL_BLEND);
@@ -513,7 +499,6 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
     gl.glUniform2f(output.blur.?.resolution_loc, screen_w, screen_h);
     drawQuad(output, 0, 0, screen_w, screen_h, screen_w, screen_h, pos_loc);
 
-    // pass 2: vertical, blur_tex -> compositor fbo
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, @intCast(prev_fbo));
     gl.glViewport(0, 0, iw, ih);
     gl.glEnable(gl.GL_BLEND);
@@ -528,9 +513,6 @@ fn drawFullscreenBlur(output: *WinglessOutput, screen_w: f32, screen_h: f32, sce
     drawQuad(output, 0, 0, screen_w, screen_h, screen_w, screen_h, pos_loc);
 }
 
-// sx, sy, sw, sh: this surface's screen bounds (top-left origin)
-// clip_x, clip_y, clip_w, clip_h: rounded clip rect (parent window for subsurfaces, self for main)
-// with_decorations: draw shadow + border only for the main surface
 pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, sy: f32, sw: f32, sh: f32, clip_x: f32, clip_y: f32, clip_w: f32, clip_h: f32, screen_w: f32, screen_h: f32, with_decorations: bool, is_focused: bool) void {
     const roundness: f32 = 20.0 * ui.ui_scale;
 
@@ -555,8 +537,6 @@ pub fn drawWindowSurface(output: *WinglessOutput, tex: *c.wlr_texture, sx: f32, 
     gl.glTexParameteri(attribs.target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE);
 
     const bw: f32 = if (with_decorations) 2.0 else 0.0;
-    // quadPos/size = texture buffer bounds for UV sampling
-    // render quad expanded by bw so the outer border ring has pixels outside the clip rect
     gl.glUniform1i(prog.image_loc, 0);
     gl.glUniform2f(prog.size_loc, sw, sh);
     gl.glUniform2f(prog.quad_pos_loc, sx, sy);
@@ -622,7 +602,6 @@ pub fn render(ctx: ui.RenderContext) void {
 
     const render_cmds = zclay.endLayout();
 
-    // Pass 0: all shadows in a single draw, below everything
     {
         var entries: [ui.MAX_SHADOW_COUNT]ShadowEntry = undefined;
         var count: usize = 0;
@@ -687,7 +666,6 @@ pub fn render(ctx: ui.RenderContext) void {
         }
     }
 
-    // Pass 1: glass backgrounds — all before any other content
     var ci: usize = 0;
     while (ci < render_cmds.len) : (ci += 1) {
         const cmd = render_cmds[ci];
@@ -701,9 +679,9 @@ pub fn render(ctx: ui.RenderContext) void {
                     const cy = bb.y + bb.height * 0.5;
                     const aw = bb.width * g.anim_scale;
                     const ah = bb.height * g.anim_scale;
-                    drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band);
+                    drawGlassQuad(ctx.output, cx - aw * 0.5, cy - ah * 0.5, aw, ah, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir);
                 } else {
-                    drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir, g.refraction_band);
+                    drawGlassQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, ctx.scene_tex, g.roundness, g.fill_amount, g.fill_dir);
                 }
             },
             .glass_blob => |pcb| {
@@ -713,7 +691,6 @@ pub fn render(ctx: ui.RenderContext) void {
         }
     }
 
-    // Pass 2: everything else
     ci = 0;
     while (ci < render_cmds.len) : (ci += 1) {
         const cmd = render_cmds[ci];
@@ -795,7 +772,7 @@ pub fn render(ctx: ui.RenderContext) void {
                     .glass_text => |gt| {
                         const scale: f32 = @floatFromInt(gt.font_size);
                         const font = if (gt.bold) ctx.display_font else ctx.font;
-                        drawGlassSentence(ctx.output, font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, 0.0, scale, ctx.scene_tex, 1);
+                        drawGlassSentence(ctx.output, font, gt.text, bb.x, bb.y, ctx.screen_width, ctx.screen_height, 0.0, scale, ctx.scene_tex, 1, gt.dark_amount);
                     },
                     .rect => |rc| {
                         const rf = ctx.output.round_fill.?;
@@ -817,8 +794,8 @@ pub fn render(ctx: ui.RenderContext) void {
                         gl.glUniform1f(spn.time_loc, sp.time);
                         drawQuad(ctx.output, bb.x, bb.y, bb.width, bb.height, ctx.screen_width, ctx.screen_height, spn.pos_loc);
                     },
-                    .shadow => {}, // handled in Pass 0
-                    .glass_blob => {}, // handled in Pass 1
+                    .shadow => {},
+                    .glass_blob => {},
                     .icon => |ic| {
                         gl.glUseProgram(ctx.output.image.?.prog);
                         gl.glActiveTexture(gl.GL_TEXTURE0);

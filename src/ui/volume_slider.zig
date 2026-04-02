@@ -14,7 +14,6 @@ pub fn init() void {
     }) catch return;
     defer std.heap.page_allocator.free(result.stdout);
     defer std.heap.page_allocator.free(result.stderr);
-    // output: "Volume: 0.50\n" or "Volume: 0.50 [MUTED]\n"
     const prefix = "Volume: ";
     const line = std.mem.trimRight(u8, result.stdout, " \n\r");
     if (std.mem.startsWith(u8, line, prefix)) {
@@ -25,8 +24,6 @@ pub fn init() void {
     }
 }
 
-// pos_state drives the x offset (slow — gives a visible slide in/out)
-// glass_state drives anim_scale (fast open, held at 1 during close until off screen)
 var pos_state: f32 = 0;
 var glass_state: f32 = 0;
 
@@ -89,7 +86,7 @@ pub fn onMouseButton(pressed: bool) void {
         }
     } else if (dragging) {
         dragging = false;
-        last_sent_volume = -1; // force a final send
+        last_sent_volume = -1;
         sendVolume();
     } else {
         dragging = false;
@@ -97,31 +94,25 @@ pub fn onMouseButton(pressed: bool) void {
 }
 
 pub fn tick(dt: f32) void {
-    // opening the menu cancels the standalone countdown —
-    // the slider now lives and dies with the menu
-    if (ui.menu_open and !prev_menu_open) {
+    if (ui.open.menu and !prev_menu_open) {
         hide_countdown = 0;
     }
-    prev_menu_open = ui.menu_open;
+    prev_menu_open = ui.open.menu;
 
-    if (hide_countdown > 0 and !ui.menu_open) {
+    if (hide_countdown > 0 and !ui.open.menu) {
         hide_countdown -= dt;
         if (hide_countdown < 0) hide_countdown = 0;
     }
 
-    if (dragging and !ui.menu_open) hide_countdown = @max(hide_countdown, 0.5);
+    if (dragging and !ui.open.menu) hide_countdown = @max(hide_countdown, 0.5);
 
-    const should_show = ui.menu_open or hide_countdown > 0;
+    const should_show = ui.open.menu or hide_countdown > 0;
 
-    // position: slow lerp so the slide is actually visible
     pos_state = clampedLerp(pos_state, if (should_show) 1.0 else 0.0, dt * 5.0);
 
-    // glass scale: pop in fast on open; during close, stay at 1 until
-    // the element is off screen (pos_state < 0.1), then drop quickly
     const glass_target: f32 = if (should_show) 1.0 else if (pos_state > 0.1) 1.0 else 0.0;
     glass_state = clampedLerp(glass_state, glass_target, dt * 20.0);
 
-    // smooth fill
     fill_state = clampedLerp(fill_state, std.math.clamp(volume / max_volume, 0, 1), dt * 10.0);
 
     if (dragging) {
@@ -136,7 +127,7 @@ pub fn tick(dt: f32) void {
 }
 
 pub fn isActive() bool {
-    return pos_state > 0.001 or glass_state > 0.001 or hide_countdown > 0 or ui.menu_open;
+    return pos_state > 0.001 or glass_state > 0.001 or hide_countdown > 0 or ui.open.menu;
 }
 
 pub fn layout() void {
@@ -160,7 +151,7 @@ pub fn layout() void {
             .sizing = .{ .w = .fixed(track_w), .h = .fixed(track_h) },
             .padding = .{ .top = @intFromFloat(pad), .bottom = @intFromFloat(pad), .left = @intFromFloat(pad), .right = @intFromFloat(pad) },
         },
-        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(22, glass_state * vol_hover_scale, fill_state, .top_to_bottom, 8.0) },
+        .custom = .{ .custom_data = ui.mkAnimatedGlassFill(22, glass_state * vol_hover_scale, fill_state, .top_to_bottom) },
     })({
         zclay.cdefs.Clay_OnHover(struct {
             pub fn callback(_: zclay.ElementId, ptr_data: zclay.PointerData, _: ?*anyopaque) callconv(.c) void {
