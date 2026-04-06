@@ -100,7 +100,8 @@ Recording keybind works as a toggle, same keys to start and end recordings.
 - Frostpunk black when tabbing back in bug
 - Moving windows from one monitor to another in menu
 - Reordering windows in the menu
-- Glass refractions should be predetermined
+- Minimization
+- Menu window icons
 
 ## done
 - Window switching
@@ -180,3 +181,5 @@ Recording keybind works as a toggle, same keys to start and end recordings.
 - XWayland resize
 - Calsans X Poppins
 - Better glass highlights
+- Glass refractions should be predetermined
+- XWayland window logic
